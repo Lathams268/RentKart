@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% block title %}Admin Dashboard – RentKart{% endblock %}
+
+{% block content %}
+<div class="space-y-6 py-4">
+  <div class="flex items-center justify-between flex-wrap gap-2">
+    <div>
+      <span class="text-xs uppercase font-extrabold text-purple-600 tracking-wider">Control Center</span>
+      <h1 class="text-2xl font-black text-gray-900 mt-0.5">⚡ Platform Admin Panel</h1>
+    </div>
+    <div class="flex gap-2">
+      <a href="{{ url_for('admin.feedback_list') }}"
+         class="bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold px-4 py-2 rounded-xl shadow transition">
+        Manage Feedback ({{ new_feedback_count }} new)
+      </a>
+    </div>
+  </div>
+
+  <!-- Metric Cards -->
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+    <!-- Users -->
+    <div class="card p-4 rounded-2xl bg-white shadow-sm border border-gray-100 space-y-1">
+      <span class="text-xs text-gray-400 font-bold uppercase">Total Users</span>
+      <div class="text-2xl font-extrabold text-gray-800">{{ total_users }}</div>
+    </div>
+
+    <!-- Items -->
+    <div class="card p-4 rounded-2xl bg-white shadow-sm border border-gray-100 space-y-1">
+      <span class="text-xs text-gray-400 font-bold uppercase">Total Items</span>
+      <div class="text-2xl font-extrabold text-gray-800">{{ total_items }}</div>
+    </div>
+
+    <!-- Bookings -->
+    <div class="card p-4 rounded-2xl bg-white shadow-sm border border-gray-100 space-y-1">
+      <span class="text-xs text-gray-400 font-bold uppercase">Total Bookings</span>
+      <div class="text-2xl font-extrabold text-gray-800">{{ total_bookings }}</div>
+    </div>
+
+    <!-- MRR -->
+    <div class="card p-4 rounded-2xl bg-white shadow-sm border border-gray-100 space-y-1 bg-gradient-to-br from-green-50 to-white">
+      <span class="text-xs text-green-700 font-bold uppercase">Monthly Revenue (MRR)</span>
+      <div class="text-2xl font-black text-primary">₹{{ mrr }}</div>
+    </div>
+  </div>
+
+  <!-- Secondary Metrics: Subscriptions & Feedback Rating -->
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <!-- Subscriptions by Plan -->
+    <div class="card p-5 rounded-2xl bg-white shadow-sm border border-gray-100 space-y-3">
+      <h3 class="text-xs uppercase font-extrabold text-gray-400 tracking-wider">Active Plans Breakdown</h3>
+      <div class="space-y-2 text-xs">
+        <div class="flex justify-between items-center">
+          <span class="text-gray-600">Free Tier</span>
+          <span class="font-bold bg-gray-100 px-2 py-0.5 rounded-full">{{ active_subs_by_plan.free }}</span>
+        </div>
+        <div class="flex justify-between items-center">
+          <span class="text-gray-600">Pro Tier (₹99/mo)</span>
+          <span class="font-bold bg-green-100 text-green-800 px-2 py-0.5 rounded-full">{{ active_subs_by_plan.pro }}</span>
+        </div>
+        <div class="flex justify-between items-center">
+          <span class="text-gray-600">Business Tier (₹299/mo)</span>
+          <span class="font-bold bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full">{{ active_subs_by_plan.business }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Feedback Rating -->
+    <div class="card p-5 rounded-2xl bg-white shadow-sm border border-gray-100 space-y-2">
+      <h3 class="text-xs uppercase font-extrabold text-gray-400 tracking-wider">Average Feedback Rating</h3>
+      <div class="flex items-baseline gap-2">
+        <span class="text-3xl font-black text-amber-500">{{ avg_rating }}</span>
+        <span class="text-xs text-gray-400 font-medium">/ 5.0</span>
+      </div>
+      <p class="text-xs text-gray-500">Calculated across all rated user feedback submissions.</p>
+    </div>
+
+    <!-- New Feedback Queue -->
+    <div class="card p-5 rounded-2xl bg-white shadow-sm border border-gray-100 space-y-2">
+      <h3 class="text-xs uppercase font-extrabold text-gray-400 tracking-wider">Pending Action Items</h3>
+      <div class="text-3xl font-black text-purple-600">{{ new_feedback_count }}</div>
+      <p class="text-xs text-gray-500">Unreviewed feedback submissions waiting for admin reply.</p>
+      <a href="{{ url_for('admin.feedback_list') }}?status=new" class="text-xs font-bold text-purple-600 hover:underline inline-block mt-1">
+        Review queue &rarr;
+      </a>
+    </div>
+  </div>
+
+  <!-- Chart.js Feedback by Type -->
+  <div class="card p-6 rounded-2xl bg-white shadow-sm border border-gray-100 space-y-4">
+    <div class="flex justify-between items-center">
+      <h3 class="text-sm font-bold text-gray-800">Feedback Distribution by Type</h3>
+      <span class="text-xs text-gray-400">Live Breakdown</span>
+    </div>
+    <div class="max-w-md mx-auto h-64 flex items-center justify-center">
+      <canvas id="feedbackTypeChart"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- Chart.js via CDN -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+  const ctx = document.getElementById('feedbackTypeChart').getContext('2d');
+  new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: {{ feedback_types | tojson }},
+      datasets: [{
+        label: 'Submissions',
+        data: {{ feedback_counts | tojson }},
+        backgroundColor: [
+          '#ef4444', // bug: red
+          '#3b82f6', // suggestion: blue
+          '#f97316', // complaint: orange
+          '#10b981', // praise: green
+          '#8b5cf6', // other: purple
+        ],
+        borderWidth: 2,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: { font: { size: 11 } }
+        }
+      }
+    }
+  });
+</script>
+{% endblock %}

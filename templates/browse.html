@@ -1,0 +1,375 @@
+{% extends "base.html" %}
+{% block title %}Browse – RentKart{% endblock %}
+
+{% block content %}
+<!-- Leaflet CDN (No API key needed) -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+<h1 class="text-2xl font-bold mb-4">🔍 Browse Rentals</h1>
+
+<!-- Location & View Mode Bar -->
+<div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+  <!-- Location button & hint -->
+  <div class="flex items-center gap-2">
+    {% if lat and lng %}
+      <span class="text-xs text-gray-500 font-medium">📍 Location active ({{ lat | round(3) }}, {{ lng | round(3) }})</span>
+    {% else %}
+      <button id="geo-btn" type="button"
+              class="bg-accent text-white rounded-full px-4 py-1.5 text-xs font-bold hover:bg-orange-600 shadow-sm transition">
+        📍 Use my location
+      </button>
+      <span class="text-xs text-gray-400">Enable location for distance info</span>
+    {% endif %}
+  </div>
+
+  <!-- List / Map view toggle (preserves all current URL filters) -->
+  <div class="flex bg-gray-200 rounded-xl p-1 text-xs font-bold shadow-inner">
+    <button type="button" onclick="switchView('list')"
+            class="px-3 py-1.5 rounded-lg transition {{ 'bg-white shadow text-gray-900' if view != 'map' else 'text-gray-500 hover:text-gray-800' }}">
+      📋 List view
+    </button>
+    <button type="button" onclick="switchView('map')"
+            class="px-3 py-1.5 rounded-lg transition {{ 'bg-white shadow text-gray-900' if view == 'map' else 'text-gray-500 hover:text-gray-800' }}">
+      🗺️ Map view
+    </button>
+  </div>
+</div>
+
+<!-- Filters form -->
+<form id="filter-form" method="get" action="{{ url_for('main.browse') }}" class="card mb-4 space-y-3">
+  {% if lat %}<input type="hidden" name="lat" value="{{ lat }}">{% endif %}
+  {% if lng %}<input type="hidden" name="lng" value="{{ lng }}">{% endif %}
+  <input type="hidden" id="view-input" name="view" value="{{ view }}">
+
+  <!-- Voice search & text search row -->
+  <div class="space-y-1">
+    <div class="flex gap-2 items-center">
+      <div class="relative flex-1">
+        <input type="text" id="search-input" name="search" value="{{ search }}" placeholder="Search title, description or speak…"
+               class="w-full border rounded-xl pl-4 pr-10 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+        <button type="button" id="mic-btn" title="Speak to search"
+                class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-primary p-1.5 rounded-lg transition hover:bg-gray-100">
+          🎙️
+        </button>
+      </div>
+
+      <!-- Voice search language dropdown -->
+      <select id="voice-lang" title="Spoken Language" class="border rounded-xl px-2.5 py-2 text-xs bg-gray-50 text-gray-700 font-medium">
+        <option value="en-IN">English (en-IN)</option>
+        <option value="hi-IN">Hindi (hi-IN)</option>
+        <option value="te-IN">Telugu (te-IN)</option>
+        <option value="kn-IN">Kannada (kn-IN)</option>
+      </select>
+    </div>
+
+    <!-- Live voice status badge -->
+    <div id="voice-status" class="hidden text-xs text-primary font-bold flex items-center gap-1.5 px-2 py-1 bg-green-50 rounded-lg">
+      <span class="inline-block w-2 h-2 rounded-full bg-red-500 animate-ping"></span>
+      <span>Listening... speak now in the selected language</span>
+    </div>
+  </div>
+
+  <!-- Category chips -->
+  <div class="flex flex-wrap gap-2">
+    {% for key, cat in categories.items() %}
+      <label class="cursor-pointer">
+        <input type="radio" name="category" value="{{ key }}" class="hidden peer"
+               {% if sel_category == key %}checked{% endif %}
+               onchange="this.form.submit()">
+        <span class="inline-block px-3 py-1 rounded-full text-sm border
+              peer-checked:bg-primary peer-checked:text-white peer-checked:border-primary
+              hover:bg-gray-100">
+          {{ cat.icon }} {{ t(cat.label) }}
+        </span>
+      </label>
+    {% endfor %}
+    <!-- "All" chip to clear category -->
+    <label class="cursor-pointer">
+      <input type="radio" name="category" value="" class="hidden peer"
+             {% if not sel_category %}checked{% endif %}
+             onchange="this.form.submit()">
+      <span class="inline-block px-3 py-1 rounded-full text-sm border
+            peer-checked:bg-primary peer-checked:text-white peer-checked:border-primary
+            hover:bg-gray-100">
+        All
+      </span>
+    </label>
+  </div>
+
+  <!-- Category-specific select filters (max 2) -->
+  {% if cat_select_fields %}
+  <div class="flex flex-wrap gap-2">
+    {% for field in cat_select_fields %}
+      <select name="attr_{{ field.name }}"
+              class="border rounded-xl px-3 py-2 text-sm"
+              onchange="this.form.submit()">
+        <option value="">{{ field.label }}: Any</option>
+        {% for opt in field.options %}
+          <option value="{{ opt }}" {% if attr_filters.get(field.name) == opt %}selected{% endif %}>
+            {{ opt }}
+          </option>
+        {% endfor %}
+      </select>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <!-- Row: distance, price, sort -->
+  <div class="flex flex-wrap gap-2">
+    <select name="max_dist" class="border rounded-xl px-3 py-2 text-sm">
+      <option value="">Distance: Any</option>
+      {% for d in [2, 5, 10, 25] %}
+        <option value="{{ d }}" {% if max_dist == d %}selected{% endif %}>≤ {{ d }} km</option>
+      {% endfor %}
+    </select>
+
+    <input type="number" name="max_price" min="0" step="1" placeholder="Max ₹/day"
+           value="{{ max_price if max_price is not none else '' }}"
+           class="border rounded-xl px-3 py-2 text-sm w-28">
+
+    <select name="sort" class="border rounded-xl px-3 py-2 text-sm">
+      <option value="nearest"  {% if sort == 'nearest' %}selected{% endif %}>Nearest</option>
+      <option value="cheapest" {% if sort == 'cheapest' %}selected{% endif %}>Cheapest</option>
+      <option value="newest"   {% if sort == 'newest' %}selected{% endif %}>Newest</option>
+    </select>
+  </div>
+
+  <div class="flex gap-2">
+    <button type="submit"
+            class="bg-primary text-white rounded-xl px-4 py-2 text-sm font-bold hover:bg-green-700">
+      Apply
+    </button>
+    <a href="{{ url_for('main.browse', lat=lat, lng=lng, view=view) }}"
+       class="border rounded-xl px-4 py-2 text-sm text-gray-500 hover:bg-gray-100">
+      Clear filters
+    </a>
+  </div>
+</form>
+
+<!-- View Content: Map View or List View -->
+{% if view == 'map' %}
+  <!-- Map View Container -->
+  <div class="card mb-6 p-2">
+    <div class="flex justify-between items-center px-2 py-1 mb-2">
+      <span class="text-xs font-bold text-gray-700">🗺️ Interactive Map ({{ map_items | length }} items with location)</span>
+      <span class="text-[11px] text-gray-400">Click a pin to view details</span>
+    </div>
+    <div id="map" class="w-full h-96 sm:h-[480px] rounded-xl border"></div>
+    <script id="map-data" type="application/json">{{ map_items_json | safe }}</script>
+  </div>
+{% endif %}
+
+<!-- Item Grid (Always shown in list view, or as summary list below map) -->
+{% if items %}
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+  {% for item in items %}
+    <a href="{{ url_for('items.item_detail', item_id=item.id) }}"
+       class="card hover:shadow-lg transition block relative">
+      {% if item.owner.current_plan() == 'business' %}
+        <span class="absolute top-2 right-2 bg-gradient-to-r from-amber-500 to-yellow-500 text-white text-[10px] font-extrabold px-2 py-0.5 rounded-full shadow z-10 flex items-center gap-0.5">
+          ⭐ Featured
+        </span>
+      {% endif %}
+      <!-- Image -->
+      {% if item.image %}
+        <img src="{{ url_for('static', filename='uploads/' + item.image) }}"
+             alt="{{ item.title }}" class="w-full h-36 object-cover rounded-xl mb-2">
+      {% else %}
+        <div class="w-full h-36 bg-gray-200 rounded-xl flex items-center justify-center text-3xl mb-2">📷</div>
+      {% endif %}
+
+      <!-- Category badge & rating -->
+      <div class="flex items-center justify-between text-xs mb-0.5">
+        {% set cat = categories.get(item.category, {}) %}
+        <span class="text-gray-400">{{ cat.get('icon','') }} {{ t(cat.get('label','')) }}</span>
+        {% if item.review_stats.count > 0 %}
+          <span class="text-yellow-600 font-bold">⭐ {{ item.review_stats.avg }} ({{ item.review_stats.count }})</span>
+        {% endif %}
+      </div>
+
+      <!-- Title -->
+      <h3 class="font-bold text-gray-800 truncate">{{ item.title }}</h3>
+
+      <!-- Price & deposit -->
+      <div class="flex gap-2 mt-1 text-sm flex-wrap">
+        <span class="bg-green-100 text-primary font-bold rounded-full px-2 py-0.5">₹{{ item.price_per_day }} / {{ t('per day') }}</span>
+        {% if item.deposit %}
+          <span class="bg-orange-100 text-accent font-bold rounded-full px-2 py-0.5">{{ t('Deposit') }}: ₹{{ item.deposit }}</span>
+        {% endif %}
+      </div>
+
+      <!-- Distance & owner -->
+      <div class="flex justify-between mt-2 text-xs text-gray-500">
+        <span>{{ item.owner.village_or_city }}</span>
+        {% if item.distance_km is not none %}
+          <span class="bg-blue-100 text-blue-700 font-semibold rounded-full px-2 py-0.5">{{ item.distance_km }} {{ t('km away') }}</span>
+        {% endif %}
+      </div>
+
+    </a>
+  {% endfor %}
+</div>
+{% else %}
+<div class="text-center py-16 text-gray-400">
+  <p class="text-4xl mb-2">🔭</p>
+  <p>No items found — try a bigger distance or different filters.</p>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // 1. Switch View helper (preserves existing query parameters)
+  function switchView(mode) {
+    var url = new URL(window.location.href);
+    url.searchParams.set('view', mode);
+    window.location.href = url.toString();
+  }
+
+  // 2. Geolocation button
+  var geoBtn = document.getElementById('geo-btn');
+  if (geoBtn) {
+    geoBtn.addEventListener('click', function() {
+      if (!navigator.geolocation) { alert('Geolocation not supported'); return; }
+      navigator.geolocation.getCurrentPosition(function(pos) {
+        var url = new URL(window.location.href);
+        url.searchParams.set('lat', pos.coords.latitude);
+        url.searchParams.set('lng', pos.coords.longitude);
+        window.location.href = url.toString();
+      }, function() {
+        alert('Location permission denied. Items are shown without distance info.');
+      });
+    });
+  }
+
+  // 3. Voice Search via Web Speech API
+  (function initVoiceSearch() {
+    var micBtn = document.getElementById('mic-btn');
+    var voiceStatus = document.getElementById('voice-status');
+    var searchInput = document.getElementById('search-input');
+    var langSelect = document.getElementById('voice-lang');
+    var filterForm = document.getElementById('filter-form');
+
+    if (!micBtn) return;
+
+    var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      // Hide button if browser does not support SpeechRecognition
+      micBtn.style.display = 'none';
+      if (langSelect) langSelect.style.display = 'none';
+      return;
+    }
+
+    var recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = false;
+
+    micBtn.addEventListener('click', function() {
+      try {
+        recognition.lang = langSelect ? langSelect.value : 'en-IN';
+        recognition.start();
+        if (voiceStatus) voiceStatus.classList.remove('hidden');
+      } catch (err) {
+        console.error('Speech recognition error:', err);
+      }
+    });
+
+    recognition.onresult = function(event) {
+      if (event.results && event.results[0] && event.results[0][0]) {
+        var transcript = event.results[0][0].transcript;
+        if (searchInput) searchInput.value = transcript;
+        if (filterForm) filterForm.submit();
+      }
+    };
+
+    recognition.onerror = function(event) {
+      console.warn('Voice recognition error:', event.error);
+      if (voiceStatus) voiceStatus.classList.add('hidden');
+    };
+
+    recognition.onend = function() {
+      if (voiceStatus) voiceStatus.classList.add('hidden');
+    };
+  })();
+
+  // 4. Leaflet Map Initialization
+  (function initMap() {
+    var mapContainer = document.getElementById('map');
+    var dataEl = document.getElementById('map-data');
+    if (!mapContainer || !dataEl || typeof L === 'undefined') return;
+
+    var mapItems = [];
+    try {
+      mapItems = JSON.parse(dataEl.textContent);
+    } catch (e) {
+      mapItems = [];
+    }
+
+    var userLat = {{ lat if lat is not none else 'null' }};
+    var userLng = {{ lng if lng is not none else 'null' }};
+    var maxDist = {{ max_dist if max_dist is not none else 'null' }};
+
+    // Calculate center
+    var centerLat = 12.9716, centerLng = 77.5946, defaultZoom = 11;
+    if (userLat !== null && userLng !== null) {
+      centerLat = userLat;
+      centerLng = userLng;
+      defaultZoom = 12;
+    } else if (mapItems.length > 0) {
+      var sLat = 0, sLng = 0;
+      for (var i = 0; i < mapItems.length; i++) {
+        sLat += mapItems[i].lat;
+        sLng += mapItems[i].lng;
+      }
+      centerLat = sLat / mapItems.length;
+      centerLng = sLng / mapItems.length;
+      defaultZoom = 11;
+    }
+
+    var map = L.map('map').setView([centerLat, centerLng], defaultZoom);
+
+    // OpenStreetMap tile layer
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap'
+    }).addTo(map);
+
+    // User location blue marker & optional radius circle
+    if (userLat !== null && userLng !== null) {
+      var blueCircleMarker = L.circleMarker([userLat, userLng], {
+        radius: 8,
+        color: '#1d4ed8',
+        fillColor: '#3b82f6',
+        fillOpacity: 0.9,
+        weight: 2
+      }).addTo(map);
+      blueCircleMarker.bindPopup("<b>📍 Your Location</b>");
+
+      if (maxDist !== null && maxDist > 0) {
+        L.circle([userLat, userLng], {
+          radius: maxDist * 1000,
+          color: '#2563eb',
+          fillColor: '#3b82f6',
+          fillOpacity: 0.1,
+          weight: 1.5
+        }).addTo(map);
+      }
+    }
+
+    // Item markers with popups
+    mapItems.forEach(function(item) {
+      if (item.lat === null || item.lng === null) return;
+      var popupContent = '<div style="min-width:140px; font-family:sans-serif;">' +
+        (item.image_url ? '<img src="' + item.image_url + '" style="width:100%; height:80px; object-fit:cover; border-radius:6px; margin-bottom:6px;">' : '') +
+        '<div style="font-weight:bold; font-size:13px; color:#1f2937;">' + item.title + '</div>' +
+        '<div style="color:#16a34a; font-weight:bold; font-size:12px; margin-top:2px;">₹' + item.price_per_day + '/day</div>' +
+        (item.distance_km !== null ? '<div style="font-size:11px; color:#2563eb; margin-top:2px;">📍 ' + item.distance_km + ' km</div>' : '') +
+        '<div style="margin-top:6px;"><a href="' + item.url + '" style="display:inline-block; background-color:#16a34a; color:white; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:bold; text-decoration:none;">View</a></div>' +
+        '</div>';
+
+      L.marker([item.lat, item.lng]).addTo(map).bindPopup(popupContent);
+    });
+  })();
+</script>
+{% endblock %}

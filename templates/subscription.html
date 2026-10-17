@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% block title %}My Subscription – RentKart{% endblock %}
+
+{% block content %}
+<div class="space-y-6 py-4">
+  <div class="flex items-center justify-between flex-wrap gap-2">
+    <div>
+      <span class="text-xs uppercase font-extrabold text-primary tracking-wider">Account Subscription</span>
+      <h1 class="text-2xl font-black text-gray-900 mt-0.5">My Rental Plan</h1>
+    </div>
+    <a href="{{ url_for('subscriptions.pricing') }}"
+       class="bg-primary hover:bg-green-700 text-white text-xs font-bold px-4 py-2 rounded-xl shadow transition">
+      ⚡ Upgrade Plan
+    </a>
+  </div>
+
+  <!-- Plan Overview Card -->
+  <div class="card p-6 rounded-2xl bg-white shadow space-y-5 border-l-4 {{ 'border-primary' if current_plan != 'free' else 'border-gray-300' }}">
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b pb-4">
+      <div>
+        <div class="flex items-center gap-2">
+          <h2 class="text-xl font-extrabold text-gray-900">{{ plan_info.label }} Plan</h2>
+          <span class="text-xs font-bold px-2.5 py-0.5 rounded-full {{ 'bg-green-100 text-green-800' if current_plan != 'free' else 'bg-gray-100 text-gray-700' }}">
+            {{ current_plan | capitalize }}
+          </span>
+          {% if active_sub and active_sub.status == 'cancelled' %}
+            <span class="text-xs font-bold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800">
+              Cancelled (Active until expiry)
+            </span>
+          {% endif %}
+        </div>
+        <p class="text-xs text-gray-500 mt-1">
+          Platform commission: <strong>{{ plan_info.commission_percent }}%</strong> &bull;
+          Shop poster: <strong>{{ 'Unlocked' if plan_info.qr_poster else 'Locked' }}</strong> &bull;
+          Featured browse: <strong>{{ 'Enabled' if plan_info.featured else 'Standard' }}</strong>
+        </p>
+      </div>
+
+      {% if active_sub %}
+        <div class="text-right">
+          <div class="text-xs text-gray-400">Renewal / Expiry Date</div>
+          <div class="font-bold text-gray-900 text-sm">{{ active_sub.end_date }}</div>
+          <div class="text-xs font-semibold {{ 'text-red-600' if active_sub.days_left <= 5 else 'text-primary' }}">
+            {{ active_sub.days_left }} days left
+          </div>
+        </div>
+      {% endif %}
+    </div>
+
+    <!-- Usage Meter -->
+    <div class="space-y-2">
+      <div class="flex justify-between items-center text-xs">
+        <span class="font-bold text-gray-700">Listing Capacity Usage</span>
+        <span class="font-extrabold text-gray-900">{{ item_count }} of {{ max_items }} items used</span>
+      </div>
+      {% set pct = (item_count / max_items * 100) | round if max_items > 0 else 0 %}
+      <div class="w-full bg-gray-100 rounded-full h-3 overflow-hidden">
+        <div class="h-full rounded-full transition-all {{ 'bg-red-500' if item_count >= max_items else 'bg-primary' }}"
+             style="width: {{ [pct, 100] | min }}%;"></div>
+      </div>
+      {% if item_count >= max_items %}
+        <p class="text-xs text-red-600 font-medium">You have reached your plan's listing limit. Upgrade your plan to list more items.</p>
+      {% endif %}
+    </div>
+
+    <!-- Actions -->
+    <div class="flex flex-wrap items-center justify-between gap-3 pt-2">
+      <a href="{{ url_for('subscriptions.pricing') }}"
+         class="text-xs font-bold text-primary hover:underline">
+        Compare all tiers &rarr;
+      </a>
+
+      {% if active_sub and active_sub.status == 'active' %}
+        <form method="post" action="{{ url_for('subscriptions.cancel_subscription') }}"
+              onsubmit="return confirm('Are you sure you want to cancel? Your benefits remain active until the end date.');">
+          <button type="submit" class="text-xs font-semibold text-red-600 hover:text-red-800 hover:underline">
+            Cancel Subscription
+          </button>
+        </form>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Payment History Table -->
+  <div class="card p-6 rounded-2xl bg-white shadow space-y-4">
+    <h3 class="text-base font-bold text-gray-800">Subscription &amp; Payment History</h3>
+    {% if history %}
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-xs border-collapse">
+          <thead>
+            <tr class="border-b bg-gray-50 text-gray-500">
+              <th class="p-2.5">Date</th>
+              <th class="p-2.5">Plan</th>
+              <th class="p-2.5">Cycle</th>
+              <th class="p-2.5">Amount (Demo)</th>
+              <th class="p-2.5">Payment Method</th>
+              <th class="p-2.5">Status</th>
+              <th class="p-2.5">Valid Until</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100">
+            {% for row in history %}
+              <tr>
+                <td class="p-2.5 text-gray-600">{{ row.created_at.strftime('%Y-%m-%d') }}</td>
+                <td class="p-2.5 font-bold uppercase text-gray-900">{{ row.plan }}</td>
+                <td class="p-2.5 capitalize">{{ row.billing_cycle }}</td>
+                <td class="p-2.5 font-extrabold text-primary">₹{{ row.amount_paid }}</td>
+                <td class="p-2.5 uppercase">{{ row.payment_method }} (demo)</td>
+                <td class="p-2.5">
+                  <span class="px-2 py-0.5 rounded-full text-[10px] font-bold
+                    {% if row.status == 'active' %}bg-green-100 text-green-800
+                    {% elif row.status == 'cancelled' %}bg-amber-100 text-amber-800
+                    {% else %}bg-gray-100 text-gray-600{% endif %}">
+                    {{ row.status }}
+                  </span>
+                </td>
+                <td class="p-2.5 text-gray-700 font-medium">{{ row.end_date }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="text-center py-6 text-gray-400 text-xs">
+        No subscription payment history recorded yet. You are currently on the Free plan.
+      </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

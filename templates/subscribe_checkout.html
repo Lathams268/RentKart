@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Checkout – {{ plan_info.label }} Plan – RentKart{% endblock %}
+
+{% block content %}
+<div class="max-w-md mx-auto space-y-6 py-4">
+  <!-- Demo Mode Banner -->
+  <div class="bg-amber-100 border-2 border-amber-400 text-amber-900 rounded-2xl p-4 text-center shadow-sm">
+    <div class="text-2xl mb-1">🛡️</div>
+    <div class="font-extrabold text-sm uppercase tracking-wide">Demo Mode Notice</div>
+    <div class="text-xs font-medium mt-0.5">Demo mode, no real money is charged. Never enter actual banking or credit card details.</div>
+  </div>
+
+  <!-- Checkout Card -->
+  <div class="card p-6 rounded-2xl shadow-md space-y-5 bg-white">
+    <div class="border-b pb-4">
+      <span class="text-xs font-bold uppercase text-primary tracking-wider">Checkout Summary</span>
+      <h1 class="text-2xl font-black text-gray-900 mt-1">{{ plan_info.label }} Plan Subscription</h1>
+      <p class="text-xs text-gray-500">Billing cycle: <strong>{{ cycle | capitalize }}</strong> ({{ '365 days' if cycle == 'yearly' else '30 days' }})</p>
+    </div>
+
+    <!-- Pricing summary -->
+    <div class="space-y-2 text-sm border-b pb-4">
+      <div class="flex justify-between text-gray-600">
+        <span>Plan</span>
+        <span class="font-bold text-gray-900">{{ plan_info.label }}</span>
+      </div>
+      <div class="flex justify-between text-gray-600">
+        <span>Max Items Limit</span>
+        <span>{{ plan_info.max_items }} items</span>
+      </div>
+      <div class="flex justify-between text-gray-600">
+        <span>Platform Commission</span>
+        <span class="text-primary font-bold">{{ plan_info.commission_percent }}%</span>
+      </div>
+      <div class="flex justify-between text-gray-900 font-extrabold text-base border-t pt-2">
+        <span>Total Payable (Demo)</span>
+        <span class="text-primary text-xl">₹{{ amount }}</span>
+      </div>
+    </div>
+
+    <!-- Mock Payment Form -->
+    <form method="post" class="space-y-4">
+      <input type="hidden" name="billing_cycle" value="{{ cycle }}">
+
+      <div>
+        <label class="block text-xs font-bold text-gray-700 uppercase tracking-wide mb-2">Select Payment Method (Demo)</label>
+        <div class="grid grid-cols-2 gap-3">
+          <label class="border-2 rounded-xl p-3 flex flex-col items-center cursor-pointer hover:border-primary transition peer-checked:border-primary">
+            <input type="radio" name="payment_method" value="upi" checked class="mb-1 text-primary">
+            <span class="font-bold text-sm">📱 UPI (Demo)</span>
+            <span class="text-[10px] text-gray-400">GPay, PhonePe, Paytm</span>
+          </label>
+          <label class="border-2 rounded-xl p-3 flex flex-col items-center cursor-pointer hover:border-primary transition">
+            <input type="radio" name="payment_method" value="card" class="mb-1 text-primary">
+            <span class="font-bold text-sm">💳 Card (Demo)</span>
+            <span class="text-[10px] text-gray-400">Visa / Mastercard</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="bg-gray-50 border rounded-xl p-3 text-xs text-gray-500">
+        🔒 Security Guarantee: We do not process or store actual debit or credit card credentials.
+      </div>
+
+      <div class="pt-2">
+        <button type="submit"
+                class="w-full bg-primary hover:bg-green-700 text-white font-extrabold py-3 rounded-xl shadow-md transition text-sm flex items-center justify-center gap-2">
+          <span>Complete Demo Payment (₹{{ amount }})</span> &rarr;
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

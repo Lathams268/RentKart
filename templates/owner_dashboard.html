@@ -1,0 +1,361 @@
+{% extends "base.html" %}
+{% block title %}Owner Dashboard – RentKart{% endblock %}
+
+{% block content %}
+{% set status_colors = {
+  'requested': 'bg-yellow-100 text-yellow-800',
+  'approved': 'bg-green-100 text-green-800',
+  'picked_up': 'bg-blue-100 text-blue-800',
+  'returned': 'bg-gray-100 text-gray-600',
+  'rejected': 'bg-red-100 text-red-700',
+  'cancelled': 'bg-red-100 text-red-700',
+} %}
+
+<div class="flex items-center gap-3 mb-4">
+  <h1 class="text-2xl font-bold">🏪 Owner Dashboard</h1>
+  <span class="text-xs px-2.5 py-0.5 rounded-full font-extrabold uppercase
+    {% if current_plan_key == 'business' %}bg-purple-100 text-purple-800 border border-purple-200
+    {% elif current_plan_key == 'pro' %}bg-green-100 text-green-800 border border-green-200
+    {% else %}bg-gray-100 text-gray-700 border border-gray-200{% endif %}">
+    {{ current_plan_key }}
+  </span>
+</div>
+
+<!-- Plan Expiry Warning Banner (<= 5 days) -->
+{% if show_expiry_warning %}
+  <div class="bg-amber-50 border-l-4 border-amber-500 text-amber-900 p-3.5 rounded-xl mb-4 flex items-center justify-between flex-wrap gap-2 shadow-sm">
+    <div class="flex items-center gap-2">
+      <span class="text-xl">⚠️</span>
+      <div>
+        <strong class="text-xs font-bold block">Plan Expiry Warning</strong>
+        <span class="text-xs">Your {{ current_plan_key | capitalize }} plan expires in {{ days_left }} days. Renew now to avoid item limits.</span>
+      </div>
+    </div>
+    <a href="{{ url_for('subscriptions.pricing') }}" class="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs px-3 py-1.5 rounded-lg shadow">
+      Renew Plan
+    </a>
+  </div>
+{% endif %}
+
+<!-- Overflow Items Warning Banner (e.g. Expired Plan with > 5 items) -->
+{% if has_overflow_items %}
+  <div class="bg-red-50 border-l-4 border-red-500 text-red-900 p-3.5 rounded-xl mb-4 flex items-center justify-between flex-wrap gap-2 shadow-sm">
+    <div class="flex items-center gap-2">
+      <span class="text-xl">📦</span>
+      <div>
+        <strong class="text-xs font-bold block">Renew your plan to show all your items.</strong>
+        <span class="text-xs">You have {{ my_items | length }} items listed, but your current plan allows {{ plan_info.max_items }}. Extra items are hidden from public browsing.</span>
+      </div>
+    </div>
+    <a href="{{ url_for('subscriptions.pricing') }}" class="bg-red-600 hover:bg-red-700 text-white font-bold text-xs px-3 py-1.5 rounded-lg shadow">
+      Upgrade / Renew
+    </a>
+  </div>
+{% endif %}
+
+<!-- Earnings Insights & ROI Tracker -->
+{% if can_roi_tracker %}
+<section class="card mb-6 border-l-4 border-primary">
+  <div class="flex items-center justify-between mb-3 border-b pb-2">
+    <div class="flex items-center gap-2">
+      <span class="text-xl">📊</span>
+      <h2 class="font-bold text-lg text-gray-900">My earnings insights</h2>
+    </div>
+    <span class="text-xs bg-green-100 text-green-800 font-extrabold px-2.5 py-0.5 rounded-full border border-green-200">PRO UNLOCKED</span>
+  </div>
+
+  <!-- Top summary -->
+  <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+    <div class="bg-gray-50 p-3 rounded-xl border border-gray-100">
+      <span class="text-xs text-gray-500 font-medium block">Total Net Earnings</span>
+      <span class="text-xl font-extrabold text-primary">₹{{ total_net_earnings }}</span>
+    </div>
+    <div class="bg-gray-50 p-3 rounded-xl border border-gray-100">
+      <span class="text-xs text-gray-500 font-medium block">Best Performing Item</span>
+      <span class="text-sm font-bold text-gray-800 truncate block">
+        {% if best_item %}{{ best_item.title }}{% else %}—{% endif %}
+      </span>
+    </div>
+    <div class="bg-gray-50 p-3 rounded-xl border border-gray-100">
+      <span class="text-xs text-gray-500 font-medium block">Idle Items (Last 30d)</span>
+      <span class="text-xl font-extrabold {% if idle_items %}text-accent{% else %}text-gray-700{% endif %}">
+        {{ idle_items | length }}
+      </span>
+    </div>
+  </div>
+
+  <!-- Idle Items Alert -->
+  {% if idle_items %}
+    <div class="bg-amber-50 border-l-4 border-accent text-amber-900 p-3 rounded-xl mb-4 text-xs space-y-1">
+      <div class="font-bold flex items-center gap-1">
+        <span>⚠️</span> Idle Items: {{ idle_items | map(attribute='title') | join(', ') }}
+      </div>
+      <p class="text-amber-800">💡 <strong>Tip:</strong> Try lowering the price or sharing your shop QR</p>
+    </div>
+  {% endif %}
+
+  <!-- Per item ROI cards -->
+  <div class="space-y-3">
+    <h3 class="text-xs font-bold uppercase tracking-wider text-gray-500">Item Performance & Payback</h3>
+    {% for ins in item_insights %}
+      <div class="p-3 bg-white border rounded-xl shadow-sm space-y-2">
+        <div class="flex justify-between items-start gap-2">
+          <div>
+            <a href="{{ url_for('items.item_detail', item_id=ins.item.id) }}" class="font-bold text-sm text-gray-800 hover:text-primary">
+              {{ ins.item.title }}
+            </a>
+            <span class="text-xs text-gray-500 block">₹{{ ins.item.price_per_day }}/day</span>
+          </div>
+          <span class="text-[11px] px-2 py-0.5 rounded-full font-bold {% if ins.utilization_30d > 0 %}bg-blue-100 text-blue-700{% else %}bg-gray-100 text-gray-500{% endif %}">
+            {{ ins.utilization_30d }}% utilization (30d)
+          </span>
+        </div>
+
+        {% if ins.has_purchase_price %}
+          <div class="space-y-1">
+            <div class="flex justify-between text-xs text-gray-600">
+              <span>Earned: <strong>₹{{ ins.earned }}</strong> of ₹{{ ins.purchase_price }} cost</span>
+              <span class="font-bold text-primary">{{ ins.progress_percent }}%</span>
+            </div>
+            <div class="w-full bg-gray-200 rounded-full h-2">
+              <div class="bg-primary h-2 rounded-full transition-all" style="width: {{ ins.progress_percent }}%"></div>
+            </div>
+            <div class="text-xs font-semibold pt-0.5">
+              {% if ins.payback_days is not none %}
+                <span class="text-green-700">🎉 Paid for itself in {{ ins.payback_days }} days</span>
+              {% elif ins.to_recover == 0 %}
+                <span class="text-green-700">🎉 Cost fully recovered!</span>
+              {% else %}
+                <span class="text-gray-600">Rs {{ ins.to_recover }} more to recover your cost</span>
+              {% endif %}
+            </div>
+          </div>
+        {% else %}
+          <div class="text-xs text-gray-400 flex justify-between items-center pt-1">
+            <span>Earned so far: ₹{{ ins.earned }}</span>
+            <span class="italic">No purchase price set</span>
+          </div>
+        {% endif %}
+      </div>
+    {% endfor %}
+  </div>
+</section>
+{% else %}
+<!-- Locked ROI Tracking Card for Free Owners -->
+<div class="card mb-6 border-2 border-dashed border-amber-300 bg-amber-50/50 p-4 rounded-2xl flex items-center justify-between flex-wrap gap-3">
+  <div>
+    <div class="flex items-center gap-2">
+      <span class="text-lg">🔒</span>
+      <h3 class="font-bold text-gray-800 text-sm">My earnings insights</h3>
+    </div>
+    <p class="text-xs text-gray-600 mt-0.5">Track item payback days, 30-day utilization, and smart earnings breakdown.</p>
+  </div>
+  <a href="{{ url_for('subscriptions.pricing') }}" class="bg-primary hover:bg-green-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow transition">
+    Upgrade to Pro to unlock ROI tracking
+  </a>
+</div>
+{% endif %}
+
+<!-- Earnings Summary -->
+<div class="card mb-4 flex items-center justify-between">
+  <span class="font-bold text-gray-700">Total Earnings</span>
+  <span class="text-2xl font-extrabold text-primary">₹{{ total_earnings }}</span>
+</div>
+
+<!-- My Shop / Create Shop -->
+<div class="card mb-6 border-l-4 border-primary">
+  {% if current_user.shop_slug %}
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+      <div>
+        <div class="flex items-center gap-2">
+          <span class="text-xs uppercase tracking-wider font-extrabold text-primary bg-green-50 px-2 py-0.5 rounded-full border border-green-200">My Shop</span>
+          <h2 class="font-bold text-lg text-gray-900">{{ current_user.shop_name }}</h2>
+        </div>
+        {% if current_user.shop_description %}
+          <p class="text-xs text-gray-500 mt-1">{{ current_user.shop_description }}</p>
+        {% endif %}
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <a href="{{ url_for('shop.shop_page', slug=current_user.shop_slug) }}"
+           class="bg-primary hover:bg-green-700 text-white text-xs font-bold px-3 py-1.5 rounded-xl transition shadow">
+          🏪 View My Shop
+        </a>
+        <a href="{{ url_for('shop.shop_qr', slug=current_user.shop_slug) }}" download="{{ current_user.shop_slug }}-qr.png"
+           class="bg-gray-800 hover:bg-black text-white text-xs font-bold px-3 py-1.5 rounded-xl transition">
+          ⬇️ QR
+        </a>
+        {% if can_qr_poster %}
+          <a href="{{ url_for('shop.shop_poster', slug=current_user.shop_slug) }}"
+             class="border border-gray-300 hover:bg-gray-100 text-gray-700 text-xs font-bold px-3 py-1.5 rounded-xl transition">
+            📄 Poster
+          </a>
+        {% else %}
+          <a href="{{ url_for('subscriptions.pricing') }}"
+             class="border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-bold px-3 py-1.5 rounded-xl transition flex items-center gap-1">
+            🔒 Upgrade to Pro to unlock
+          </a>
+        {% endif %}
+      </div>
+    </div>
+  {% else %}
+    <div>
+      <h2 class="font-bold text-base text-gray-800 mb-1">🏪 Create My Shop</h2>
+      <p class="text-xs text-gray-500 mb-3">Launch your branded rental shop with a QR code and instant WhatsApp sharing in 2 minutes.</p>
+      <form method="post" action="{{ url_for('shop.create_shop') }}" class="space-y-2">
+        <input type="text" name="shop_name" placeholder="Shop Name (e.g. Ramesh Tools & Equipment)" required
+               class="w-full border rounded-xl px-3 py-2 text-sm">
+        <textarea name="shop_description" placeholder="Short description of items you rent out…" rows="2"
+                  class="w-full border rounded-xl px-3 py-2 text-sm"></textarea>
+        <button type="submit"
+                class="bg-primary hover:bg-green-700 text-white font-bold text-xs px-4 py-2 rounded-xl shadow transition">
+          Create My Shop
+        </button>
+      </form>
+    </div>
+  {% endif %}
+</div>
+
+
+<!-- My Items -->
+<section class="mb-6">
+  <div class="flex justify-between items-center mb-2">
+    <h2 class="font-bold text-lg">{{ t('My Items') }} ({{ my_items | length }})</h2>
+    <a href="{{ url_for('items.add_item') }}" class="bg-primary hover:bg-green-700 text-white font-bold text-xs px-3.5 py-2 rounded-xl shadow transition min-h-[36px] inline-flex items-center">
+      + {{ t('List an Item') }}
+    </a>
+  </div>
+  {% if my_items %}
+    {% for item in my_items %}
+      <div class="card mb-2 flex items-center justify-between">
+        <a href="{{ url_for('items.item_detail', item_id=item.id) }}" class="text-primary font-bold text-sm truncate flex-1">{{ item.title }}</a>
+        <form method="post" action="{{ url_for('items.toggle_availability', item_id=item.id) }}" class="ml-2">
+          <button type="submit" class="text-xs px-2.5 py-1 rounded-full font-bold border transition-colors {{ 'bg-green-100 text-green-700 border-green-300 hover:bg-green-200' if item.is_available else 'bg-red-100 text-red-700 border-red-300 hover:bg-red-200' }}">
+            {{ 'Available' if item.is_available else 'Unavailable' }}
+          </button>
+        </form>
+      </div>
+    {% endfor %}
+  {% else %}
+    <div class="card p-6 text-center text-gray-500">
+      <div class="text-4xl mb-2">📦</div>
+      <h3 class="font-bold text-base text-gray-800">No items listed yet</h3>
+      <p class="text-xs text-gray-500 mt-1 mb-4">Start earning by listing your tools, clothes, or equipment for rent.</p>
+      <a href="{{ url_for('items.add_item') }}" class="inline-flex items-center justify-center bg-primary text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow hover:bg-green-700 min-h-[44px]">
+        {{ t('List an Item') }}
+      </a>
+    </div>
+  {% endif %}
+</section>
+
+<!-- Incoming Requests -->
+{% if incoming %}
+<section class="mb-6">
+  <h2 class="font-bold text-lg mb-2">📥 {{ t('Incoming Requests') }}</h2>
+  {% for b in incoming %}
+    {% set rtrust = get_user_trust(b.renter) %}
+    <div class="card mb-2 space-y-2">
+      <div class="flex justify-between items-center">
+        <span class="font-bold text-sm">{{ b.item.title }}</span>
+        <span class="rounded-full px-2 py-0.5 text-xs font-bold {{ status_colors.get(b.status, '') }}">{{ b.status }}</span>
+      </div>
+      <div class="flex items-center gap-2 flex-wrap text-xs text-gray-500">
+        <span>{{ b.renter.name }}</span>
+        <span class="text-[10px] px-2 py-0.5 rounded-full font-bold
+          {% if rtrust.color == 'green' %}bg-green-100 text-green-800 border border-green-300
+          {% elif rtrust.color == 'yellow' %}bg-yellow-100 text-yellow-800 border border-yellow-300
+          {% else %}bg-red-100 text-red-800 border border-red-300{% endif %}">
+          🛡️ {{ rtrust.label }} ({{ rtrust.score }})
+        </span>
+        <span>&bull; {{ b.start_date }} → {{ b.end_date }} &bull; Total: ₹{{ b.total_payable }}</span>
+      </div>
+      <div class="flex gap-2">
+        <form method="post" action="{{ url_for('bookings.approve', booking_id=b.id) }}">
+          <button class="bg-green-600 text-white rounded-lg px-3 py-1.5 text-xs font-bold hover:bg-green-700 min-h-[36px]">{{ t('Approve') }}</button>
+        </form>
+        <form method="post" action="{{ url_for('bookings.reject', booking_id=b.id) }}">
+          <button class="bg-red-500 text-white rounded-lg px-3 py-1.5 text-xs font-bold hover:bg-red-600 min-h-[36px]">{{ t('Reject') }}</button>
+        </form>
+        <a href="{{ url_for('bookings.booking_detail', booking_id=b.id) }}" class="text-xs text-primary underline self-center">Details</a>
+      </div>
+    </div>
+  {% endfor %}
+
+</section>
+{% endif %}
+
+<!-- Approved – ready to hand over -->
+{% if approved %}
+<section class="mb-6">
+  <h2 class="font-bold text-lg mb-2">✅ Approved – Ready to Hand Over</h2>
+  {% for b in approved %}
+    <div class="card mb-2 space-y-2">
+      <div class="flex justify-between items-center">
+        <span class="font-bold text-sm">{{ b.item.title }}</span>
+        <span class="text-xs text-gray-500">{{ b.renter.name }} · {{ b.start_date }} → {{ b.end_date }}</span>
+      </div>
+      <form method="post" action="{{ url_for('bookings.handover', booking_id=b.id) }}"
+            enctype="multipart/form-data" class="flex flex-wrap gap-2 items-end">
+        <input type="text" name="handover_note" placeholder="Note (optional)" class="border rounded-lg px-2 py-1 text-xs flex-1">
+        <button class="bg-blue-600 text-white rounded-lg px-3 py-1 text-xs font-bold">Mark Handed Over</button>
+      </form>
+    </div>
+  {% endfor %}
+</section>
+{% endif %}
+
+<!-- Active Rentals -->
+{% if active %}
+<section class="mb-6">
+  <h2 class="font-bold text-lg mb-2">🔵 Active Rentals</h2>
+  {% for b in active %}
+    {% set is_overdue = today > b.end_date %}
+    <div class="card mb-2 space-y-2">
+      <div class="flex justify-between items-center">
+        <div>
+          <span class="font-bold text-sm">{{ b.item.title }}</span>
+          <span class="text-xs text-gray-500 block">{{ b.renter.name }} · Ends {{ b.end_date }}</span>
+        </div>
+        <div class="flex items-center gap-2">
+          {% if is_overdue %}
+            {% set late_days = (today - b.end_date).days %}
+            {% set late_pen = late_days * (b.item.late_fee_per_day or 0) %}
+            <span class="bg-red-100 text-red-700 font-extrabold text-xs px-2.5 py-1 rounded-full border border-red-300">
+              ⚠️ OVERDUE {{ late_days }}d (+₹{{ late_pen }})
+            </span>
+          {% endif %}
+          <a href="{{ url_for('bookings.return_item', booking_id=b.id) }}"
+             class="bg-primary text-white text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-green-700 shadow">
+            Mark Returned
+          </a>
+          <a href="{{ url_for('bookings.booking_detail', booking_id=b.id) }}" class="text-xs text-primary underline">Details</a>
+        </div>
+      </div>
+    </div>
+  {% endfor %}
+</section>
+{% endif %}
+
+<!-- Completed Rentals -->
+{% if completed %}
+<section class="mb-6">
+  <h2 class="font-bold text-lg mb-2">🏁 Completed Rentals</h2>
+  {% for b in completed %}
+    <div class="card mb-2 flex justify-between items-center bg-white">
+      <div>
+        <span class="font-bold text-sm">{{ b.item.title }}</span>
+        <span class="text-xs text-gray-500 block">
+          {{ b.renter.name }} &bull; Returned {{ b.return_record.actual_return_date if b.return_record else b.end_date }}
+          {% if b.return_record and b.return_record.total_deductions > 0 %}
+            <span class="text-accent font-medium">(Collected ₹{{ b.return_record.total_deductions }} deductions)</span>
+          {% endif %}
+        </span>
+      </div>
+      <a href="{{ url_for('bookings.settlement', booking_id=b.id) }}"
+         class="text-xs bg-gray-100 hover:bg-gray-200 text-gray-800 px-3 py-1.5 rounded-lg font-bold border">
+        Settlement &rarr;
+      </a>
+    </div>
+  {% endfor %}
+</section>
+{% endif %}
+{% endblock %}

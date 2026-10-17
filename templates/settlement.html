@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% block title %}Settlement Receipt – Booking #{{ booking.id }} – RentKart{% endblock %}
+
+{% block content %}
+<style>
+  @media print {
+    nav, footer, .no-print { display: none !important; }
+    body { background: white !important; font-size: 12pt; }
+    .print-card { box-shadow: none !important; border: 1px solid #ccc !important; }
+  }
+</style>
+
+<div class="max-w-xl mx-auto space-y-4">
+  <!-- Top bar -->
+  <div class="flex items-center justify-between no-print">
+    <a href="{{ url_for('bookings.booking_detail', booking_id=booking.id) }}" class="text-sm text-primary underline">&larr; Booking Details</a>
+    <button onclick="window.print()"
+            class="bg-gray-800 text-white text-xs font-bold px-3 py-1.5 rounded-full hover:bg-black flex items-center gap-1 shadow">
+      🖨️ Print / Save as PDF
+    </button>
+  </div>
+
+  <!-- Receipt Card -->
+  <div class="card bg-white p-6 rounded-2xl shadow-md space-y-5 print-card">
+    <div class="border-b pb-4 text-center">
+      <span class="text-xs uppercase tracking-widest text-gray-400 font-bold">Official Rental Settlement Receipt</span>
+      <h1 class="text-2xl font-black text-gray-800 mt-1">🛒 RentKart</h1>
+      <p class="text-xs text-gray-500">Booking #{{ booking.id }} &bull; Closed on {{ rec.actual_return_date }}</p>
+    </div>
+
+    <!-- Rental Info -->
+    <div class="space-y-1.5 text-sm border-b pb-4">
+      <div class="flex justify-between"><span class="text-gray-500">Item</span><strong class="text-gray-800">{{ booking.item.title }}</strong></div>
+      <div class="flex justify-between"><span class="text-gray-500">Owner</span><span>{{ booking.item.owner.name }} ({{ booking.item.owner.phone }})</span></div>
+      <div class="flex justify-between"><span class="text-gray-500">Renter</span><span>{{ booking.renter.name }} ({{ booking.renter.phone }})</span></div>
+      <div class="flex justify-between"><span class="text-gray-500">Scheduled Dates</span><span>{{ booking.start_date }} &rarr; {{ booking.end_date }} ({{ booking.days }} days)</span></div>
+      <div class="flex justify-between"><span class="text-gray-500">Actual Return Date</span><span><strong>{{ rec.actual_return_date }}</strong></span></div>
+    </div>
+
+    <!-- Financial Accounting -->
+    <div class="space-y-2 text-sm border-b pb-4">
+      <h3 class="font-bold text-gray-700 text-xs uppercase tracking-wide">Financial Breakdown</h3>
+      <div class="flex justify-between"><span class="text-gray-500">Total Rent Paid</span><span>₹{{ booking.total_rent }}</span></div>
+      <div class="flex justify-between"><span class="text-gray-500">Security Deposit Held</span><span class="font-medium">₹{{ rec.deposit_held }}</span></div>
+      
+      <div class="flex justify-between text-gray-600">
+        <span>Late Delay ({{ rec.late_days }} days @ ₹{{ rec.late_fee_per_day }}/day)</span>
+        <span class="text-red-600 font-medium">- ₹{{ rec.late_penalty }}</span>
+      </div>
+
+      <div class="flex justify-between text-gray-600">
+        <span>Damage Assessment ({{ rec.damage_level | capitalize }}, {{ rec.damage_percent }}%)</span>
+        <span class="text-red-600 font-medium">- ₹{{ rec.damage_deduction }}</span>
+      </div>
+
+      <div class="flex justify-between font-bold border-t pt-2 text-gray-800">
+        <span>Total Deductions</span>
+        <span class="text-red-600">₹{{ rec.total_deductions }}</span>
+      </div>
+
+      {% if current_user.id == booking.item.owner_id %}
+        <!-- Owner-only settlement details: platform fee and net owner earning (hidden from renter) -->
+        <div class="bg-gray-50 rounded-xl p-3 border border-gray-200 space-y-1.5 text-xs mt-3">
+          <span class="font-bold text-gray-700 uppercase tracking-wide block">Owner Accounting (Confidential)</span>
+          <div class="flex justify-between text-gray-600">
+            <span>Platform Fee ({{ booking.commission_percent }}%)</span>
+            <span class="text-red-600 font-medium">- ₹{{ rec.platform_fee }}</span>
+          </div>
+          <div class="flex justify-between font-bold text-gray-900 border-t pt-1.5">
+            <span>Net Owner Earning</span>
+            <span class="text-primary font-black text-sm">₹{{ rec.owner_earning }}</span>
+          </div>
+        </div>
+      {% endif %}
+    </div>
+
+    <!-- Large Final Settlement Display -->
+    <div class="rounded-xl p-4 text-center {{ 'bg-green-50 border-2 border-green-300' if rec.refund_amount > 0 or rec.extra_due == 0 else 'bg-red-50 border-2 border-red-300' }}">
+      {% if rec.extra_due > 0 %}
+        <span class="text-xs font-bold uppercase tracking-wider text-red-600">Extra Amount Due From Renter</span>
+        <div class="text-3xl font-extrabold text-red-600 mt-1">₹{{ rec.extra_due }}</div>
+        <p class="text-xs text-red-500 mt-1">Deductions exceeded the deposit held. Please settle with the owner directly.</p>
+      {% else %}
+        <span class="text-xs font-bold uppercase tracking-wider text-green-700">Final Security Deposit Refund</span>
+        <div class="text-3xl font-extrabold text-green-700 mt-1">₹{{ rec.refund_amount }}</div>
+        <p class="text-xs text-green-600 mt-1">Refund processed to renter via original payment method.</p>
+      {% endif %}
+    </div>
+
+    <!-- UNIQUE: Before and After Condition Comparison -->
+    <div class="border-t pt-4 space-y-3">
+      <h3 class="font-bold text-sm text-gray-800">📸 Before &amp; After Condition Comparison</h3>
+      <div class="grid grid-cols-2 gap-3">
+        <!-- Before (Handover) -->
+        <div class="border rounded-xl p-2.5 bg-gray-50 space-y-1.5">
+          <span class="text-xs font-bold text-gray-600 block">At Handover (Pickup)</span>
+          {% if booking.handover_photo %}
+            <img src="{{ url_for('static', filename='uploads/' + booking.handover_photo) }}"
+                 alt="Handover photo" class="w-full h-32 object-cover rounded-lg border">
+          {% else %}
+            <div class="w-full h-32 bg-gray-200 rounded-lg flex items-center justify-center text-xs text-gray-400">No handover photo</div>
+          {% endif %}
+          <p class="text-xs text-gray-600 italic">"{{ booking.handover_note or 'No notes recorded.' }}"</p>
+        </div>
+
+        <!-- After (Return) -->
+        <div class="border rounded-xl p-2.5 bg-gray-50 space-y-1.5">
+          <span class="text-xs font-bold text-gray-600 block">At Return</span>
+          {% if rec.return_photo %}
+            <img src="{{ url_for('static', filename='uploads/' + rec.return_photo) }}"
+                 alt="Return photo" class="w-full h-32 object-cover rounded-lg border">
+          {% else %}
+            <div class="w-full h-32 bg-gray-200 rounded-lg flex items-center justify-center text-xs text-gray-400">No return photo</div>
+          {% endif %}
+          <p class="text-xs text-gray-600 italic">"{{ rec.return_note or 'No notes recorded.' }}"</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

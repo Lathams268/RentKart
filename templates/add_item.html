@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+{% block title %}Add Item – RentKart{% endblock %}
+
+{% block content %}
+<h1 class="text-2xl font-bold mb-4">📦 List an Item for Rent</h1>
+
+<form method="post" enctype="multipart/form-data" class="card space-y-4">
+  <!-- Category -->
+  <div>
+    <label class="block text-sm font-medium text-gray-700 mb-1">Category</label>
+    <select name="category" id="category" required
+            class="w-full border rounded-xl px-4 py-3">
+      <option value="">— Select —</option>
+      {% for key, cat in categories.items() %}
+        <option value="{{ key }}">{{ cat.icon }} {{ cat.label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <!-- Title -->
+  <div>
+    <label class="block text-sm font-medium text-gray-700 mb-1">Title</label>
+    <input type="text" name="title" required placeholder="e.g. Canon DSLR Camera"
+           class="w-full border rounded-xl px-4 py-3">
+  </div>
+
+  <!-- Description -->
+  <div>
+    <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+    <textarea name="description" rows="3" placeholder="Describe your item…"
+              class="w-full border rounded-xl px-4 py-3"></textarea>
+  </div>
+
+  <!-- Smart Price Suggestion Banner -->
+  <div id="price-hint-box" class="hidden p-3.5 bg-green-50 border border-green-200 rounded-2xl text-xs space-y-1.5 transition-all">
+    <div class="flex items-center justify-between flex-wrap gap-2">
+      <div>
+        <div id="price-hint-text" class="font-bold text-gray-800"></div>
+        <div id="price-season-text" class="text-accent font-semibold hidden"></div>
+      </div>
+      <button type="button" id="use-price-btn"
+              class="bg-primary hover:bg-green-700 text-white font-bold px-3 py-1.5 rounded-xl shadow transition text-xs">
+        Use this price
+      </button>
+    </div>
+  </div>
+
+  <!-- Pricing row -->
+  <div class="grid grid-cols-3 gap-2">
+    <div>
+      <label class="block text-xs font-medium text-gray-700 mb-1">₹ / Day</label>
+      <input type="number" name="price_per_day" id="price_per_day" required min="0" step="0.01"
+             class="w-full border rounded-xl px-3 py-3">
+    </div>
+    <div>
+      <label class="block text-xs font-medium text-gray-700 mb-1">Deposit ₹</label>
+      <input type="number" name="deposit" min="0" step="0.01" value="0"
+             class="w-full border rounded-xl px-3 py-3">
+    </div>
+    <div>
+      <label class="block text-xs font-medium text-gray-700 mb-1">Late Fee ₹/Day</label>
+      <input type="number" name="late_fee_per_day" min="0" step="0.01" value="0"
+             class="w-full border rounded-xl px-3 py-3">
+    </div>
+  </div>
+
+  <!-- Optional Purchase Price for ROI Tracking -->
+  <div>
+    <label class="block text-sm font-medium text-gray-700 mb-1">
+      What did you pay for this item? <span class="text-xs text-gray-400 font-normal">(Optional &mdash; tracks your ROI & payback)</span>
+    </label>
+    <div class="relative">
+      <span class="absolute left-3.5 top-3 text-gray-400 font-bold text-sm">₹</span>
+      <input type="number" name="purchase_price" id="purchase_price" min="0" step="1"
+             placeholder="e.g. 15000"
+             class="w-full border rounded-xl pl-8 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+    </div>
+  </div>
+
+  <!-- Image -->
+  <div>
+    <label class="block text-sm font-medium text-gray-700 mb-1">Image (png/jpg)</label>
+    <input type="file" name="image" accept=".png,.jpg,.jpeg"
+           class="w-full border rounded-xl px-4 py-3 bg-white">
+  </div>
+
+  <!-- Hidden location (prefilled from user) -->
+  <input type="hidden" name="lat" id="lat" value="{{ current_user.lat or '' }}">
+  <input type="hidden" name="lng" id="lng" value="{{ current_user.lng or '' }}">
+
+  <!-- Dynamic category-specific fields rendered by JS -->
+  <div id="dynamic-fields" class="space-y-3"></div>
+
+  <button type="submit"
+          class="w-full bg-primary text-white rounded-2xl py-4 text-lg font-bold hover:bg-green-700 min-h-[44px]">
+    🚀 List Item
+  </button>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const CATEGORIES = {{ categories_json | safe }};
+  const container = document.getElementById('dynamic-fields');
+  const catSelect = document.getElementById('category');
+  const hintBox = document.getElementById('price-hint-box');
+  const hintText = document.getElementById('price-hint-text');
+  const seasonText = document.getElementById('price-season-text');
+  const usePriceBtn = document.getElementById('use-price-btn');
+  const priceInput = document.getElementById('price_per_day');
+  let currentSuggestedPrice = null;
+
+  async function updatePriceHint(category) {
+    if (!category) {
+      hintBox.classList.add('hidden');
+      return;
+    }
+    try {
+      const res = await fetch('/api/price-hint?category=' + encodeURIComponent(category));
+      if (!res.ok) return;
+      const data = await res.json();
+      hintText.textContent = `Suggested: Rs ${data.min} to Rs ${data.max} per day`;
+      if (data.season_name && data.boosted_min) {
+        seasonText.textContent = `High demand season, you can charge ${data.boost_percent} percent more: Rs ${data.boosted_min} to Rs ${data.boosted_max}`;
+        seasonText.classList.remove('hidden');
+        currentSuggestedPrice = data.boosted_min;
+      } else {
+        seasonText.classList.add('hidden');
+        currentSuggestedPrice = data.min;
+      }
+      hintBox.classList.remove('hidden');
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  usePriceBtn.addEventListener('click', function() {
+    if (currentSuggestedPrice) {
+      priceInput.value = currentSuggestedPrice;
+    }
+  });
+
+  catSelect.addEventListener('change', function() {
+    updatePriceHint(this.value);
+    container.innerHTML = '';
+    const cat = CATEGORIES[this.value];
+    if (!cat) return;
+
+    cat.fields.forEach(function(f) {
+      const wrapper = document.createElement('div');
+      const label = document.createElement('label');
+      label.className = 'block text-sm font-medium text-gray-700 mb-1';
+      label.textContent = f.label;
+      wrapper.appendChild(label);
+
+      let input;
+
+      if (f.type === 'select') {
+        input = document.createElement('select');
+        input.className = 'w-full border rounded-xl px-4 py-3';
+        const blank = document.createElement('option');
+        blank.value = '';
+        blank.textContent = '— Select —';
+        input.appendChild(blank);
+        f.options.forEach(function(opt) {
+          const o = document.createElement('option');
+          o.value = opt;
+          o.textContent = opt;
+          input.appendChild(o);
+        });
+      } else if (f.type === 'checkbox') {
+        input = document.createElement('input');
+        input.type = 'checkbox';
+        input.className = 'h-5 w-5 text-primary rounded';
+      } else if (f.type === 'number') {
+        input = document.createElement('input');
+        input.type = 'number';
+        input.className = 'w-full border rounded-xl px-4 py-3';
+        input.min = '0';
+      } else {
+        input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'w-full border rounded-xl px-4 py-3';
+      }
+
+      input.name = 'attr_' + f.name;
+      wrapper.appendChild(input);
+      container.appendChild(wrapper);
+    });
+  });
+</script>
+{% endblock %}

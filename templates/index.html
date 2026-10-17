@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block title %}RentKart – Hyperlocal Rentals{% endblock %}
+
+{% block content %}
+<!-- Hero Section -->
+<section class="text-center py-8 sm:py-12">
+  <h1 class="text-2xl sm:text-4xl font-extrabold text-gray-900 mb-3 tracking-tight">
+    {{ t('hero_title') }} 🏘️
+  </h1>
+  <p class="text-sm sm:text-base text-gray-600 max-w-xl mx-auto mb-6 leading-relaxed">
+    {{ t('hero_subtitle') }}
+  </p>
+  <div class="flex flex-col sm:flex-row gap-3 justify-center max-w-md mx-auto">
+    <a href="{{ url_for('items.add_item') }}"
+       class="inline-flex items-center justify-center bg-primary hover:bg-green-700 text-white rounded-2xl px-6 py-3.5 text-base font-bold shadow-md hover:shadow-lg transition min-h-[44px]">
+      🏪 {{ t('Start your rental business') }}
+    </a>
+    <a href="{{ url_for('main.browse') }}"
+       class="inline-flex items-center justify-center bg-accent hover:bg-orange-600 text-white rounded-2xl px-6 py-3.5 text-base font-bold shadow-md hover:shadow-lg transition min-h-[44px]">
+      🔍 {{ t('Rent something nearby') }}
+    </a>
+  </div>
+</section>
+
+<!-- Category icons -->
+<section class="mb-8">
+  <div class="flex justify-between items-center mb-3">
+    <h2 class="text-base sm:text-lg font-bold text-gray-800">{{ t('Browse by category') or 'Browse by category' }}</h2>
+    <a href="{{ url_for('main.browse') }}" class="text-xs font-bold text-primary hover:underline">{{ t('Browse Items') }} &rarr;</a>
+  </div>
+  <div class="grid grid-cols-3 sm:grid-cols-5 gap-2.5 sm:gap-3">
+    {% for key, cat in categories.items() %}
+      <a href="{{ url_for('main.browse', category=key) }}"
+         class="card flex flex-col items-center justify-center py-4 hover:shadow-md transition text-center hover:border-primary/40 border border-transparent">
+        <span class="text-3xl mb-1">{{ cat.icon }}</span>
+        <span class="text-xs text-gray-700 font-semibold truncate w-full px-1">{{ t(cat.label) }}</span>
+      </a>
+    {% endfor %}
+  </div>
+</section>
+
+<!-- How It Works (3 Steps) -->
+<section class="card mb-8 border-l-4 border-primary">
+  <h2 class="text-base sm:text-lg font-bold text-gray-900 mb-1">🚀 How It Works</h2>
+  <p class="text-xs text-gray-500 mb-4">Rent and share in 3 simple, transparent steps.</p>
+  <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+    <div class="bg-gray-50 rounded-xl p-3.5 border border-gray-100 flex flex-col justify-between">
+      <div>
+        <div class="w-8 h-8 rounded-full bg-green-100 text-primary font-extrabold flex items-center justify-center text-sm mb-2">1</div>
+        <h3 class="font-bold text-sm text-gray-800 mb-1">List</h3>
+        <p class="text-xs text-gray-600 leading-relaxed">
+          Snap a photo and list idle clothes, tools, books or gear with custom pricing and deposit in under 60 seconds.
+        </p>
+      </div>
+    </div>
+    <div class="bg-gray-50 rounded-xl p-3.5 border border-gray-100 flex flex-col justify-between">
+      <div>
+        <div class="w-8 h-8 rounded-full bg-orange-100 text-accent font-extrabold flex items-center justify-center text-sm mb-2">2</div>
+        <h3 class="font-bold text-sm text-gray-800 mb-1">Book</h3>
+        <p class="text-xs text-gray-600 leading-relaxed">
+          Find items nearby, view trust badges, and book securely with reduced smart deposits for verified renters.
+        </p>
+      </div>
+    </div>
+    <div class="bg-gray-50 rounded-xl p-3.5 border border-gray-100 flex flex-col justify-between">
+      <div>
+        <div class="w-8 h-8 rounded-full bg-blue-100 text-blue-600 font-extrabold flex items-center justify-center text-sm mb-2">3</div>
+        <h3 class="font-bold text-sm text-gray-800 mb-1">Return and get refund</h3>
+        <p class="text-xs text-gray-600 leading-relaxed">
+          Hand over the item on return, verify condition together, and receive your security deposit refund instantly.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Why RentKart Block -->
+<section class="card mb-8">
+  <h2 class="text-base sm:text-lg font-bold text-gray-900 mb-1">🌟 Why RentKart</h2>
+  <p class="text-xs text-gray-500 mb-4">Built specifically for local Indian communities, towns, and neighborhoods.</p>
+  <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+    <div class="flex items-start gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
+      <span class="text-2xl">🛡️</span>
+      <div>
+        <h3 class="font-bold text-xs sm:text-sm text-gray-800">Trust score</h3>
+        <p class="text-xs text-gray-500 leading-relaxed mt-0.5">
+          Proven renters earn up to 50% discount on security deposits through verified on-time returns.
+        </p>
+      </div>
+    </div>
+    <div class="flex items-start gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
+      <span class="text-2xl">📸</span>
+      <div>
+        <h3 class="font-bold text-xs sm:text-sm text-gray-800">Before and after photos</h3>
+        <p class="text-xs text-gray-500 leading-relaxed mt-0.5">
+          Clear visual condition logs at pickup and return ensure fair, dispute-free settlement for everyone.
+        </p>
+      </div>
+    </div>
+    <div class="flex items-start gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
+      <span class="text-2xl">🎙️</span>
+      <div>
+        <h3 class="font-bold text-xs sm:text-sm text-gray-800">Voice search</h3>
+        <p class="text-xs text-gray-500 leading-relaxed mt-0.5">
+          Speak naturally in Hindi, Telugu, Kannada, or English to find tools and items instantly nearby.
+        </p>
+      </div>
+    </div>
+    <div class="flex items-start gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
+      <span class="text-2xl">🏪</span>
+      <div>
+        <h3 class="font-bold text-xs sm:text-sm text-gray-800">Digital shop QR</h3>
+        <p class="text-xs text-gray-500 leading-relaxed mt-0.5">
+          Generate your own branded shop link and printable QR code poster to promote your rentals locally.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}

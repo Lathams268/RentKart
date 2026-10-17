@@ -1,0 +1,198 @@
+{% extends "base.html" %}
+{% block title %}{{ item.title }} – RentKart{% endblock %}
+
+{% block content %}
+<div class="card space-y-4">
+  <!-- Image -->
+  {% if item.image %}
+    <img src="{{ url_for('static', filename='uploads/' + item.image) }}"
+         alt="{{ item.title }}" class="w-full h-56 object-cover rounded-xl">
+  {% else %}
+    <div class="w-full h-56 bg-gray-200 rounded-xl flex items-center justify-center text-4xl">📷</div>
+  {% endif %}
+
+  <!-- Title & price -->
+  <h1 class="text-2xl font-bold text-gray-800">{{ item.title }}</h1>
+  <div class="flex flex-wrap items-center gap-2 text-sm">
+    <span class="bg-green-100 text-primary font-bold rounded-full px-3 py-1">₹{{ item.price_per_day }} / {{ t('per day') }}</span>
+    {% if current_user.is_authenticated and trust_info and trust_info.multiplier < 1.0 and item.deposit %}
+      <span class="bg-orange-100 text-accent font-bold rounded-full px-3 py-1">
+        {{ t('Deposit') }}: ₹{{ smart_deposit }} <span class="line-through text-gray-400 text-xs">₹{{ item.deposit }}</span>
+      </span>
+      <span class="text-xs text-green-600 font-semibold">Trusted renter discount applied</span>
+    {% elif item.deposit %}
+      <span class="bg-orange-100 text-accent font-bold rounded-full px-3 py-1">{{ t('Deposit') }} ₹{{ item.deposit }}</span>
+    {% endif %}
+    {% if item.late_fee_per_day %}
+      <span class="bg-red-100 text-red-600 font-bold rounded-full px-3 py-1">{{ t('Late penalty') }}: ₹{{ item.late_fee_per_day }} / {{ t('per day') }}</span>
+    {% endif %}
+
+    {% if item.review_stats.count > 0 %}
+      <span class="bg-yellow-100 text-yellow-800 font-bold rounded-full px-3 py-1 text-xs">
+        ⭐ {{ item.review_stats.avg }} ({{ item.review_stats.count }})
+      </span>
+    {% endif %}
+  </div>
+
+  <!-- Description -->
+  {% if item.description %}
+    <p class="text-gray-600">{{ item.description }}</p>
+  {% endif %}
+
+  <!-- Owner info -->
+  <div class="border-t pt-3 text-sm text-gray-500">
+    <strong>Owner:</strong> {{ item.owner.name }} · {{ item.owner.village_or_city }}
+    {% if item.owner.owner_review_stats.count > 0 %}
+      <span class="text-xs text-yellow-600 font-bold ml-1">⭐ {{ item.owner.owner_review_stats.avg }} ({{ item.owner.owner_review_stats.count }} reviews)</span>
+    {% endif %}
+  </div>
+
+  <!-- Category badge -->
+  {% if cat_config %}
+    <div class="text-xs text-gray-400">
+      Category: {{ cat_config.icon }} {{ cat_config.label }}
+    </div>
+  {% endif %}
+
+  <!-- Dynamic attributes -->
+  {% if cat_config and cat_config.fields %}
+    <div class="border-t pt-3 space-y-1">
+      <h3 class="font-semibold text-gray-700 text-sm mb-1">Details</h3>
+      {% for field in cat_config.fields %}
+        {% set val = attrs.get(field.name, '') %}
+        <div class="flex justify-between text-sm">
+          <span class="text-gray-500">{{ field.label }}</span>
+          <span class="font-medium text-gray-800">
+            {% if field.type == 'checkbox' %}
+              {{ 'Yes' if val else 'No' }}
+            {% else %}
+              {{ val if val else '—' }}
+            {% endif %}
+          </span>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  <!-- Report a problem -->
+  <div class="border-t pt-3 flex justify-between items-center text-xs text-gray-500">
+    <span>Item ID #{{ item.id }}</span>
+    <button type="button" onclick="openFeedbackModal('complaint', {{ item.id }}, null, 'Report a Problem with this Item')"
+            class="text-red-600 hover:text-red-800 font-semibold hover:underline flex items-center gap-1">
+      ⚠️ Report a problem
+    </button>
+  </div>
+</div>
+
+<!-- Booking card -->
+<div class="card mt-4 space-y-3">
+  <h2 class="font-bold text-lg text-gray-800">📅 Book this Item</h2>
+
+  {% if not current_user.is_authenticated %}
+    <a href="{{ url_for('auth.login') }}"
+       class="block text-center bg-accent text-white rounded-2xl py-3 font-bold">
+      Login to book
+    </a>
+  {% elif current_user.id == item.owner_id %}
+    <p class="text-sm text-gray-500 italic">You own this item – you cannot book it.</p>
+  {% elif not item.is_available %}
+    <p class="text-sm text-red-600 font-medium">This item is currently marked unavailable.</p>
+  {% else %}
+    <form method="post" action="{{ url_for('bookings.book_item', item_id=item.id) }}" class="space-y-3">
+      <div class="grid grid-cols-2 gap-2">
+        <div>
+          <label class="block text-xs font-medium text-gray-700">Start Date</label>
+          <input type="date" name="start_date" id="start_date" required
+                 min="{{ today }}"
+                 class="w-full border rounded-xl px-3 py-2 text-sm">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-700">End Date</label>
+          <input type="date" name="end_date" id="end_date" required
+                 min="{{ today }}"
+                 class="w-full border rounded-xl px-3 py-2 text-sm">
+        </div>
+      </div>
+
+      <!-- Live price breakdown -->
+      <div id="price-breakdown" class="bg-gray-50 rounded-xl p-3 text-sm space-y-1 hidden">
+        <div class="flex justify-between"><span>Days</span><span id="pb-days">—</span></div>
+        <div class="flex justify-between"><span>Rent</span><span id="pb-rent">—</span></div>
+        <div class="flex justify-between"><span>Deposit</span><span id="pb-deposit">—</span></div>
+        <div class="flex justify-between font-bold border-t pt-1"><span>Total Payable</span><span id="pb-total">—</span></div>
+      </div>
+
+      <button type="submit"
+              class="w-full bg-primary text-white rounded-2xl py-3 text-lg font-bold hover:bg-green-700 min-h-[44px]">
+        {{ t('Request Booking') }}
+      </button>
+
+    </form>
+  {% endif %}
+</div>
+
+<!-- Customer Reviews Section -->
+{% if latest_reviews %}
+<div class="card mt-4 space-y-3 bg-white">
+  <h2 class="font-bold text-lg text-gray-800 flex items-center justify-between">
+    <span>⭐ Customer Reviews ({{ item.review_stats.count }})</span>
+    <span class="text-sm text-yellow-600 font-bold">★ {{ item.review_stats.avg }} / 5.0</span>
+  </h2>
+  <div class="space-y-3 border-t pt-3">
+    {% for rev in latest_reviews %}
+      <div class="text-sm space-y-0.5 border-b pb-2 last:border-b-0">
+        <div class="flex items-center justify-between">
+          <span class="font-semibold text-gray-800 text-xs">{{ rev.reviewer.name }}</span>
+          <span class="text-xs text-accent font-bold">{% for _ in range(rev.rating) %}★{% endfor %}</span>
+        </div>
+        {% if rev.comment %}
+          <p class="text-xs text-gray-600 italic">"{{ rev.comment }}"</p>
+        {% endif %}
+      </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<!-- Flatpickr CDN -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script>
+  (function() {
+    var blocked = {{ blocked_dates | tojson }};
+    var pricePerDay = {{ item.price_per_day }};
+    var deposit = {{ smart_deposit }};
+
+    var startEl = document.getElementById('start_date');
+    var endEl   = document.getElementById('end_date');
+    if (!startEl || !endEl) return;
+
+    var fpOpts = {
+      dateFormat: 'Y-m-d',
+      minDate: 'today',
+      disable: blocked,
+      onChange: update,
+    };
+    flatpickr(startEl, fpOpts);
+    flatpickr(endEl, fpOpts);
+
+    function update() {
+      var s = startEl.value, e = endEl.value;
+      if (!s || !e) return;
+      var sd = new Date(s), ed = new Date(e);
+      if (ed < sd) { endEl.value = s; ed = sd; }
+      var days = Math.max(Math.round((ed - sd) / 86400000) + 1, 1);
+      var rent = days * pricePerDay;
+      document.getElementById('pb-days').textContent = days;
+      document.getElementById('pb-rent').textContent = '₹' + rent;
+      document.getElementById('pb-deposit').textContent = '₹' + deposit;
+      document.getElementById('pb-total').textContent = '₹' + (rent + deposit);
+      document.getElementById('price-breakdown').classList.remove('hidden');
+    }
+    startEl.addEventListener('change', update);
+    endEl.addEventListener('change', update);
+  })();
+</script>
+{% endblock %}

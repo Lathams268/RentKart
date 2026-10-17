@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}My Profile & Trust Score – RentKart{% endblock %}
+
+{% block content %}
+<div class="max-w-xl mx-auto space-y-4">
+  <h1 class="text-2xl font-bold text-gray-800">👤 User Profile</h1>
+
+  <!-- User Details Card -->
+  <div class="card space-y-2 bg-white">
+    <div class="flex items-center justify-between">
+      <div>
+        <h2 class="text-xl font-bold text-gray-800">{{ user.name }}</h2>
+        <p class="text-sm text-gray-500">📞 {{ user.phone }} &bull; 📍 {{ user.village_or_city }}</p>
+      </div>
+      <span class="text-xs px-3 py-1 rounded-full font-bold
+        {% if trust.color == 'green' %}bg-green-100 text-green-800 border border-green-300
+        {% elif trust.color == 'yellow' %}bg-yellow-100 text-yellow-800 border border-yellow-300
+        {% else %}bg-red-100 text-red-800 border border-red-300{% endif %}">
+        🛡️ {{ trust.label }}
+      </span>
+    </div>
+  </div>
+
+  <!-- Trust Score & Smart Deposit Card -->
+  <div class="card bg-white space-y-4">
+    <div class="flex items-center justify-between">
+      <div>
+        <h3 class="font-bold text-gray-800 text-base">🛡️ RentKart Trust Score</h3>
+        <p class="text-xs text-gray-500">Your community reputation determines security deposit discounts.</p>
+      </div>
+      <span class="text-3xl font-black {% if trust.color == 'green' %}text-primary{% elif trust.color == 'yellow' %}text-yellow-600{% else %}text-red-500{% endif %}">
+        {{ trust.score }}/100
+      </span>
+    </div>
+
+    <!-- Progress Bar -->
+    <div class="space-y-1">
+      <div class="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+        <div class="h-3 rounded-full transition-all duration-500
+          {% if trust.color == 'green' %}bg-primary
+          {% elif trust.color == 'yellow' %}bg-yellow-500
+          {% else %}bg-red-500{% endif %}"
+          style="width: {{ trust.score }}%"></div>
+      </div>
+      <div class="flex justify-between text-[10px] text-gray-400 font-bold uppercase tracking-wider">
+        <span>0 (New / Risky)</span>
+        <span>40 (Trusted)</span>
+        <span>70 (Highly Trusted)</span>
+        <span>100</span>
+      </div>
+    </div>
+
+    <!-- Tier benefit explanation -->
+    <div class="bg-gray-50 rounded-xl p-3 text-xs space-y-1 text-gray-600 border">
+      <div class="flex justify-between">
+        <span class="font-medium text-gray-700">Current Status:</span>
+        <strong class="{% if trust.color == 'green' %}text-green-700{% elif trust.color == 'yellow' %}text-yellow-700{% else %}text-red-700{% endif %}">
+          {{ trust.label }} Tier
+        </strong>
+      </div>
+      <div class="flex justify-between">
+        <span class="font-medium text-gray-700">Deposit Multiplier:</span>
+        <strong class="text-primary">{{ (trust.multiplier * 100) | int }}% of standard deposit</strong>
+      </div>
+      {% if trust.multiplier < 1.0 %}
+        <p class="text-green-600 font-semibold mt-1">🎉 You are saving {{ ((1.0 - trust.multiplier) * 100) | int }}% on deposits for all rentals!</p>
+      {% else %}
+        <p class="text-gray-500 mt-1">Complete clean returns on time to unlock deposit discounts.</p>
+      {% endif %}
+    </div>
+
+    <!-- 3 Tips on how to improve -->
+    <div class="border-t pt-3 space-y-2">
+      <h4 class="font-bold text-xs uppercase tracking-wide text-gray-700">💡 3 Tips to Improve Your Trust Score</h4>
+      <ul class="space-y-1.5 text-xs text-gray-600">
+        {% for tip in tips %}
+          <li class="flex items-start gap-2">
+            <span class="text-accent font-bold">&bull;</span>
+            <span>{{ tip }}</span>
+          </li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+</div>
+{% endblock %}
