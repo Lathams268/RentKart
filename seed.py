@@ -11,28 +11,143 @@ from app import create_app
 from models import db, User, Item, Booking, ReturnRecord, Review, Subscription, Feedback
 
 # ---------- Placeholder image generator ----------
-def _make_placeholder(upload_dir, filename, color=(34, 139, 34)):
-    """Create a 400×300 colored PNG placeholder if it doesn't exist."""
+def _make_item_placeholder(upload_dir, filename, category="other", title="", attrs=None, force=False):
+    """Generate an intentional 800x600 placeholder image with Pillow."""
+    attrs = attrs or {}
     path = os.path.join(upload_dir, filename)
-    if os.path.exists(path):
-        return
+    if not force and os.path.exists(path):
+        try:
+            from PIL import Image
+            with Image.open(path) as existing:
+                if existing.size == (800, 600):
+                    return
+        except Exception:
+            pass
+
     try:
+        from PIL import Image, ImageDraw, ImageFont
+
+        # Category theme colors (RGB pairs for soft gradients)
+        CATEGORY_THEMES = {
+            "clothes": ((128, 0, 32), (218, 165, 32)),      # maroon to gold
+            "books": ((15, 35, 85), (20, 145, 155)),         # deep blue to teal
+            "farm_tools": ((25, 100, 35), (120, 75, 30)),    # green to brown
+            "electronics": ((55, 15, 85), (30, 80, 180)),     # dark purple to blue
+            "event_items": ((230, 80, 20), (220, 40, 110)),   # orange to pink
+        }
+
+        # Clothes color gradients based on item color attribute
+        CLOTHES_COLOR_GRADIENTS = {
+            "red": ((180, 20, 30), (230, 80, 60)),
+            "maroon": ((115, 15, 30), (215, 160, 30)),
+            "pink": ((190, 45, 105), (245, 140, 180)),
+            "orange": ((205, 75, 15), (250, 160, 50)),
+            "yellow": ((185, 140, 20), (245, 210, 60)),
+            "green": ((20, 100, 40), (80, 170, 80)),
+            "blue": ((20, 50, 140), (60, 120, 210)),
+            "navy": ((12, 22, 65), (30, 60, 130)),
+            "purple": ((75, 20, 100), (150, 70, 175)),
+            "black": ((25, 25, 30), (70, 70, 80)),
+            "white": ((170, 170, 165), (230, 230, 225)),
+            "cream": ((185, 175, 150), (240, 235, 210)),
+            "gold": ((180, 135, 20), (240, 205, 60)),
+            "silver": ((130, 140, 150), (200, 210, 220)),
+            "multicolor": ((160, 30, 80), (220, 140, 40)),
+        }
+
+        if category == "clothes":
+            color_attr = str(attrs.get("color", "")).strip().lower()
+            if color_attr in CLOTHES_COLOR_GRADIENTS:
+                c1, c2 = CLOTHES_COLOR_GRADIENTS[color_attr]
+            else:
+                c1, c2 = CATEGORY_THEMES["clothes"]
+        else:
+            c1, c2 = CATEGORY_THEMES.get(category, ((50, 50, 60), (100, 100, 115)))
+
+        img = Image.new("RGBA", (800, 600))
+        draw = ImageDraw.Draw(img)
+
+        # Draw smooth vertical gradient (fast line-by-line drawing)
+        r1, g1, b1 = c1
+        r2, g2, b2 = c2
+        for y in range(600):
+            ratio = y / 599.0
+            r = int(r1 + (r2 - r1) * ratio)
+            g = int(g1 + (g2 - g1) * ratio)
+            b = int(b1 + (b2 - b1) * ratio)
+            draw.line([(0, y), (800, y)], fill=(r, g, b, 255))
+
+        # Center soft glowing circular badge
+        draw.ellipse([(280, 140), (520, 380)], fill=(255, 255, 255, 35), outline=(255, 255, 255, 80), width=3)
+
+        # Draw category geometric icon shape in center
+        if category == "clothes":
+            draw.arc([(385, 170), (415, 200)], start=180, end=0, fill=(255, 255, 255, 240), width=4)
+            draw.line([(340, 225), (460, 225)], fill=(255, 255, 255, 240), width=5)
+            draw.line([(340, 225), (400, 200), (460, 225)], fill=(255, 255, 255, 240), width=5)
+            draw.polygon([(380, 230), (420, 230), (450, 345), (350, 345)], fill=(255, 255, 255, 180), outline=(255, 255, 255, 240), width=3)
+        elif category == "books":
+            draw.polygon([(395, 200), (310, 215), (310, 325), (395, 310)], fill=(255, 255, 255, 200), outline=(255, 255, 255, 240), width=3)
+            draw.polygon([(405, 200), (490, 215), (490, 325), (405, 310)], fill=(255, 255, 255, 200), outline=(255, 255, 255, 240), width=3)
+            draw.line([(400, 195), (400, 320)], fill=(255, 255, 255, 240), width=5)
+        elif category == "farm_tools":
+            draw.polygon([(400, 180), (460, 260), (400, 340), (340, 260)], fill=(255, 255, 255, 180), outline=(255, 255, 255, 240), width=4)
+            draw.line([(400, 180), (400, 355)], fill=(255, 255, 255, 240), width=4)
+            draw.line([(400, 235), (440, 215)], fill=(255, 255, 255, 240), width=3)
+            draw.line([(400, 235), (360, 215)], fill=(255, 255, 255, 240), width=3)
+            draw.line([(400, 275), (440, 255)], fill=(255, 255, 255, 240), width=3)
+            draw.line([(400, 275), (360, 255)], fill=(255, 255, 255, 240), width=3)
+        elif category == "electronics":
+            draw.rounded_rectangle([(320, 200), (480, 310)], radius=12, fill=(255, 255, 255, 180), outline=(255, 255, 255, 240), width=4)
+            draw.rectangle([(335, 215), (465, 295)], fill=(0, 0, 0, 70))
+            draw.polygon([(390, 235), (420, 255), (390, 275)], fill=(255, 255, 255, 250))
+            draw.line([(400, 310), (400, 335)], fill=(255, 255, 255, 240), width=6)
+            draw.line([(365, 335), (435, 335)], fill=(255, 255, 255, 240), width=5)
+        elif category == "event_items":
+            star_pts = [(400, 180), (425, 235), (485, 240), (440, 280), (455, 335), (400, 305), (345, 335), (360, 280), (315, 240), (375, 235)]
+            draw.polygon(star_pts, fill=(255, 255, 255, 200), outline=(255, 255, 255, 240), width=3)
+        else:
+            draw.rectangle([(340, 210), (460, 310)], fill=(255, 255, 255, 180), outline=(255, 255, 255, 240), width=4)
+
+        # Bottom semi-transparent strip
+        draw.rectangle([(0, 480), (800, 600)], fill=(0, 0, 0, 160))
+        draw.line([(0, 480), (800, 480)], fill=(255, 255, 255, 60), width=1)
+
+        # Fonts
+        try:
+            font_title = ImageFont.truetype("arial.ttf", 30)
+            font_label = ImageFont.truetype("arial.ttf", 16)
+        except Exception:
+            font_title = ImageFont.load_default()
+            font_label = ImageFont.load_default()
+
+        # For clothes: small label showing clothing_type
+        clothing_type = attrs.get("clothing_type") if category == "clothes" else None
+        if clothing_type:
+            label_text = f"👗 {clothing_type.upper()}"
+            draw.rounded_rectangle([(35, 495), (200, 520)], radius=5, fill=(255, 255, 255, 220))
+            draw.text((45, 498), label_text, fill=(80, 0, 20), font=font_label)
+            draw.text((35, 536), title[:42], fill=(255, 255, 255), font=font_title)
+        else:
+            draw.text((35, 520), title[:42], fill=(255, 255, 255), font=font_title)
+
+        final_img = img.convert("RGB")
+        final_img.save(path, quality=95)
+    except Exception:
+        # Fallback to simple colored image
         from PIL import Image
-        img = Image.new("RGB", (400, 300), color)
+        img = Image.new("RGB", (800, 600), (120, 120, 120))
         img.save(path)
-    except ImportError:
-        # Fallback: create a tiny valid PNG manually (1×1 pixel)
-        import struct, zlib
-        def _png_chunk(chunk_type, data):
-            c = chunk_type + data
-            return struct.pack(">I", len(data)) + c + struct.pack(">I", zlib.crc32(c) & 0xffffffff)
-        sig = b"\x89PNG\r\n\x1a\n"
-        ihdr = _png_chunk(b"IHDR", struct.pack(">IIBBBBB", 1, 1, 8, 2, 0, 0, 0))
-        raw = zlib.compress(b"\x00" + bytes(color))
-        idat = _png_chunk(b"IDAT", raw)
-        iend = _png_chunk(b"IEND", b"")
-        with open(path, "wb") as f:
-            f.write(sig + ihdr + idat + iend)
+
+
+def _make_placeholder(upload_dir, filename, color=(34, 139, 34), category="other", title="", attrs=None):
+    """Wrapper backwards-compatible placeholder generator."""
+    _make_item_placeholder(upload_dir, filename, category=category, title=title, attrs=attrs)
+
+
+def _make_book_placeholder(upload_dir, filename, title=""):
+    """Wrapper backwards-compatible book placeholder generator."""
+    _make_item_placeholder(upload_dir, filename, category="books", title=title)
 
 
 # ---------- Seed data ----------
@@ -48,7 +163,17 @@ USERS = [
         "shop_description": "High quality farming rotavators, tractors, and event plastic chairs in Hoskote.",
         "is_admin": False,
     },
-    {"name": "Lakshmi", "phone": "9000000002", "village_or_city": "Devanahalli",  "lat": 13.2473, "lng": 77.7116, "is_admin": False},
+    {
+        "name": "Lakshmi",
+        "phone": "9000000002",
+        "village_or_city": "Devanahalli",
+        "lat": 13.2473,
+        "lng": 77.7116,
+        "shop_name": "Shravani Boutique",
+        "shop_slug": "shravani",
+        "shop_description": "Lehengas, sarees and sherwanis for weddings and festivals",
+        "is_admin": False,
+    },
     {"name": "Suresh",  "phone": "9000000003", "village_or_city": "Anekal",       "lat": 12.7105, "lng": 77.6960, "is_admin": False},
     {
         "name": "Priya",
@@ -73,14 +198,14 @@ USERS = [
 
 ITEMS = [
     # Clothes (3)
-    {"owner_idx": 0, "category": "clothes",     "title": "Silk Lehenga",         "description": "Beautiful red silk lehenga for weddings", "price_per_day": 500,  "deposit": 2000, "late_fee_per_day": 100, "attrs": {"clothing_type": "Lehenga", "color": "Red", "size": "M", "occasion": "Wedding", "fabric": "Silk", "gender": "Women"}},
-    {"owner_idx": 3, "category": "clothes",     "title": "Designer Sherwani",    "description": "Navy blue sherwani with gold work",      "price_per_day": 800,  "deposit": 3000, "late_fee_per_day": 150, "attrs": {"clothing_type": "Sherwani", "color": "Navy", "size": "L", "occasion": "Wedding", "fabric": "Brocade", "gender": "Men"}},
-    {"owner_idx": 1, "category": "clothes",     "title": "Pattu Saree",          "description": "Traditional Kanjivaram pattu saree",     "price_per_day": 400,  "deposit": 1500, "late_fee_per_day": 80,  "purchase_price": 1500, "attrs": {"clothing_type": "Saree", "color": "Gold", "size": "Free Size", "occasion": "Festival", "fabric": "Silk", "gender": "Women"}},
+    {"owner_idx": 1, "category": "clothes",     "title": "Silk Lehenga",         "description": "Beautiful red silk lehenga for weddings", "price_per_day": 500,  "deposit": 2000, "late_fee_per_day": 100, "attrs": {"brand": "Shravani", "clothing_type": "Lehenga", "color": "Red", "size": "M", "occasion": "Wedding", "fabric": "Silk", "gender": "Women"}},
+    {"owner_idx": 1, "category": "clothes",     "title": "Designer Sherwani",    "description": "Navy blue sherwani with gold work",      "price_per_day": 800,  "deposit": 3000, "late_fee_per_day": 150, "attrs": {"brand": "Shravani", "clothing_type": "Sherwani", "color": "Navy", "size": "L", "occasion": "Wedding", "fabric": "Brocade", "gender": "Men"}},
+    {"owner_idx": 1, "category": "clothes",     "title": "Pattu Saree",          "description": "Traditional Kanjivaram pattu saree",     "price_per_day": 400,  "deposit": 1500, "late_fee_per_day": 80,  "purchase_price": 1500, "attrs": {"brand": "Shravani", "clothing_type": "Saree", "color": "Gold", "size": "Free Size", "occasion": "Festival", "fabric": "Silk", "gender": "Women"}},
 
     # Books (3)
-    {"owner_idx": 3, "category": "books",       "title": "Engineering Maths",    "description": "BS Grewal Higher Engineering Mathematics","price_per_day": 20,   "deposit": 200,  "late_fee_per_day": 5,   "purchase_price": 300,  "attrs": {"author": "BS Grewal", "edition": "44th", "language": "English", "condition": "Good"}},
-    {"owner_idx": 1, "category": "books",       "title": "NCERT Physics Class 12","description": "NCERT textbook for board exams",        "price_per_day": 10,   "deposit": 100,  "late_fee_per_day": 3,   "purchase_price": 15,   "attrs": {"author": "NCERT", "edition": "2024", "language": "English", "condition": "New"}},
-    {"owner_idx": 2, "category": "books",       "title": "Kannada Sahitya",      "description": "Kannada literature anthology",           "price_per_day": 15,   "deposit": 100,  "late_fee_per_day": 5,   "attrs": {"author": "Various", "edition": "1st", "language": "Kannada", "condition": "Old"}},
+    {"owner_idx": 3, "category": "books",       "title": "Engineering Maths",    "description": "BS Grewal Higher Engineering Mathematics","price_per_day": 20,   "deposit": 200,  "late_fee_per_day": 5,   "purchase_price": 300,  "attrs": {"genre": "Education / Exam Prep", "author": "BS Grewal", "edition": "44th", "language": "English", "condition": "Good"}},
+    {"owner_idx": 1, "category": "books",       "title": "NCERT Physics Class 12","description": "NCERT textbook for board exams",        "price_per_day": 10,   "deposit": 100,  "late_fee_per_day": 3,   "purchase_price": 15,   "attrs": {"genre": "Education / Exam Prep", "author": "NCERT", "edition": "2024", "language": "English", "condition": "New"}},
+    {"owner_idx": 2, "category": "books",       "title": "Kannada Sahitya",      "description": "Kannada literature anthology",           "price_per_day": 15,   "deposit": 100,  "late_fee_per_day": 5,   "attrs": {"genre": "Poetry", "author": "Various", "edition": "1st", "language": "Kannada", "condition": "Old"}},
     # Farm tools (3)
     {"owner_idx": 0, "category": "farm_tools",  "title": "Tractor Rotavator",    "description": "42-blade rotavator attachment",          "price_per_day": 1500, "deposit": 5000, "late_fee_per_day": 500, "attrs": {"power": "45 HP", "fuel": "Diesel", "operator_included": True}},
     {"owner_idx": 2, "category": "farm_tools",  "title": "Power Sprayer",        "description": "16L knapsack battery sprayer",           "price_per_day": 150,  "deposit": 500,  "late_fee_per_day": 50,  "attrs": {"power": "12V", "fuel": "Electric", "operator_included": False}},
@@ -93,6 +218,338 @@ ITEMS = [
     {"owner_idx": 0, "category": "event_items", "title": "Plastic Chairs Set",   "description": "50 white plastic chairs for functions",  "price_per_day": 500,  "deposit": 1000, "late_fee_per_day": 100, "purchase_price": 2000, "attrs": {"type": "Chairs", "quantity": "50"}},
     {"owner_idx": 3, "category": "event_items", "title": "Shamiyana Tent",       "description": "30x40 ft waterproof tent with poles",    "price_per_day": 2000, "deposit": 5000, "late_fee_per_day": 500, "attrs": {"type": "Tent", "quantity": "1"}},
     {"owner_idx": 0, "category": "event_items", "title": "PA Sound System",      "description": "2 speakers + amplifier + mic for events","price_per_day": 800,  "deposit": 3000, "late_fee_per_day": 200, "attrs": {"type": "Sound System", "quantity": "1"}},
+]
+
+NEW_BOOKS = [
+    # Spiritual / God and Devotional (3)
+    {
+        "owner_idx": 1,
+        "category": "books",
+        "title": "Bhagavad Gita As It Is",
+        "description": "Complete edition with original Sanskrit verses, transliteration, and English purports.",
+        "price_per_day": 15,
+        "deposit": 150,
+        "late_fee_per_day": 5,
+        "attrs": {
+            "genre": "Spiritual / God and Devotional (Bhagavad Gita, Ramayana, Bible, Quran, etc.)",
+            "author": "A.C. Bhaktivedanta Swami Prabhupada",
+            "edition": "Deluxe Hardcover",
+            "language": "English / Sanskrit",
+            "condition": "New",
+            "religion_or_tradition": "Hindu",
+            "age_group": "All ages",
+        },
+    },
+    {
+        "owner_idx": 3,
+        "category": "books",
+        "title": "Ramayana (Retold)",
+        "description": "Timeless epic of prince Rama, duty, righteousness, and devotion retold for contemporary readers.",
+        "price_per_day": 20,
+        "deposit": 200,
+        "late_fee_per_day": 5,
+        "attrs": {
+            "genre": "Spiritual / God and Devotional (Bhagavad Gita, Ramayana, Bible, Quran, etc.)",
+            "author": "C. Rajagopalachari",
+            "edition": "Special Illustrated",
+            "language": "English",
+            "condition": "Good",
+            "religion_or_tradition": "Hindu",
+            "age_group": "All ages",
+        },
+    },
+    {
+        "owner_idx": 0,
+        "category": "books",
+        "title": "Hanuman Chalisa with Meaning",
+        "description": "Word by word commentary, spiritual significance, and stotras of Goswami Tulsidas.",
+        "price_per_day": 10,
+        "deposit": 100,
+        "late_fee_per_day": 3,
+        "attrs": {
+            "genre": "Spiritual / God and Devotional (Bhagavad Gita, Ramayana, Bible, Quran, etc.)",
+            "author": "Goswami Tulsidas",
+            "edition": "Pocket Edition",
+            "language": "Hindi / Awadhi",
+            "condition": "New",
+            "religion_or_tradition": "Hindu",
+            "age_group": "All ages",
+        },
+    },
+
+    # Comedy / Humor (2)
+    {
+        "owner_idx": 2,
+        "category": "books",
+        "title": "Tenali Rama and Birbal Stories",
+        "description": "Classic humorous and witty courtroom tales of Tenali Rama and Birbal.",
+        "price_per_day": 15,
+        "deposit": 150,
+        "late_fee_per_day": 4,
+        "attrs": {
+            "genre": "Comedy / Humor",
+            "author": "Traditional Folktales",
+            "edition": "Illustrated",
+            "language": "English",
+            "condition": "Good",
+            "religion_or_tradition": "Not applicable",
+            "age_group": "All ages",
+        },
+    },
+    {
+        "owner_idx": 3,
+        "category": "books",
+        "title": "Stand-Up Comedy Collection",
+        "description": "Hilarious scripts, sketches, and comic anecdotes from top Indian comedy stages.",
+        "price_per_day": 25,
+        "deposit": 200,
+        "late_fee_per_day": 5,
+        "attrs": {
+            "genre": "Comedy / Humor",
+            "author": "Various Writers",
+            "edition": "1st Edition",
+            "language": "English / Hinglish",
+            "condition": "Good",
+            "religion_or_tradition": "Not applicable",
+            "age_group": "Teens",
+        },
+    },
+
+    # Inspirational / Motivation (2)
+    {
+        "owner_idx": 1,
+        "category": "books",
+        "title": "The Monk Who Sold His Ferrari",
+        "description": "A fable about fulfilling your dreams and reaching your destiny through mindfulness.",
+        "price_per_day": 30,
+        "deposit": 250,
+        "late_fee_per_day": 5,
+        "attrs": {
+            "genre": "Inspirational / Motivation",
+            "author": "Robin Sharma",
+            "edition": "International Bestseller",
+            "language": "English",
+            "condition": "Good",
+            "religion_or_tradition": "Not applicable",
+            "age_group": "Adults",
+        },
+    },
+    {
+        "owner_idx": 2,
+        "category": "books",
+        "title": "Chicken Soup for the Soul",
+        "description": "Stories to open the heart and rekindle the spirit, inspiring resilience and hope.",
+        "price_per_day": 20,
+        "deposit": 200,
+        "late_fee_per_day": 4,
+        "attrs": {
+            "genre": "Inspirational / Motivation",
+            "author": "Jack Canfield & Mark Victor Hansen",
+            "edition": "20th Anniversary",
+            "language": "English",
+            "condition": "Good",
+            "religion_or_tradition": "Not applicable",
+            "age_group": "All ages",
+        },
+    },
+
+    # Biography (1)
+    {
+        "owner_idx": 3,
+        "category": "books",
+        "title": "Wings of Fire",
+        "description": "An autobiography of visionary scientist and former President APJ Abdul Kalam.",
+        "price_per_day": 25,
+        "deposit": 250,
+        "late_fee_per_day": 5,
+        "attrs": {
+            "genre": "Biography",
+            "author": "Dr. A.P.J. Abdul Kalam",
+            "edition": "Universities Press",
+            "language": "English",
+            "condition": "Good",
+            "religion_or_tradition": "Not applicable",
+            "age_group": "All ages",
+        },
+    },
+
+    # Self-Help (1)
+    {
+        "owner_idx": 0,
+        "category": "books",
+        "title": "Atomic Habits",
+        "description": "Tiny changes, remarkable results: an easy and proven way to build good habits and break bad ones.",
+        "price_per_day": 35,
+        "deposit": 350,
+        "late_fee_per_day": 8,
+        "attrs": {
+            "genre": "Self-Help",
+            "author": "James Clear",
+            "edition": "Hardcover",
+            "language": "English",
+            "condition": "New",
+            "religion_or_tradition": "Not applicable",
+            "age_group": "Adults",
+        },
+    },
+
+    # Children (1)
+    {
+        "owner_idx": 1,
+        "category": "books",
+        "title": "Panchatantra for Kids",
+        "description": "Ancient animal fables teaching moral values, wisdom, and friendship for young readers.",
+        "price_per_day": 15,
+        "deposit": 150,
+        "late_fee_per_day": 3,
+        "attrs": {
+            "genre": "Children",
+            "author": "Pandit Vishnu Sharma",
+            "edition": "Color Illustrated",
+            "language": "English",
+            "condition": "New",
+            "religion_or_tradition": "Not applicable",
+            "age_group": "Kids",
+        },
+    },
+
+    # Education / Exam Prep (2)
+    {
+        "owner_idx": 2,
+        "category": "books",
+        "title": "UPSC Civil Services Prelims Prep",
+        "description": "Comprehensive guide for General Studies and CSAT paper preparation.",
+        "price_per_day": 40,
+        "deposit": 400,
+        "late_fee_per_day": 10,
+        "attrs": {
+            "genre": "Education / Exam Prep",
+            "author": "M. Laxmikanth",
+            "edition": "7th Edition",
+            "language": "English",
+            "condition": "Good",
+            "religion_or_tradition": "Not applicable",
+            "age_group": "Adults",
+        },
+    },
+    {
+        "owner_idx": 3,
+        "category": "books",
+        "title": "GATE Engineering Mechanics",
+        "description": "Theory, solved problems, and previous 20 years question bank for GATE exam.",
+        "price_per_day": 30,
+        "deposit": 300,
+        "late_fee_per_day": 8,
+        "attrs": {
+            "genre": "Education / Exam Prep",
+            "author": "Made Easy Publications",
+            "edition": "2025 Edition",
+            "language": "English",
+            "condition": "New",
+            "religion_or_tradition": "Not applicable",
+            "age_group": "Adults",
+        },
+    },
+
+    # Fiction / Novel (1)
+    {
+        "owner_idx": 0,
+        "category": "books",
+        "title": "Malgudi Days",
+        "description": "Heartwarming and colorful short stories set in the enchanting fictional South Indian town of Malgudi.",
+        "price_per_day": 20,
+        "deposit": 200,
+        "late_fee_per_day": 4,
+        "attrs": {
+            "genre": "Fiction / Novel",
+            "author": "R.K. Narayan",
+            "edition": "Penguin Classics",
+            "language": "English",
+            "condition": "Good",
+            "religion_or_tradition": "Not applicable",
+            "age_group": "All ages",
+        },
+    },
+
+    # Mythology (1)
+    {
+        "owner_idx": 1,
+        "category": "books",
+        "title": "Indian Mythology Tales",
+        "description": "Fascinating stories of gods, goddesses, demons, and celestial beings from sacred epics.",
+        "price_per_day": 25,
+        "deposit": 250,
+        "late_fee_per_day": 5,
+        "attrs": {
+            "genre": "Mythology",
+            "author": "Devdutt Pattanaik",
+            "edition": "1st Edition",
+            "language": "English",
+            "condition": "Good",
+            "religion_or_tradition": "Hindu",
+            "age_group": "All ages",
+        },
+    },
+
+    # Business / Finance (1)
+    {
+        "owner_idx": 2,
+        "category": "books",
+        "title": "The Intelligent Investor",
+        "description": "The definitive book on value investing, risk management, and long-term financial security.",
+        "price_per_day": 35,
+        "deposit": 350,
+        "late_fee_per_day": 8,
+        "attrs": {
+            "genre": "Business / Finance",
+            "author": "Benjamin Graham",
+            "edition": "Revised Edition",
+            "language": "English",
+            "condition": "New",
+            "religion_or_tradition": "Not applicable",
+            "age_group": "Adults",
+        },
+    },
+
+    # Health / Fitness (1)
+    {
+        "owner_idx": 3,
+        "category": "books",
+        "title": "Yoga for Everyday Health",
+        "description": "Practical guide to asanas, pranayama breathing, and holistic wellness for healthy living.",
+        "price_per_day": 25,
+        "deposit": 250,
+        "late_fee_per_day": 5,
+        "attrs": {
+            "genre": "Health / Fitness",
+            "author": "B.K.S. Iyengar",
+            "edition": "Illustrated",
+            "language": "English",
+            "condition": "Good",
+            "religion_or_tradition": "Not applicable",
+            "age_group": "Adults",
+        },
+    },
+
+    # Other (1)
+    {
+        "owner_idx": 1,
+        "category": "books",
+        "title": "World Facts & Curiosities",
+        "description": "Fascinating compendium of world wonders, historical discoveries, and curiosities.",
+        "price_per_day": 20,
+        "deposit": 200,
+        "late_fee_per_day": 4,
+        "attrs": {
+            "genre": "Other",
+            "author": "Editorial Board",
+            "edition": "Reference Series",
+            "language": "English",
+            "condition": "Good",
+            "religion_or_tradition": "Not applicable",
+            "age_group": "All ages",
+        },
+    },
 ]
 
 
@@ -108,7 +565,7 @@ COLORS = {
 def seed():
     """Insert demo data if the DB is empty."""
     from flask import current_app
-    from datetime import date, timedelta
+    from datetime import datetime, date, timedelta
     from utils.booking import calculate_price
 
     # Update shop details for demo owners if already existing
@@ -145,10 +602,11 @@ def seed():
 
     # 2. Seed items if empty, and ensure Ramesh has exactly 5 items
     if Item.query.first() is None:
-        for idx, data in enumerate(ITEMS):
+        items_to_seed = ITEMS if is_test_phase2 else (ITEMS + NEW_BOOKS)
+        for idx, data in enumerate(items_to_seed):
             owner = users[data["owner_idx"]]
             img_name = f"seed_{idx}.png"
-            _make_placeholder(upload_dir, img_name, COLORS.get(data["category"], (128, 128, 128)))
+            _make_item_placeholder(upload_dir, img_name, category=data["category"], title=data["title"], attrs=data.get("attrs"))
 
             item = Item(
                 owner_id=owner.id,
@@ -167,7 +625,45 @@ def seed():
             db.session.add(item)
 
         db.session.commit()
-        print(f"Seeded {len(users)} users and {len(ITEMS)} items.")
+        print(f"Seeded {len(users)} users and {len(items_to_seed)} items.")
+    elif not is_test_phase2:
+        # DB already has items: add any missing new books without duplicates
+        for idx, data in enumerate(NEW_BOOKS):
+            if not Item.query.filter_by(title=data["title"]).first():
+                owner = users[data["owner_idx"]]
+                img_name = f"seed_book_{idx}.png"
+                _make_item_placeholder(upload_dir, img_name, category="books", title=data["title"], attrs=data.get("attrs"))
+                item = Item(
+                    owner_id=owner.id,
+                    category=data["category"],
+                    title=data["title"],
+                    description=data["description"],
+                    price_per_day=data["price_per_day"],
+                    deposit=data["deposit"],
+                    late_fee_per_day=data["late_fee_per_day"],
+                    lat=owner.lat,
+                    lng=owner.lng,
+                    image=img_name,
+                    purchase_price=data.get("purchase_price"),
+                )
+                item.set_attributes(data["attrs"])
+                db.session.add(item)
+        db.session.commit()
+
+    # Ensure existing books have genre attribute set
+    existing_books_genres = {
+        "Engineering Maths": "Education / Exam Prep",
+        "NCERT Physics Class 12": "Education / Exam Prep",
+        "Kannada Sahitya": "Poetry",
+    }
+    for title, gen in existing_books_genres.items():
+        b_it = Item.query.filter_by(title=title).first()
+        if b_it:
+            cur = b_it.get_attributes()
+            if not cur.get("genre"):
+                cur["genre"] = gen
+                b_it.set_attributes(cur)
+    db.session.commit()
 
     # 3. Create bookings (Phase 3 & Phase 4 data)
     today = date.today()
@@ -188,6 +684,13 @@ def seed():
             b1 = Booking(item_id=lehenga.id, renter_id=users[3].id, start_date=s1, end_date=e1, **p1,
                          status="requested", payment_method="upi", payment_status="pending", commission_percent=10.0)
             db.session.add(b1)
+
+        if chairs:
+            s_ch, e_ch = today + timedelta(days=3), today + timedelta(days=5)
+            p_ch = calculate_price(chairs, s_ch, e_ch)
+            b_ch = Booking(item_id=chairs.id, renter_id=users[3].id, start_date=s_ch, end_date=e_ch, **p_ch,
+                           status="requested", payment_method="cash", payment_status="pending", commission_percent=10.0)
+            db.session.add(b_ch)
 
         if camera:
             s2, e2 = today + timedelta(days=5), today + timedelta(days=7)
@@ -375,10 +878,18 @@ def seed():
             it.purchase_price = price
 
     # Update clothes attributes on existing items
+    shravani_owner = User.query.filter_by(shop_slug="shravani").first()
+    if not shravani_owner:
+        shravani_owner = User.query.filter_by(phone="9000000002").first()
+    if shravani_owner:
+        shravani_owner.shop_name = "Shravani Boutique"
+        shravani_owner.shop_slug = "shravani"
+        shravani_owner.shop_description = "Lehengas, sarees and sherwanis for weddings and festivals"
+
     clothes_attrs = {
-        "Silk Lehenga": {"clothing_type": "Lehenga", "color": "Red", "size": "M", "occasion": "Wedding", "fabric": "Silk", "gender": "Women"},
-        "Designer Sherwani": {"clothing_type": "Sherwani", "color": "Navy", "size": "L", "occasion": "Wedding", "fabric": "Brocade", "gender": "Men"},
-        "Pattu Saree": {"clothing_type": "Saree", "color": "Gold", "size": "Free Size", "occasion": "Festival", "fabric": "Silk", "gender": "Women"},
+        "Silk Lehenga": {"brand": "Shravani", "clothing_type": "Lehenga", "color": "Red", "size": "M", "occasion": "Wedding", "fabric": "Silk", "gender": "Women"},
+        "Designer Sherwani": {"brand": "Shravani", "clothing_type": "Sherwani", "color": "Navy", "size": "L", "occasion": "Wedding", "fabric": "Brocade", "gender": "Men"},
+        "Pattu Saree": {"brand": "Shravani", "clothing_type": "Saree", "color": "Gold", "size": "Free Size", "occasion": "Festival", "fabric": "Silk", "gender": "Women"},
     }
     for title, attrs in clothes_attrs.items():
         it = Item.query.filter_by(title=title).first()
@@ -386,10 +897,123 @@ def seed():
             cur = it.get_attributes()
             cur.update(attrs)
             it.set_attributes(cur)
+            if shravani_owner:
+                it.owner_id = shravani_owner.id
+
+    for it in Item.query.filter_by(category="clothes").all():
+        cur = it.get_attributes()
+        if not cur.get("brand"):
+            cur["brand"] = "Shravani"
+            it.set_attributes(cur)
+        if shravani_owner:
+            it.owner_id = shravani_owner.id
     db.session.commit()
 
+    # 7. Recent bookings for trending books (6 recent bookings across 3 books)
+    if not is_test_phase2 and len(users) >= 4:
+        bg = Item.query.filter_by(title="Bhagavad Gita As It Is").first()
+        ah = Item.query.filter_by(title="Atomic Habits").first()
+        wf = Item.query.filter_by(title="Wings of Fire").first()
 
+        if bg and Booking.query.filter_by(item_id=bg.id).count() == 0:
+            b_g1 = Booking(
+                item_id=bg.id,
+                renter_id=users[0].id,
+                start_date=today - timedelta(days=6),
+                end_date=today - timedelta(days=3),
+                days=3,
+                total_rent=45.0,
+                deposit=150.0,
+                total_payable=195.0,
+                status="returned",
+                payment_method="upi",
+                payment_status="paid_demo",
+                created_at=datetime.utcnow() - timedelta(days=6),
+            )
+            b_g2 = Booking(
+                item_id=bg.id,
+                renter_id=users[2].id,
+                start_date=today - timedelta(days=2),
+                end_date=today + timedelta(days=1),
+                days=3,
+                total_rent=45.0,
+                deposit=150.0,
+                total_payable=195.0,
+                status="approved",
+                payment_method="cash",
+                payment_status="pay_on_pickup",
+                created_at=datetime.utcnow() - timedelta(days=3),
+            )
+            b_g3 = Booking(
+                item_id=bg.id,
+                renter_id=users[3].id,
+                start_date=today + timedelta(days=1),
+                end_date=today + timedelta(days=4),
+                days=3,
+                total_rent=45.0,
+                deposit=150.0,
+                total_payable=195.0,
+                status="requested",
+                payment_method="upi",
+                payment_status="pending",
+                created_at=datetime.utcnow() - timedelta(days=1),
+            )
+            db.session.add_all([b_g1, b_g2, b_g3])
 
+        if ah and Booking.query.filter_by(item_id=ah.id).count() == 0:
+            b_a1 = Booking(
+                item_id=ah.id,
+                renter_id=users[1].id,
+                start_date=today - timedelta(days=10),
+                end_date=today - timedelta(days=6),
+                days=4,
+                total_rent=140.0,
+                deposit=350.0,
+                total_payable=490.0,
+                status="returned",
+                payment_method="upi",
+                payment_status="paid_demo",
+                created_at=datetime.utcnow() - timedelta(days=10),
+            )
+            b_a2 = Booking(
+                item_id=ah.id,
+                renter_id=users[2].id,
+                start_date=today - timedelta(days=4),
+                end_date=today + timedelta(days=2),
+                days=6,
+                total_rent=210.0,
+                deposit=350.0,
+                total_payable=560.0,
+                status="picked_up",
+                payment_method="upi",
+                payment_status="paid_demo",
+                created_at=datetime.utcnow() - timedelta(days=5),
+            )
+            db.session.add_all([b_a1, b_a2])
+
+        if wf and Booking.query.filter_by(item_id=wf.id).count() == 0:
+            b_w1 = Booking(
+                item_id=wf.id,
+                renter_id=users[0].id,
+                start_date=today - timedelta(days=14),
+                end_date=today - timedelta(days=10),
+                days=4,
+                total_rent=100.0,
+                deposit=250.0,
+                total_payable=350.0,
+                status="picked_up",
+                payment_method="cash",
+                payment_status="paid_demo",
+                created_at=datetime.utcnow() - timedelta(days=15),
+            )
+            db.session.add(b_w1)
+
+        db.session.commit()
+
+    # Ensure generated 800x600 seed images exist for every seeded item
+    for it in Item.query.all():
+        if it.image:
+            _make_item_placeholder(upload_dir, it.image, category=it.category, title=it.title, attrs=it.get_attributes())
 
 if __name__ == "__main__":
     application = create_app()

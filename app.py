@@ -49,8 +49,11 @@ def create_app(test_config=None):
     app.register_blueprint(admin_bp)
 
     from translations import t, SUPPORTED_LANGUAGES
+    from utils.trending import get_book_genre_info, is_book_trending
     app.jinja_env.globals["t"] = t
     app.jinja_env.globals["SUPPORTED_LANGUAGES"] = SUPPORTED_LANGUAGES
+    app.jinja_env.globals["get_book_genre_info"] = get_book_genre_info
+    app.jinja_env.globals["is_book_trending"] = is_book_trending
 
     @app.context_processor
     def inject_global_data():

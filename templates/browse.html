@@ -70,6 +70,10 @@
     </div>
   </div>
 
+  <!-- Hidden genre and brand filter preserving inputs -->
+  <input type="hidden" name="genre" value="{{ sel_genre }}">
+  <input type="hidden" name="brand" value="{{ sel_brand or '' }}">
+
   <!-- Category chips -->
   <div class="flex flex-wrap gap-2">
     {% for key, cat in categories.items() %}
@@ -96,6 +100,56 @@
       </span>
     </label>
   </div>
+
+  <!-- Brand filter chips (shown when clothes category is selected) -->
+  {% if sel_category == 'clothes' %}
+  <div class="pt-2 border-t border-gray-100">
+    <div class="text-xs font-bold text-gray-500 mb-1.5 flex items-center gap-1">
+      <span>👗 Brands:</span>
+    </div>
+    <div class="flex flex-wrap gap-1.5 items-center">
+      <a href="{{ url_for('main.browse', category='clothes', search=search, max_price=max_price, max_dist=max_dist, sort=sort, lat=lat, lng=lng, view=view) }}"
+         class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold border transition {{ 'bg-primary text-white border-primary shadow-sm' if not sel_brand or sel_brand.lower() == 'all' else 'bg-gray-50 text-gray-700 hover:bg-gray-100' }}">
+        All
+      </a>
+      <a href="{{ url_for('main.browse', category='clothes', brand='Shravani', search=search, max_price=max_price, max_dist=max_dist, sort=sort, lat=lat, lng=lng, view=view) }}"
+         class="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold border transition {{ 'bg-rose-700 text-white border-rose-700 shadow-sm' if sel_brand and sel_brand.lower() == 'shravani' else 'bg-rose-50 text-rose-800 border-rose-200 hover:bg-rose-100' }}">
+        ✨ Shravani
+      </a>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Genre filter chips (shown when books category is selected) -->
+  {% if sel_category == 'books' and book_genres %}
+  <div class="pt-2 border-t border-gray-100">
+    <div class="text-xs font-bold text-gray-500 mb-1.5 flex items-center gap-1">
+      <span>📚 Book Genres:</span>
+    </div>
+    <div class="flex flex-wrap gap-1.5 items-center">
+      <!-- All books chip -->
+      <a href="{{ url_for('main.browse', category='books', search=search, max_price=max_price, max_dist=max_dist, sort=sort, lat=lat, lng=lng, view=view) }}"
+         class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold border transition {{ 'bg-primary text-white border-primary shadow-sm' if not sel_genre or sel_genre.lower() == 'all' else 'bg-gray-50 text-gray-700 hover:bg-gray-100' }}">
+        All
+      </a>
+      <!-- Trending chip -->
+      <a href="{{ url_for('main.browse', category='books', genre='trending', search=search, max_price=max_price, max_dist=max_dist, sort=sort, lat=lat, lng=lng, view=view) }}"
+         class="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold border transition {{ 'bg-orange-500 text-white border-orange-500 shadow-sm' if sel_genre and sel_genre.lower() == 'trending' else 'bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-100' }}">
+        🔥 Trending
+      </a>
+      <!-- Each genre from config -->
+      {% for opt in book_genres %}
+        {% set g_info = get_book_genre_info(opt) %}
+        {% set is_active = (sel_genre and (sel_genre.lower() == opt.lower() or sel_genre.lower() in opt.lower() or opt.lower() in sel_genre.lower())) %}
+        <a href="{{ url_for('main.browse', category='books', genre=opt, search=search, max_price=max_price, max_dist=max_dist, sort=sort, lat=lat, lng=lng, view=view) }}"
+           class="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium border transition {{ 'bg-primary text-white border-primary shadow-sm' if is_active else 'bg-gray-50 text-gray-700 hover:bg-gray-100' }}">
+          <span>{{ g_info.emoji }}</span>
+          <span>{{ g_info.short_label }}</span>
+        </a>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
 
   <!-- Category-specific select filters (max 2) -->
   {% if cat_select_fields %}
@@ -147,6 +201,102 @@
   </div>
 </form>
 
+<!-- Card Macro for consistent rendering -->
+{% macro render_item_card(item, is_trending_card=false) %}
+  <div class="card hover:shadow-lg transition block relative h-full flex flex-col justify-between">
+    <div>
+      <div class="relative">
+        {% if item.owner.current_plan() == 'business' %}
+          <span class="absolute top-2 right-2 bg-gradient-to-r from-amber-500 to-yellow-500 text-white text-[10px] font-extrabold px-2 py-0.5 rounded-full shadow z-10 flex items-center gap-0.5">
+            ⭐ Featured
+          </span>
+        {% endif %}
+        {% if is_trending_card or (item.category == 'books' and is_book_trending(item)) %}
+          <span class="absolute top-2 left-2 bg-gradient-to-r from-red-600 to-orange-500 text-white text-[10px] font-extrabold px-2 py-0.5 rounded-full shadow z-10 flex items-center gap-0.5">
+            🔥 Trending
+          </span>
+        {% endif %}
+        <!-- Image with fixed height and object-cover -->
+        <a href="{{ url_for('items.item_detail', item_id=item.id) }}" class="block">
+          {% if item.image %}
+            <img src="{{ url_for('static', filename='uploads/' + item.image) }}"
+                 alt="{{ item.title }}" class="w-full h-40 object-cover rounded-xl mb-2">
+          {% else %}
+            <div class="w-full h-40 rounded-xl mb-2 relative overflow-hidden flex flex-col justify-between p-3 select-none shadow-inner
+              {% if item.category == 'clothes' %}bg-gradient-to-b from-[#800020] to-[#DAA520]
+              {% elif item.category == 'books' %}bg-gradient-to-b from-[#0F2350] to-[#14919B]
+              {% elif item.category == 'farm_tools' %}bg-gradient-to-b from-[#1E6423] to-[#784B1E]
+              {% elif item.category == 'electronics' %}bg-gradient-to-b from-[#370F55] to-[#1E50B4]
+              {% elif item.category == 'event_items' %}bg-gradient-to-b from-[#E65014] to-[#DC286E]
+              {% else %}bg-gradient-to-b from-gray-700 to-gray-900{% endif %}">
+              <div class="flex justify-center items-center flex-1">
+                <div class="w-12 h-12 rounded-full bg-white/20 backdrop-blur-xs flex items-center justify-center text-2xl shadow-inner border border-white/30">
+                  {% if item.category == 'clothes' %}👗
+                  {% elif item.category == 'books' %}📚
+                  {% elif item.category == 'farm_tools' %}🚜
+                  {% elif item.category == 'electronics' %}📷
+                  {% elif item.category == 'event_items' %}🎪
+                  {% else %}📦{% endif %}
+                </div>
+              </div>
+              <div class="bg-black/50 backdrop-blur-xs px-2.5 py-1 -mx-3 -mb-3 text-center">
+                <p class="text-xs font-bold text-white truncate">{{ item.title }}</p>
+              </div>
+            </div>
+          {% endif %}
+        </a>
+      </div>
+
+      <!-- Category / Genre badge & rating -->
+      <div class="flex items-center justify-between text-xs mb-1 gap-1">
+        {% if item.category == 'books' %}
+          {% set g_info = get_book_genre_info(item) %}
+          <span class="inline-flex items-center gap-0.5 text-[11px] font-semibold px-2 py-0.5 rounded-full {{ g_info.color }}">
+            {{ g_info.emoji }} {{ g_info.short_label }}
+          </span>
+        {% else %}
+          {% set cat = categories.get(item.category, {}) %}
+          <span class="text-gray-400 text-xs truncate">{{ cat.get('icon','') }} {{ t(cat.get('label','')) }}</span>
+        {% endif %}
+
+        {% if item.review_stats.count > 0 %}
+          <span class="text-yellow-600 font-bold text-xs shrink-0">⭐ {{ item.review_stats.avg }}</span>
+        {% endif %}
+      </div>
+
+      <!-- Title -->
+      <a href="{{ url_for('items.item_detail', item_id=item.id) }}" class="block font-bold text-gray-800 text-sm line-clamp-1 mb-0.5 hover:text-primary transition" title="{{ item.title }}">
+        {{ item.title }}
+      </a>
+
+      <!-- Brand for clothes items -->
+      {% if item.category == 'clothes' and item.get_attributes().get('brand') %}
+        <div class="text-xs text-rose-800 font-semibold mb-1">
+          by <a href="{{ url_for('shop.shop_page', slug='shravani') if item.get_attributes().get('brand')|lower == 'shravani' else (url_for('shop.shop_page', slug=item.owner.shop_slug) if item.owner and item.owner.shop_slug else url_for('shop.shop_page', slug='shravani')) }}" class="underline hover:text-rose-950 font-bold">{{ item.get_attributes().get('brand') }}</a>
+        </div>
+      {% endif %}
+    </div>
+
+    <div>
+      <!-- Price & deposit -->
+      <div class="flex gap-1.5 mt-1 text-xs flex-wrap">
+        <span class="bg-green-100 text-primary font-bold rounded-full px-2 py-0.5">₹{{ item.price_per_day }} / {{ t('per day') }}</span>
+        {% if item.deposit %}
+          <span class="bg-orange-100 text-accent font-bold rounded-full px-2 py-0.5">{{ t('Deposit') }}: ₹{{ item.deposit }}</span>
+        {% endif %}
+      </div>
+
+      <!-- Distance & owner -->
+      <div class="flex justify-between items-center mt-2 text-xs text-gray-500 pt-1 border-t border-gray-100">
+        <span class="truncate max-w-[120px]">{{ item.owner.village_or_city }}</span>
+        {% if item.distance_km is not none %}
+          <span class="bg-blue-100 text-blue-700 font-semibold rounded-full px-2 py-0.5 shrink-0">{{ item.distance_km }} {{ t('km away') }}</span>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+{% endmacro %}
+
 <!-- View Content: Map View or List View -->
 {% if view == 'map' %}
   <!-- Map View Container -->
@@ -160,61 +310,98 @@
   </div>
 {% endif %}
 
-<!-- Item Grid (Always shown in list view, or as summary list below map) -->
-{% if items %}
-<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-  {% for item in items %}
-    <a href="{{ url_for('items.item_detail', item_id=item.id) }}"
-       class="card hover:shadow-lg transition block relative">
-      {% if item.owner.current_plan() == 'business' %}
-        <span class="absolute top-2 right-2 bg-gradient-to-r from-amber-500 to-yellow-500 text-white text-[10px] font-extrabold px-2 py-0.5 rounded-full shadow z-10 flex items-center gap-0.5">
-          ⭐ Featured
-        </span>
-      {% endif %}
-      <!-- Image -->
-      {% if item.image %}
-        <img src="{{ url_for('static', filename='uploads/' + item.image) }}"
-             alt="{{ item.title }}" class="w-full h-36 object-cover rounded-xl mb-2">
-      {% else %}
-        <div class="w-full h-36 bg-gray-200 rounded-xl flex items-center justify-center text-3xl mb-2">📷</div>
-      {% endif %}
-
-      <!-- Category badge & rating -->
-      <div class="flex items-center justify-between text-xs mb-0.5">
-        {% set cat = categories.get(item.category, {}) %}
-        <span class="text-gray-400">{{ cat.get('icon','') }} {{ t(cat.get('label','')) }}</span>
-        {% if item.review_stats.count > 0 %}
-          <span class="text-yellow-600 font-bold">⭐ {{ item.review_stats.avg }} ({{ item.review_stats.count }})</span>
-        {% endif %}
+<!-- Items Content: Book Rows, Category Rows, or Results Grid -->
+{% if show_book_rows %}
+  <!-- Book Rows View (/browse?category=books with no genre/search filter) -->
+  <div class="space-y-6 mb-8">
+    <!-- 1. Trending Books Row -->
+    {% if trending_books %}
+    <div class="bg-gradient-to-r from-orange-50/60 via-amber-50/40 to-transparent p-3 rounded-2xl border border-orange-100/80">
+      <div class="flex justify-between items-center mb-2.5 px-1">
+        <div class="flex items-center gap-2">
+          <span class="text-xl">🔥</span>
+          <div>
+            <h2 class="text-base sm:text-lg font-extrabold text-gray-900 leading-tight">Trending Books</h2>
+            <p class="text-[11px] text-gray-500">Most requested and read books in the last 30 days</p>
+          </div>
+        </div>
       </div>
-
-      <!-- Title -->
-      <h3 class="font-bold text-gray-800 truncate">{{ item.title }}</h3>
-
-      <!-- Price & deposit -->
-      <div class="flex gap-2 mt-1 text-sm flex-wrap">
-        <span class="bg-green-100 text-primary font-bold rounded-full px-2 py-0.5">₹{{ item.price_per_day }} / {{ t('per day') }}</span>
-        {% if item.deposit %}
-          <span class="bg-orange-100 text-accent font-bold rounded-full px-2 py-0.5">{{ t('Deposit') }}: ₹{{ item.deposit }}</span>
-        {% endif %}
+      <div class="flex gap-4 overflow-x-auto snap-x snap-mandatory flex-nowrap pb-3 pt-1 px-1 -mx-1 scrollbar-thin">
+        {% for item in trending_books %}
+          <div class="flex-none w-[260px] snap-start">
+            {{ render_item_card(item, is_trending_card=true) }}
+          </div>
+        {% endfor %}
       </div>
+    </div>
+    {% endif %}
 
-      <!-- Distance & owner -->
-      <div class="flex justify-between mt-2 text-xs text-gray-500">
-        <span>{{ item.owner.village_or_city }}</span>
-        {% if item.distance_km is not none %}
-          <span class="bg-blue-100 text-blue-700 font-semibold rounded-full px-2 py-0.5">{{ item.distance_km }} {{ t('km away') }}</span>
-        {% endif %}
+    <!-- 2. One row per genre that has at least 1 book -->
+    {% for row in genre_rows %}
+    <div class="bg-white p-3 rounded-2xl border border-gray-100 shadow-sm">
+      <div class="flex justify-between items-center mb-2.5 px-1">
+        <h2 class="text-base sm:text-lg font-bold text-gray-900 flex items-center gap-1.5">
+          <span>{{ row.meta.emoji if row.meta and row.meta.emoji else '📚' }}</span>
+          <span>{{ row.genre }}</span>
+          <span class="text-xs font-normal text-gray-400">({{ row['items'] | length }})</span>
+        </h2>
+        <a href="{{ url_for('main.browse', category='books', genre=row.genre, lat=lat, lng=lng) }}"
+           class="text-xs font-bold text-primary hover:underline flex items-center gap-0.5">
+          See all &rarr;
+        </a>
       </div>
+      <div class="flex gap-4 overflow-x-auto snap-x snap-mandatory flex-nowrap pb-3 pt-1 px-1 -mx-1 scrollbar-thin">
+        {% for item in row['items'] %}
+          <div class="flex-none w-[260px] snap-start">
+            {{ render_item_card(item) }}
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
 
-    </a>
-  {% endfor %}
-</div>
+{% elif show_category_rows %}
+  <!-- Main /browse Category Rows View (No filters/sorting active) -->
+  <div class="space-y-6 mb-8">
+    {% for row in category_rows if row['items'] %}
+    <div class="bg-white p-3 rounded-2xl border border-gray-100 shadow-sm">
+      <div class="flex justify-between items-center mb-2.5 px-1">
+        <h2 class="text-base sm:text-lg font-bold text-gray-900 flex items-center gap-1.5">
+          <span>{{ row.icon }}</span>
+          <span>{{ t(row.label) }}</span>
+          <span class="text-xs font-normal text-gray-400">({{ row['items'] | length }})</span>
+        </h2>
+        <a href="{{ url_for('main.browse', category=row.key, lat=lat, lng=lng) }}"
+           class="text-xs font-bold text-primary hover:underline flex items-center gap-0.5">
+          See all &rarr;
+        </a>
+      </div>
+      <div class="flex gap-4 overflow-x-auto snap-x snap-mandatory flex-nowrap pb-3 pt-1 px-1 -mx-1 scrollbar-thin">
+        {% for item in row['items'] %}
+          <div class="flex-none w-[260px] snap-start">
+            {{ render_item_card(item) }}
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+{% elif items %}
+  <!-- Normal Results Grid -->
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+    {% for item in items %}
+      {{ render_item_card(item) }}
+    {% endfor %}
+  </div>
+
 {% else %}
-<div class="text-center py-16 text-gray-400">
-  <p class="text-4xl mb-2">🔭</p>
-  <p>No items found — try a bigger distance or different filters.</p>
-</div>
+  <!-- Empty State -->
+  <div class="text-center py-16 text-gray-400">
+    <p class="text-4xl mb-2">🔭</p>
+    <p>No items found — try a bigger distance or different filters.</p>
+  </div>
 {% endif %}
 {% endblock %}
 

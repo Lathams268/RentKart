@@ -6,13 +6,38 @@
   <!-- Image -->
   {% if item.image %}
     <img src="{{ url_for('static', filename='uploads/' + item.image) }}"
-         alt="{{ item.title }}" class="w-full h-56 object-cover rounded-xl">
+         alt="{{ item.title }}" class="w-full h-56 sm:h-72 object-cover rounded-xl shadow-sm">
   {% else %}
-    <div class="w-full h-56 bg-gray-200 rounded-xl flex items-center justify-center text-4xl">📷</div>
+    <div class="w-full h-56 sm:h-72 rounded-xl mb-2 relative overflow-hidden flex flex-col justify-between p-4 select-none shadow-sm
+      {% if item.category == 'clothes' %}bg-gradient-to-b from-[#800020] to-[#DAA520]
+      {% elif item.category == 'books' %}bg-gradient-to-b from-[#0F2350] to-[#14919B]
+      {% elif item.category == 'farm_tools' %}bg-gradient-to-b from-[#1E6423] to-[#784B1E]
+      {% elif item.category == 'electronics' %}bg-gradient-to-b from-[#370F55] to-[#1E50B4]
+      {% elif item.category == 'event_items' %}bg-gradient-to-b from-[#E65014] to-[#DC286E]
+      {% else %}bg-gradient-to-b from-gray-700 to-gray-900{% endif %}">
+      <div class="flex justify-center items-center flex-1">
+        <div class="w-20 h-20 rounded-full bg-white/20 backdrop-blur-xs flex items-center justify-center text-4xl shadow-inner border border-white/30">
+          {% if item.category == 'clothes' %}👗
+          {% elif item.category == 'books' %}📚
+          {% elif item.category == 'farm_tools' %}🚜
+          {% elif item.category == 'electronics' %}📷
+          {% elif item.category == 'event_items' %}🎪
+          {% else %}📦{% endif %}
+        </div>
+      </div>
+      <div class="bg-black/50 backdrop-blur-xs px-3 py-2 -mx-4 -mb-4 text-center">
+        <p class="text-sm font-bold text-white truncate">{{ item.title }}</p>
+      </div>
+    </div>
   {% endif %}
 
   <!-- Title & price -->
   <h1 class="text-2xl font-bold text-gray-800">{{ item.title }}</h1>
+  {% if item.category == 'clothes' and attrs.get('brand') %}
+    <div class="text-sm text-rose-800 font-semibold -mt-2 mb-1">
+      by <a href="{{ url_for('shop.shop_page', slug='shravani') if attrs.get('brand')|lower == 'shravani' else (url_for('shop.shop_page', slug=item.owner.shop_slug) if item.owner and item.owner.shop_slug else url_for('shop.shop_page', slug='shravani')) }}" class="underline hover:text-rose-950 font-bold">{{ attrs.get('brand') }}</a>
+    </div>
+  {% endif %}
   <div class="flex flex-wrap items-center gap-2 text-sm">
     <span class="bg-green-100 text-primary font-bold rounded-full px-3 py-1">₹{{ item.price_per_day }} / {{ t('per day') }}</span>
     {% if current_user.is_authenticated and trust_info and trust_info.multiplier < 1.0 and item.deposit %}
@@ -25,6 +50,18 @@
     {% endif %}
     {% if item.late_fee_per_day %}
       <span class="bg-red-100 text-red-600 font-bold rounded-full px-3 py-1">{{ t('Late penalty') }}: ₹{{ item.late_fee_per_day }} / {{ t('per day') }}</span>
+    {% endif %}
+
+    {% if item.category == 'books' %}
+      {% set g_info = get_book_genre_info(item) %}
+      <span class="inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold {{ g_info.color }}">
+        {{ g_info.emoji }} {{ g_info.short_label }}
+      </span>
+      {% if is_book_trending(item) %}
+        <span class="inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-extrabold bg-red-100 text-red-700 border border-red-300">
+          🔥 Trending
+        </span>
+      {% endif %}
     {% endif %}
 
     {% if item.review_stats.count > 0 %}
@@ -63,8 +100,12 @@
         <div class="flex justify-between text-sm">
           <span class="text-gray-500">{{ field.label }}</span>
           <span class="font-medium text-gray-800">
-            {% if field.type == 'checkbox' %}
+            {% if field.name == 'brand' and val and val|lower == 'shravani' %}
+              <a href="{{ url_for('shop.shop_page', slug='shravani') }}" class="text-rose-700 hover:underline font-bold">{{ val }}</a>
+            {% elif field.type == 'checkbox' %}
               {{ 'Yes' if val else 'No' }}
+            {% elif field.name == 'genre' and not val %}
+              General
             {% else %}
               {{ val if val else '—' }}
             {% endif %}
