@@ -26,6 +26,8 @@ class User(UserMixin, db.Model):
     items = db.relationship("Item", backref="owner", lazy=True)
     bookings_as_renter = db.relationship("Booking", backref="renter",
                                          foreign_keys="Booking.renter_id", lazy=True)
+    addresses = db.relationship("Address", backref="user", lazy=True,
+                                order_by="Address.is_default.desc(), Address.created_at.desc()")
     subscriptions = db.relationship("Subscription", backref="user", lazy=True,
                                     order_by="Subscription.created_at.desc()")
 
@@ -66,6 +68,30 @@ class User(UserMixin, db.Model):
 
     def __repr__(self):
         return f"<User {self.name} ({self.phone})>"
+
+
+class Address(db.Model):
+    """A saved delivery address belonging to a user (Stage 1)."""
+    LABELS = ("Home", "Work", "Other")
+
+    id          = db.Column(db.Integer, primary_key=True)
+    user_id     = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    label       = db.Column(db.String(20),  nullable=False, default="Home")
+    full_name   = db.Column(db.String(120), nullable=False)
+    phone       = db.Column(db.String(15),  nullable=False)
+    house_no    = db.Column(db.String(120), nullable=False)
+    building    = db.Column(db.String(120), nullable=True)
+    street      = db.Column(db.String(120), nullable=False)
+    landmark    = db.Column(db.String(120), nullable=True)
+    city        = db.Column(db.String(120), nullable=False)
+    district    = db.Column(db.String(120), nullable=True)
+    state       = db.Column(db.String(120), nullable=False)
+    pincode     = db.Column(db.String(6),   nullable=False)
+    is_default  = db.Column(db.Boolean, nullable=False, default=False)
+    created_at  = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<Address {self.id} user={self.user_id} {self.label}>"
 
 
 class Item(db.Model):
@@ -141,6 +167,19 @@ class Booking(db.Model):
     order_id           = db.Column(db.String(40), nullable=True, unique=True)
     payment_expires_at = db.Column(db.DateTime, nullable=True)
     razorpay_order_id  = db.Column(db.String(120), nullable=True)
+    # ----- Shipping address snapshot (Stage 2). Copied from the Address at
+    #       checkout so later edits to a saved address never change old bookings. -----
+    address_id      = db.Column(db.Integer, db.ForeignKey("address.id"), nullable=True)
+    ship_full_name  = db.Column(db.String(120), nullable=True)
+    ship_phone      = db.Column(db.String(15),  nullable=True)
+    ship_house_no   = db.Column(db.String(120), nullable=True)
+    ship_building   = db.Column(db.String(120), nullable=True)
+    ship_street     = db.Column(db.String(120), nullable=True)
+    ship_landmark   = db.Column(db.String(120), nullable=True)
+    ship_city       = db.Column(db.String(120), nullable=True)
+    ship_district   = db.Column(db.String(120), nullable=True)
+    ship_state      = db.Column(db.String(120), nullable=True)
+    ship_pincode    = db.Column(db.String(6),   nullable=True)
     handover_note    = db.Column(db.Text, nullable=True)
     handover_photo   = db.Column(db.String(300), nullable=True)
     created_at       = db.Column(db.DateTime, default=datetime.utcnow)

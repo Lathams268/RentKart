@@ -1,0 +1,70 @@
+{# Reusable address form fields. Included with {% with %} so both the
+   /addresses page and the inline checkout form share the exact same markup.
+   Expected vars: form (dict), errors (dict), states, labels, action (url),
+   next (str), submit_label, form_id #}
+<div class="grid grid-cols-2 gap-2 text-sm">
+  <div class="col-span-2">
+    <label class="block text-xs font-medium text-gray-700">Label</label>
+    <select name="label" class="w-full border rounded-xl px-3 py-2">
+      {% for lb in labels %}
+        <option value="{{ lb }}" {% if form.get('label') == lb %}selected{% endif %}>{{ lb }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div>
+    <label class="block text-xs font-medium text-gray-700">Full name *</label>
+    <input name="full_name" value="{{ form.get('full_name','') }}" class="w-full border rounded-xl px-3 py-2">
+    {% if errors.get('full_name') %}<p class="text-xs text-red-600 mt-0.5">{{ errors['full_name'] }}</p>{% endif %}
+  </div>
+  <div>
+    <label class="block text-xs font-medium text-gray-700">Phone *</label>
+    <input name="phone" inputmode="numeric" maxlength="10" value="{{ form.get('phone','') }}" class="w-full border rounded-xl px-3 py-2">
+    {% if errors.get('phone') %}<p class="text-xs text-red-600 mt-0.5">{{ errors['phone'] }}</p>{% endif %}
+  </div>
+  <div>
+    <label class="block text-xs font-medium text-gray-700">House / flat no. *</label>
+    <input name="house_no" value="{{ form.get('house_no','') }}" class="w-full border rounded-xl px-3 py-2">
+    {% if errors.get('house_no') %}<p class="text-xs text-red-600 mt-0.5">{{ errors['house_no'] }}</p>{% endif %}
+  </div>
+  <div>
+    <label class="block text-xs font-medium text-gray-700">Building (optional)</label>
+    <input name="building" value="{{ form.get('building','') }}" class="w-full border rounded-xl px-3 py-2">
+  </div>
+  <div class="col-span-2">
+    <label class="block text-xs font-medium text-gray-700">Street *</label>
+    <input name="street" value="{{ form.get('street','') }}" class="w-full border rounded-xl px-3 py-2">
+    {% if errors.get('street') %}<p class="text-xs text-red-600 mt-0.5">{{ errors['street'] }}</p>{% endif %}
+  </div>
+  <div class="col-span-2">
+    <label class="block text-xs font-medium text-gray-700">Landmark (optional)</label>
+    <input name="landmark" value="{{ form.get('landmark','') }}" class="w-full border rounded-xl px-3 py-2">
+  </div>
+  <div>
+    <label class="block text-xs font-medium text-gray-700">City *</label>
+    <input name="city" value="{{ form.get('city','') }}" class="w-full border rounded-xl px-3 py-2">
+    {% if errors.get('city') %}<p class="text-xs text-red-600 mt-0.5">{{ errors['city'] }}</p>{% endif %}
+  </div>
+  <div>
+    <label class="block text-xs font-medium text-gray-700">District (optional)</label>
+    <input name="district" value="{{ form.get('district','') }}" class="w-full border rounded-xl px-3 py-2">
+  </div>
+  <div>
+    <label class="block text-xs font-medium text-gray-700">State *</label>
+    <select name="state" class="w-full border rounded-xl px-3 py-2">
+      <option value="">Select state</option>
+      {% for st in states %}
+        <option value="{{ st }}" {% if form.get('state') == st %}selected{% endif %}>{{ st }}</option>
+      {% endfor %}
+    </select>
+    {% if errors.get('state') %}<p class="text-xs text-red-600 mt-0.5">{{ errors['state'] }}</p>{% endif %}
+  </div>
+  <div>
+    <label class="block text-xs font-medium text-gray-700">PIN code *</label>
+    <input name="pincode" inputmode="numeric" maxlength="6" value="{{ form.get('pincode','') }}" class="w-full border rounded-xl px-3 py-2">
+    {% if errors.get('pincode') %}<p class="text-xs text-red-600 mt-0.5">{{ errors['pincode'] }}</p>{% endif %}
+  </div>
+</div>
+{% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+<button type="submit" class="w-full mt-2 bg-primary text-white rounded-xl py-2.5 font-bold min-h-[44px] hover:bg-green-700">
+  {{ submit_label or 'Save address' }}
+</button>

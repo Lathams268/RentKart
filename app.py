@@ -38,6 +38,7 @@ def create_app(test_config=None):
     from routes.subscriptions import subscriptions_bp
     from routes.feedback import feedback_bp
     from routes.admin import admin_bp
+    from routes.addresses import addresses_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(items_bp)
@@ -47,6 +48,7 @@ def create_app(test_config=None):
     app.register_blueprint(subscriptions_bp)
     app.register_blueprint(feedback_bp)
     app.register_blueprint(admin_bp)
+    app.register_blueprint(addresses_bp)
 
     from translations import t, SUPPORTED_LANGUAGES
     from utils.trending import get_book_genre_info, is_book_trending
@@ -161,6 +163,17 @@ def create_app(test_config=None):
                         conn.execute(text("ALTER TABLE booking ADD COLUMN payment_expires_at DATETIME"))
                     if "razorpay_order_id" not in b_cols:
                         conn.execute(text("ALTER TABLE booking ADD COLUMN razorpay_order_id VARCHAR(120)"))
+                    # Stage 2: shipping address snapshot columns
+                    for col, typ in (
+                        ("address_id", "INTEGER"), ("ship_full_name", "VARCHAR(120)"),
+                        ("ship_phone", "VARCHAR(15)"), ("ship_house_no", "VARCHAR(120)"),
+                        ("ship_building", "VARCHAR(120)"), ("ship_street", "VARCHAR(120)"),
+                        ("ship_landmark", "VARCHAR(120)"), ("ship_city", "VARCHAR(120)"),
+                        ("ship_district", "VARCHAR(120)"), ("ship_state", "VARCHAR(120)"),
+                        ("ship_pincode", "VARCHAR(6)"),
+                    ):
+                        if col not in b_cols:
+                            conn.execute(text(f"ALTER TABLE booking ADD COLUMN {col} {typ}"))
                 if "return_record" in table_names:
                     r_cols = [c["name"] for c in inspector.get_columns("return_record")]
                     if "platform_fee" not in r_cols:

@@ -42,6 +42,21 @@ PAYMENT_MODE = os.environ.get("PAYMENT_MODE", "mock")  # "mock" or "razorpay"
 RAZORPAY_KEY_ID = os.environ.get("RAZORPAY_KEY_ID", "")
 RAZORPAY_KEY_SECRET = os.environ.get("RAZORPAY_KEY_SECRET", "")
 
+# ---------- UPI QR (Stage 4). NEVER hard-code a real UPI id. ----------
+UPI_ID = os.environ.get("UPI_ID", "")
+UPI_PAYEE_NAME = os.environ.get("UPI_PAYEE_NAME", "RentKart")
+
+# ---------- Indian states and union territories (address validation) ----------
+INDIAN_STATES = [
+    "Andaman and Nicobar Islands", "Andhra Pradesh", "Arunachal Pradesh", "Assam",
+    "Bihar", "Chandigarh", "Chhattisgarh", "Dadra and Nagar Haveli and Daman and Diu",
+    "Delhi", "Goa", "Gujarat", "Haryana", "Himachal Pradesh", "Jammu and Kashmir",
+    "Jharkhand", "Karnataka", "Kerala", "Ladakh", "Lakshadweep", "Madhya Pradesh",
+    "Maharashtra", "Manipur", "Meghalaya", "Mizoram", "Nagaland", "Odisha", "Puducherry",
+    "Punjab", "Rajasthan", "Sikkim", "Tamil Nadu", "Telangana", "Tripura",
+    "Uttar Pradesh", "Uttarakhand", "West Bengal",
+]
+
 # ---------- Return policy ----------
 RETURN_BY_TIME = "6:00 PM"
 RETURN_POLICY_TEXT = ("Return the item by {time} on the return date. A late fee of "
