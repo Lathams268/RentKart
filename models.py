@@ -140,6 +140,7 @@ class Booking(db.Model):
     platform_fee       = db.Column(db.Float, nullable=True, default=0)
     order_id           = db.Column(db.String(40), nullable=True, unique=True)
     payment_expires_at = db.Column(db.DateTime, nullable=True)
+    razorpay_order_id  = db.Column(db.String(120), nullable=True)
     handover_note    = db.Column(db.Text, nullable=True)
     handover_photo   = db.Column(db.String(300), nullable=True)
     created_at       = db.Column(db.DateTime, default=datetime.utcnow)

@@ -159,6 +159,8 @@ def create_app(test_config=None):
                         conn.execute(text("ALTER TABLE booking ADD COLUMN order_id VARCHAR(40)"))
                     if "payment_expires_at" not in b_cols:
                         conn.execute(text("ALTER TABLE booking ADD COLUMN payment_expires_at DATETIME"))
+                    if "razorpay_order_id" not in b_cols:
+                        conn.execute(text("ALTER TABLE booking ADD COLUMN razorpay_order_id VARCHAR(120)"))
                 if "return_record" in table_names:
                     r_cols = [c["name"] for c in inspector.get_columns("return_record")]
                     if "platform_fee" not in r_cols:

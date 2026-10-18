@@ -19,7 +19,7 @@
     <div class="flex justify-between text-base font-extrabold border-t pt-1"><span>Total payable</span><span>{{ booking.total_payable | inr }}</span></div>
   </div>
 
-  <form method="post" class="space-y-4">
+  <form method="post" id="pay-form" class="space-y-4">
     <!-- Method tiles -->
     <div class="grid grid-cols-2 gap-2">
       {% for key, label, icon in tiles %}
@@ -36,7 +36,7 @@
           {% endif %}
         </label>
       {% endfor %}
-      {% if cash_ok %}
+      {% if cash_ok and mock %}
         <label class="border rounded-2xl p-3 flex flex-col items-center justify-center gap-1 min-h-[64px] cursor-pointer has-[:checked]:border-primary has-[:checked]:bg-green-50">
           <input type="radio" name="method" value="cash" class="sr-only">
           <span class="text-2xl">💵</span>
@@ -56,9 +56,26 @@
       </div>
     {% endif %}
 
-    <button type="submit" class="w-full bg-primary text-white rounded-2xl py-3 text-lg font-bold hover:bg-green-700 min-h-[44px]">
-      Pay {{ booking.total_payable | inr }}
-    </button>
+    {% if mock %}
+      <button type="submit" class="w-full bg-primary text-white rounded-2xl py-3 text-lg font-bold hover:bg-green-700 min-h-[44px]">
+        Pay {{ booking.total_payable | inr }}
+      </button>
+    {% else %}
+      {# Razorpay test mode: server created the order; open hosted Checkout. #}
+      {% if rzp_order_id %}
+        <input type="hidden" name="razorpay_order_id" value="{{ rzp_order_id }}">
+        <input type="hidden" name="razorpay_payment_id" id="rzp_payment_id">
+        <input type="hidden" name="razorpay_signature" id="rzp_signature">
+        <button type="button" id="rzp-btn" disabled
+                class="w-full bg-primary text-white rounded-2xl py-3 text-lg font-bold hover:bg-green-700 min-h-[44px] disabled:opacity-50">
+          Pay {{ booking.total_payable | inr }} securely with Razorpay
+        </button>
+      {% else %}
+        <div class="bg-red-50 border border-red-300 text-red-700 rounded-xl p-3 text-sm text-center">
+          The payment gateway is temporarily unavailable. Please try again.
+        </div>
+      {% endif %}
+    {% endif %}
   </form>
 
   <div class="flex flex-wrap gap-2 justify-center text-sm">
@@ -68,4 +85,35 @@
     </form>
   </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+{% if provider == 'razorpay' and rzp_key_id and rzp_order_id %}
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+<script>
+  (function() {
+    var btn = document.getElementById('rzp-btn');
+    if (btn) btn.disabled = false;
+    var opts = {
+      "key": "{{ rzp_key_id }}",               // publishable id only (never the secret)
+      "amount": {{ (booking.total_payable * 100) | round | int }},  // paise, server snapshot
+      "currency": "INR",
+      "name": "RentKart",
+      "order_id": "{{ rzp_order_id }}",
+      "handler": function (resp) {
+        document.getElementById('rzp_payment_id').value = resp.razorpay_payment_id;
+        document.getElementById('rzp_signature').value = resp.razorpay_signature;
+        document.getElementById('pay-form').submit();
+      },
+      "theme": {"color": "#16a34a"}
+    };
+    if (btn) btn.addEventListener('click', function() {
+      var rzp = new Razorpay(opts);
+      // Dismissal / failure re-renders this page (retry screen) via a plain submit.
+      rzp.on('payment.failed', function () { document.getElementById('pay-form').submit(); });
+      rzp.open();
+    });
+  })();
+</script>
+{% endif %}
 {% endblock %}

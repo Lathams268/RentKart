@@ -240,6 +240,13 @@ def pay(booking_id):
         return redirect(url_for("bookings.booking_detail", booking_id=booking.id))
 
     provider = current_app.config.get("PAYMENT_MODE", "mock")
+    # Stage 5: razorpay needs both keys; otherwise fall back to mock with a log
+    # warning (never print the keys).
+    rzp_id = current_app.config.get("RAZORPAY_KEY_ID", "")
+    rzp_secret = current_app.config.get("RAZORPAY_KEY_SECRET", "")
+    if provider == "razorpay" and not (rzp_id and rzp_secret):
+        current_app.logger.warning("RAZORPAY keys missing; staying in mock mode.")
+        provider = "mock"
     mock = provider == "mock"
     cash_ok = bool(getattr(booking.item, "cod_available", True)) and booking.delivery_method == "pickup"
     next_attempt = (max([p.attempt_no for p in booking.payments], default=0) + 1)
@@ -248,6 +255,36 @@ def pay(booking_id):
         if p.status == "failed":
             last_failure = p.failure_reason
             break
+
+    def _success(method, provider_payment_id):
+        amount = float(booking.total_payable)  # server snapshot, never from the browser
+        # Re-check availability before marking paid (a pending booking did not block dates).
+        if not is_available(booking.item, booking.start_date, booking.end_date):
+            flash("Sorry, these dates are no longer available.", "error")
+            return redirect(url_for("items.item_detail", item_id=booking.item_id))
+        db.session.add(Payment(
+            booking_id=booking.id, order_id=booking.order_id, attempt_no=next_attempt,
+            method=method, amount=amount, status="paid", provider=provider,
+            provider_payment_id=provider_payment_id, paid_at=datetime.utcnow(),
+        ))
+        booking.payment_method = method
+        booking.payment_status = "pay_on_pickup" if method == "cash" else "paid"
+        booking.status = "requested"
+        booking.payment_expires_at = None
+        db.session.commit()
+        flash("Payment successful.", "success")
+        return redirect(url_for("bookings.confirmation", booking_id=booking.id))
+
+    def _failure(method, reason):
+        amount = float(booking.total_payable)
+        db.session.add(Payment(
+            booking_id=booking.id, order_id=booking.order_id, attempt_no=next_attempt,
+            method=method, amount=amount, status="failed", provider=provider,
+            failure_reason=reason,
+        ))
+        db.session.commit()
+        flash(reason, "error")
+        return redirect(url_for("bookings.pay", booking_id=booking.id))
 
     if request.method == "POST":
         method = (request.form.get("method") or "").strip()
@@ -258,49 +295,45 @@ def pay(booking_id):
             flash("Choose a valid payment method.", "error")
             return redirect(url_for("bookings.pay", booking_id=booking.id))
 
-        amount = float(booking.total_payable)  # server snapshot, never from the browser
-        if mock:
-            outcome = request.form.get("outcome", "success")
-        else:
-            outcome = request.form.get("outcome", "success")
+        # ----- Razorpay (test mode): verify the signature server-side -----
+        if provider == "razorpay":
+            from utils.gateway import verify_signature
+            rzp_order = request.form.get("razorpay_order_id", "")
+            rzp_payment = request.form.get("razorpay_payment_id", "")
+            rzp_sig = request.form.get("razorpay_signature", "")
+            # The server-created order id must match what the client returns.
+            if booking.razorpay_order_id and rzp_order != booking.razorpay_order_id:
+                return _failure(method, "Payment failed: order mismatch. No money was taken.")
+            if verify_signature(rzp_order, rzp_payment, rzp_sig, rzp_secret):
+                return _success(method, rzp_payment)
+            return _failure(method, "Payment failed: signature check failed. No money was taken.")
 
+        # ----- Mock gateway -----
+        outcome = request.form.get("outcome", "success")
         if outcome == "success":
-            # Re-check availability before marking paid (a pending booking did not block dates).
-            if not is_available(booking.item, booking.start_date, booking.end_date):
-                flash("Sorry, these dates are no longer available.", "error")
-                return redirect(url_for("items.item_detail", item_id=booking.item_id))
-            pay_row = Payment(
-                booking_id=booking.id, order_id=booking.order_id, attempt_no=next_attempt,
-                method=method, amount=amount, status="paid", provider=provider,
-                provider_payment_id=f"mock_{uuid.uuid4().hex[:16]}", paid_at=datetime.utcnow(),
-            )
-            db.session.add(pay_row)
-            booking.payment_method = method
-            booking.payment_status = "pay_on_pickup" if method == "cash" else "paid"
-            booking.status = "requested"
-            booking.payment_expires_at = None
-            db.session.commit()
-            flash("Payment successful.", "success")
-            return redirect(url_for("bookings.confirmation", booking_id=booking.id))
-
-        # Failure flow (mock only): keep the booking pending_payment and allow a retry.
+            return _success(method, f"mock_{uuid.uuid4().hex[:16]}")
         if outcome == "timeout":
             reason = "Payment failed: the payment timed out. No money was taken."
         else:
             reason = "Payment failed: bank declined. No money was taken."
-        pay_row = Payment(
-            booking_id=booking.id, order_id=booking.order_id, attempt_no=next_attempt,
-            method=method, amount=amount, status="failed", provider=provider,
-            failure_reason=reason,
-        )
-        db.session.add(pay_row)
-        db.session.commit()
-        flash(reason, "error")
-        return redirect(url_for("bookings.pay", booking_id=booking.id))
+        return _failure(method, reason)
 
+    # ----- GET: render the payment page -----
+    rzp_order_id = None
+    if provider == "razorpay":
+        from utils.gateway import create_order
+        try:
+            rzp_order_id = create_order(booking.total_payable, rzp_id, rzp_secret,
+                                        receipt=booking.order_id).get("id")
+            booking.razorpay_order_id = rzp_order_id
+            db.session.commit()
+        except Exception:
+            current_app.logger.warning("Razorpay order creation failed.")
+            rzp_order_id = None
     return render_template("pay.html", booking=booking, tiles=PAY_TILES, cash_ok=cash_ok,
                            provider=provider, mock=mock, last_failure=last_failure,
-                           attempt_no=next_attempt)
+                           attempt_no=next_attempt, rzp_key_id=rzp_id,
+                           rzp_order_id=rzp_order_id)
 
 
 # ---------- Confirmation & Receipt (Stage 4) ----------
