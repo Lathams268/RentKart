@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_macros.html" import item_image, shop_badge %}
 {% block title %}{{ owner.shop_name or owner.name ~ "'s Shop" }} – RentKart{% endblock %}
 
 {% block content %}
@@ -171,21 +172,7 @@
           <div class="card hover:shadow-lg transition block relative h-full flex flex-col justify-between">
             <div>
               <a href="{{ url_for('items.item_detail', item_id=item.id) }}" class="block">
-                {% if item.image %}
-                  <img src="{{ url_for('static', filename='uploads/' + item.image) }}"
-                       alt="{{ item.title }}" class="w-full h-40 object-cover rounded-xl mb-2">
-                {% else %}
-                  <div class="w-full h-40 rounded-xl mb-2 relative overflow-hidden flex flex-col justify-between p-3 select-none bg-gradient-to-b from-[#800020] to-[#DAA520]">
-                    <div class="flex justify-center items-center flex-1">
-                      <div class="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center text-2xl border border-white/30">
-                        👗
-                      </div>
-                    </div>
-                    <div class="bg-black/50 px-2.5 py-1 -mx-3 -mb-3 text-center">
-                      <p class="text-xs font-bold text-white truncate">{{ item.title }}</p>
-                    </div>
-                  </div>
-                {% endif %}
+                {{ item_image(item, height_class="h-40") }}
               </a>
               <div class="flex items-center justify-between text-xs mb-1">
                 <span class="text-rose-700 font-bold text-xs">👗 Clothes</span>
@@ -222,27 +209,7 @@
       <a href="{{ url_for('items.item_detail', item_id=item.id) }}"
          class="card hover:shadow-lg transition block">
         <!-- Image with fixed height and object-cover -->
-        {% if item.image %}
-          <img src="{{ url_for('static', filename='uploads/' + item.image) }}"
-               alt="{{ item.title }}" class="w-full h-40 object-cover rounded-xl mb-2">
-        {% else %}
-          <div class="w-full h-40 rounded-xl mb-2 relative overflow-hidden flex flex-col justify-between p-3 select-none
-            {% if item.category == 'clothes' %}bg-gradient-to-b from-[#800020] to-[#DAA520]
-            {% elif item.category == 'books' %}bg-gradient-to-b from-[#0F2350] to-[#14919B]
-            {% elif item.category == 'farm_tools' %}bg-gradient-to-b from-[#1E6423] to-[#784B1E]
-            {% elif item.category == 'electronics' %}bg-gradient-to-b from-[#370F55] to-[#1E50B4]
-            {% elif item.category == 'event_items' %}bg-gradient-to-b from-[#E65014] to-[#DC286E]
-            {% else %}bg-gradient-to-b from-gray-700 to-gray-900{% endif %}">
-            <div class="flex justify-center items-center flex-1">
-              <div class="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center text-2xl border border-white/30">
-                📦
-              </div>
-            </div>
-            <div class="bg-black/50 px-2.5 py-1 -mx-3 -mb-3 text-center">
-              <p class="text-xs font-bold text-white truncate">{{ item.title }}</p>
-            </div>
-          </div>
-        {% endif %}
+        {{ item_image(item, height_class="h-40") }}
 
         <!-- Category badge & rating -->
         <div class="flex items-center justify-between text-xs mb-0.5">

@@ -6,8 +6,14 @@ BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 SECRET_KEY = os.environ.get("SECRET_KEY", "rentkart-dev-secret-key-change-me")
 SQLALCHEMY_DATABASE_URI = "sqlite:///" + os.path.join(BASE_DIR, "rentkart.db")
 SQLALCHEMY_TRACK_MODIFICATIONS = False
-UPLOAD_FOLDER = os.path.join(BASE_DIR, "static", "uploads"MAX_CONTENT_LENGTH = 5 * 1024 * 1024  # 5 MB
+UPLOAD_FOLDER = os.path.join(BASE_DIR, "static", "uploads")
+MAX_CONTENT_LENGTH = 5 * 1024 * 1024  # 5 MB
 OTP_MODE = os.environ.get("OTP_MODE", "demo")
+DEMO_OTP = os.environ.get("DEMO_OTP", "1234")
+FAST2SMS_API_KEY = os.environ.get("FAST2SMS_API_KEY", "")
+TWILIO_ACCOUNT_SID = os.environ.get("TWILIO_ACCOUNT_SID", "")
+TWILIO_AUTH_TOKEN = os.environ.get("TWILIO_AUTH_TOKEN", "")
+TWILIO_PHONE_NUMBER = os.environ.get("TWILIO_PHONE_NUMBER", "")
 
 # ---------- Phase 4: Damage levels and Trust levels ----------
 DAMAGE_LEVELS = {
@@ -71,10 +77,10 @@ CATEGORIES = {
             {"name": "style",         "label": "Style",                 "type": "select", "options": ["Traditional", "Modern", "Western", "Fusion / Indo-Western", "Kids"]},
             {
                 "name": "clothing_type",
-                "label": "Type",
+                "label": "Clothing Type",
                 "type": "select",
                 "depends_on": "style",
-                "options": [],
+                "options": ['Lehenga', 'Saree', 'Sherwani', 'Kurta Pajama', 'Salwar Suit', 'Dhoti', 'Anarkali', 'Pattu Pavadai', 'Angavastram', 'Kurti', 'Palazzo Set', 'Co-ord Set', 'Jumpsuit', 'Jacket', 'Shrug', 'Gown', 'Cocktail Dress', 'Suit / Blazer', 'Tuxedo', 'Shirt', 'Top', 'Pants / Trousers', 'Jeans', 'Skirt', 'Dhoti Pants Set', 'Cape Lehenga', 'Saree Gown', 'Indo Western Sherwani', 'Crop Top Lehenga', 'Kurta Set', 'Frock', 'Ethnic Wear', 'Other'],
                 "options_by": {
                     "Traditional": ["Lehenga", "Saree", "Sherwani", "Kurta Pajama", "Salwar Suit", "Dhoti", "Anarkali", "Pattu Pavadai", "Angavastram", "Other"],
                     "Modern": ["Kurti", "Palazzo Set", "Co-ord Set", "Jumpsuit", "Jacket", "Shrug", "Other"],
@@ -84,10 +90,30 @@ CATEGORIES = {
                 },
             },
             {"name": "color",         "label": "Color",         "type": "select", "options": ["Red", "Maroon", "Pink", "Orange", "Yellow", "Green", "Blue", "Navy", "Purple", "Black", "White", "Cream", "Gold", "Silver", "Multicolor", "Other"]},
-            {"name": "size",          "label": "Size",          "type": "select", "options": ["XS", "S", "M", "L", "XL", "XXL", "Free Size"]},
+            {
+                "name": "size",
+                "label": "Size",
+                "type": "select",
+                "depends_on": "age_group",
+                "options": ["0-6M", "6-12M", "1-2Y", "2-3Y", "3-4Y", "4-5Y", "6-8Y", "9-12Y", "13-16Y", "XS", "S", "M", "L", "XL", "XXL", "Free Size"],
+                "options_by": {
+                    "0–2": ["0-6M", "6-12M", "1-2Y", "Free Size"],
+                    "0-2": ["0-6M", "6-12M", "1-2Y", "Free Size"],
+                    "3–5": ["2-3Y", "3-4Y", "4-5Y", "Free Size"],
+                    "3-5": ["2-3Y", "3-4Y", "4-5Y", "Free Size"],
+                    "6–8": ["5-6Y", "6-8Y", "7-8Y", "Free Size"],
+                    "6-8": ["5-6Y", "6-8Y", "7-8Y", "Free Size"],
+                    "9–12": ["8-10Y", "9-12Y", "10-12Y", "Free Size"],
+                    "9-12": ["8-10Y", "9-12Y", "10-12Y", "Free Size"],
+                    "13–17": ["12-14Y", "13-16Y", "14-16Y", "Free Size"],
+                    "13-17": ["12-14Y", "13-16Y", "14-16Y", "Free Size"],
+                    "18+": ["XS", "S", "M", "L", "XL", "XXL", "Free Size"],
+                },
+            },
             {"name": "occasion",      "label": "Occasion",      "type": "select", "options": ["Wedding", "Engagement", "Reception", "Haldi", "Sangeet", "Festival", "Party", "Photoshoot", "Daily wear"]},
             {"name": "fabric",        "label": "Fabric",        "type": "text",   "options": []},
-            {"name": "gender",        "label": "Gender",        "type": "select", "options": ["Men", "Women", "Kids", "Unisex"]},
+            {"name": "gender",        "label": "Gender",        "type": "select", "options": ["Boys", "Girls", "Men", "Women", "Kids", "Unisex"]},
+            {"name": "age_group",     "label": "Age Group",     "type": "select", "options": ["0–2", "3–5", "6–8", "9–12", "13–17", "18+"]},
         ],
     },
 
@@ -295,6 +321,7 @@ def get_field_options(category_key: str, field_name: str, parent_value: str = No
     """
     Helper returning the list of valid options for a category field.
     Handles 'depends_on' dynamically based on the chosen parent_value.
+    When parent_value is None, returns all available options so filters work out of the box.
     """
     cat = CATEGORIES.get(category_key)
     if not cat:
@@ -302,9 +329,24 @@ def get_field_options(category_key: str, field_name: str, parent_value: str = No
     for field in cat.get("fields", []):
         if field.get("name") == field_name:
             if field.get("depends_on"):
-                if not parent_value:
-                    return []
                 options_by = field.get("options_by", {})
+                if not parent_value:
+                    if field.get("options"):
+                        return list(field.get("options"))
+                    all_opts = []
+                    seen = set()
+                    for opts in options_by.values():
+                        for opt in opts:
+                            if opt not in seen:
+                                seen.add(opt)
+                                all_opts.append(opt)
+                    return all_opts
+                p_val = str(parent_value).strip()
+                if p_val in options_by:
+                    return list(options_by[p_val])
+                norm_p = p_val.replace("–", "-")
+                if norm_p in options_by:
+                    return list(options_by[norm_p])
                 return list(options_by.get(parent_value, []))
             return list(field.get("options", []))
     return []
@@ -669,56 +711,3 @@ KEYWORD_MAP = {
     "ಕುರ್ಚಿಗಳು": "event_items",
     "ಸೋಫಾ": "event_items",
 }
-�ायरी": {"category": "books", "genre": "Poetry"},
-    "కవిత్వం": {"category": "books", "genre": "Poetry"},
-    "పద్యాలు": {"category": "books", "genre": "Poetry"},
-    "ಕವನ": {"category": "books", "genre": "Poetry"},
-    "ಕವಿತೆ": {"category": "books", "genre": "Poetry"},
-
-    # book genres (Other)
-    "other books": {"category": "books", "genre": "Other"},
-    "अन्य किताबें": {"category": "books", "genre": "Other"},
-    "अन्य": {"category": "books", "genre": "Other"},
-    "ఇతర పుస్తకాలు": {"category": "books", "genre": "Other"},
-    "ఇతర": {"category": "books", "genre": "Other"},
-    "ಇತರೆ ಪುಸ್ತಕಗಳು": {"category": "books", "genre": "Other"},
-    "ಇತರೆ": {"category": "books", "genre": "Other"},
-
-    # electronics
-    "camera": "electronics",
-    "speaker": "electronics",
-    "sound": "electronics",
-    "projector": "electronics",
-    "laptop": "electronics",
-    "कैमरा": "electronics",
-    "स्पीकर": "electronics",
-    "ध्वनि": "electronics",
-    "साउंड": "electronics",
-    "కెమెరా": "electronics",
-    "స్పీకర్": "electronics",
-    "క్యామెరా": "electronics",
-    "క్యామ్": "electronics",
-    "ಕ್ಯಾಮೆರಾ": "electronics",
-    "ಸ್ಪೀಕರ್": "electronics",
-    "ಧ್ವನಿವರ್ಧಕ": "electronics",
-
-    # event_items
-    "chair": "event_items",
-    "chairs": "event_items",
-    "tent": "event_items",
-    "shamiyana": "event_items",
-    "stage": "event_items",
-    "कुर्सी": "event_items",
-    "तंबू": "event_items",
-    "शमियाना": "event_items",
-    "मंडप": "event_items",
-    "కుర్చీ": "event_items",
-    "కుర్చీలు": "event_items",
-    "టెంట్": "event_items",
-    "షామియానా": "event_items",
-    "ಕುರ್ಚಿ": "event_items",
-    "ಟೆಂಟ್": "event_items",
-    "ಶಾಮಿಯಾನ": "event_items",
-    "ಪೆಂಡಾಲ್": "event_items",
-}
-

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_macros.html" import item_image, shop_badge %}
 {% block title %}Browse – RentKart{% endblock %}
 
 {% block content %}
@@ -70,9 +71,10 @@
     </div>
   </div>
 
-  <!-- Hidden genre and brand filter preserving inputs -->
+  <!-- Hidden filter preserving inputs -->
   <input type="hidden" name="genre" value="{{ sel_genre }}">
   <input type="hidden" name="brand" value="{{ sel_brand or '' }}">
+  <input type="hidden" name="clothing_section" value="{{ clothing_section or '' }}">
 
   <!-- Category chips -->
   <div class="flex flex-wrap gap-2">
@@ -101,21 +103,70 @@
     </label>
   </div>
 
-  <!-- Brand filter chips (shown when clothes category is selected) -->
+  <!-- Clothing Collections & Age Groups (shown when clothes category is selected) -->
   {% if sel_category == 'clothes' %}
+  <!-- 1. Gender / Section Bar: Boys, Girls, All -->
+  <div class="pt-2 border-t border-gray-100">
+    <div class="text-xs font-bold text-gray-500 mb-1.5 flex items-center justify-between">
+      <span class="flex items-center gap-1">👔 Clothing Collections:</span>
+      <span class="text-[11px] text-gray-400 font-normal">Organized by Boys &amp; Girls</span>
+    </div>
+    <div class="flex flex-wrap gap-1.5 items-center">
+      <a href="{{ url_for('main.browse', category='clothes', search=search, min_price=min_price, max_price=max_price, max_dist=max_dist, sort=sort, lat=lat, lng=lng, view=view) }}"
+         class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold border transition {{ 'bg-primary text-white border-primary shadow-sm' if not clothing_section and not attr_filters.get('gender') else 'bg-gray-50 text-gray-700 hover:bg-gray-100' }}">
+        👔 All Clothes
+      </a>
+      <a href="{{ url_for('main.browse', category='clothes', clothing_section='boys', search=search, min_price=min_price, max_price=max_price, max_dist=max_dist, sort=sort, lat=lat, lng=lng, view=view) }}"
+         class="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold border transition {{ 'bg-blue-600 text-white border-blue-600 shadow-sm' if clothing_section == 'boys' or attr_filters.get('gender') == 'Boys' else 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100' }}">
+        👦 Boys Clothing
+      </a>
+      <a href="{{ url_for('main.browse', category='clothes', clothing_section='girls', search=search, min_price=min_price, max_price=max_price, max_dist=max_dist, sort=sort, lat=lat, lng=lng, view=view) }}"
+         class="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold border transition {{ 'bg-pink-600 text-white border-pink-600 shadow-sm' if clothing_section == 'girls' or attr_filters.get('gender') == 'Girls' else 'bg-pink-50 text-pink-700 border-pink-200 hover:bg-pink-100' }}">
+        👧 Girls Clothing
+      </a>
+    </div>
+  </div>
+
+  <!-- 2. Age-Based Categories: 0–2, 3–5, 6–8, 9–12, 13–17, 18+ years -->
+  <div class="pt-2 border-t border-gray-100">
+    <div class="text-xs font-bold text-gray-500 mb-1.5 flex items-center justify-between">
+      <span class="flex items-center gap-1">🎂 Age Groups:</span>
+      <span class="text-[11px] text-gray-400 font-normal">Select an age bracket</span>
+    </div>
+    <div class="flex flex-wrap gap-1.5 items-center">
+      <a href="{{ url_for('main.browse', category='clothes', clothing_section=clothing_section, attr_gender=attr_filters.get('gender'), brand=sel_brand, search=search, min_price=min_price, max_price=max_price, max_dist=max_dist, sort=sort, lat=lat, lng=lng, view=view) }}"
+         class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold border transition {{ 'bg-primary text-white border-primary shadow-sm' if not attr_filters.get('age_group') else 'bg-gray-50 text-gray-700 hover:bg-gray-100' }}">
+        All Ages
+      </a>
+      {% for ag in ["0–2", "3–5", "6–8", "9–12", "13–17", "18+"] %}
+        {% set is_ag_active = (attr_filters.get('age_group') == ag or attr_filters.get('age_group') == ag.replace('–', '-')) %}
+        <a href="{{ url_for('main.browse', category='clothes', clothing_section=clothing_section, attr_gender=attr_filters.get('gender'), attr_age_group=ag, brand=sel_brand, search=search, min_price=min_price, max_price=max_price, max_dist=max_dist, sort=sort, lat=lat, lng=lng, view=view) }}"
+           class="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium border transition {{ 'bg-amber-600 text-white border-amber-600 shadow-sm font-bold' if is_ag_active else 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100' }}">
+          <span>👶</span>
+          <span>{{ ag }} yrs</span>
+        </a>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- 3. Brand Filter Chips -->
   <div class="pt-2 border-t border-gray-100">
     <div class="text-xs font-bold text-gray-500 mb-1.5 flex items-center gap-1">
       <span>👗 Brands:</span>
     </div>
     <div class="flex flex-wrap gap-1.5 items-center">
-      <a href="{{ url_for('main.browse', category='clothes', search=search, max_price=max_price, max_dist=max_dist, sort=sort, lat=lat, lng=lng, view=view) }}"
+      <a href="{{ url_for('main.browse', category='clothes', clothing_section=clothing_section, attr_gender=attr_filters.get('gender'), attr_age_group=attr_filters.get('age_group'), search=search, min_price=min_price, max_price=max_price, max_dist=max_dist, sort=sort, lat=lat, lng=lng, view=view) }}"
          class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold border transition {{ 'bg-primary text-white border-primary shadow-sm' if not sel_brand or sel_brand.lower() == 'all' else 'bg-gray-50 text-gray-700 hover:bg-gray-100' }}">
         All
       </a>
-      <a href="{{ url_for('main.browse', category='clothes', brand='Shravani', search=search, max_price=max_price, max_dist=max_dist, sort=sort, lat=lat, lng=lng, view=view) }}"
-         class="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold border transition {{ 'bg-rose-700 text-white border-rose-700 shadow-sm' if sel_brand and sel_brand.lower() == 'shravani' else 'bg-rose-50 text-rose-800 border-rose-200 hover:bg-rose-100' }}">
-        ✨ Shravani
-      </a>
+      {% for b_name in ["Shravani", "Manyavar Kids", "FabIndia Kids", "Zara Kids", "BIBA", "Raymond"] %}
+        {% set is_b_active = (sel_brand and sel_brand.lower() == b_name.lower()) %}
+        <a href="{{ url_for('main.browse', category='clothes', clothing_section=clothing_section, attr_gender=attr_filters.get('gender'), attr_age_group=attr_filters.get('age_group'), brand=b_name, search=search, min_price=min_price, max_price=max_price, max_dist=max_dist, sort=sort, lat=lat, lng=lng, view=view) }}"
+           class="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium border transition {{ 'bg-rose-700 text-white border-rose-700 shadow-sm font-bold' if is_b_active else 'bg-rose-50 text-rose-800 border-rose-200 hover:bg-rose-100' }}">
+          <span>✨</span>
+          <span>{{ b_name }}</span>
+        </a>
+      {% endfor %}
     </div>
   </div>
   {% endif %}
@@ -128,12 +179,12 @@
     </div>
     <div class="flex flex-wrap gap-1.5 items-center">
       <!-- All books chip -->
-      <a href="{{ url_for('main.browse', category='books', search=search, max_price=max_price, max_dist=max_dist, sort=sort, lat=lat, lng=lng, view=view) }}"
+      <a href="{{ url_for('main.browse', category='books', search=search, min_price=min_price, max_price=max_price, max_dist=max_dist, sort=sort, lat=lat, lng=lng, view=view) }}"
          class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold border transition {{ 'bg-primary text-white border-primary shadow-sm' if not sel_genre or sel_genre.lower() == 'all' else 'bg-gray-50 text-gray-700 hover:bg-gray-100' }}">
         All
       </a>
       <!-- Trending chip -->
-      <a href="{{ url_for('main.browse', category='books', genre='trending', search=search, max_price=max_price, max_dist=max_dist, sort=sort, lat=lat, lng=lng, view=view) }}"
+      <a href="{{ url_for('main.browse', category='books', genre='trending', search=search, min_price=min_price, max_price=max_price, max_dist=max_dist, sort=sort, lat=lat, lng=lng, view=view) }}"
          class="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold border transition {{ 'bg-orange-500 text-white border-orange-500 shadow-sm' if sel_genre and sel_genre.lower() == 'trending' else 'bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-100' }}">
         🔥 Trending
       </a>
@@ -141,7 +192,7 @@
       {% for opt in book_genres %}
         {% set g_info = get_book_genre_info(opt) %}
         {% set is_active = (sel_genre and (sel_genre.lower() == opt.lower() or sel_genre.lower() in opt.lower() or opt.lower() in sel_genre.lower())) %}
-        <a href="{{ url_for('main.browse', category='books', genre=opt, search=search, max_price=max_price, max_dist=max_dist, sort=sort, lat=lat, lng=lng, view=view) }}"
+        <a href="{{ url_for('main.browse', category='books', genre=opt, search=search, min_price=min_price, max_price=max_price, max_dist=max_dist, sort=sort, lat=lat, lng=lng, view=view) }}"
            class="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium border transition {{ 'bg-primary text-white border-primary shadow-sm' if is_active else 'bg-gray-50 text-gray-700 hover:bg-gray-100' }}">
           <span>{{ g_info.emoji }}</span>
           <span>{{ g_info.short_label }}</span>
@@ -151,16 +202,16 @@
   </div>
   {% endif %}
 
-  <!-- Category-specific select filters (max 2) -->
+  <!-- Category-specific select filters (Gender, Age Group, Clothing Type, Size, Style, Color) -->
   {% if cat_select_fields %}
-  <div class="flex flex-wrap gap-2">
+  <div class="flex flex-wrap gap-2 pt-1 border-t border-gray-100">
     {% for field in cat_select_fields %}
       <select name="attr_{{ field.name }}"
-              class="border rounded-xl px-3 py-2 text-sm"
+              class="border rounded-xl px-3 py-2 text-sm bg-white"
               onchange="this.form.submit()">
         <option value="">{{ field.label }}: Any</option>
         {% for opt in field.options %}
-          <option value="{{ opt }}" {% if attr_filters.get(field.name) == opt %}selected{% endif %}>
+          <option value="{{ opt }}" {% if attr_filters.get(field.name) == opt or (field.name == 'age_group' and attr_filters.get('age_group') == opt.replace('–', '-')) %}selected{% endif %}>
             {{ opt }}
           </option>
         {% endfor %}
@@ -169,8 +220,8 @@
   </div>
   {% endif %}
 
-  <!-- Row: distance, price, sort -->
-  <div class="flex flex-wrap gap-2">
+  <!-- Row: distance, price range (min and max), sort -->
+  <div class="flex flex-wrap items-center gap-2 pt-1">
     <select name="max_dist" class="border rounded-xl px-3 py-2 text-sm">
       <option value="">Distance: Any</option>
       {% for d in [2, 5, 10, 25] %}
@@ -178,9 +229,17 @@
       {% endfor %}
     </select>
 
-    <input type="number" name="max_price" min="0" step="1" placeholder="Max ₹/day"
-           value="{{ max_price if max_price is not none else '' }}"
-           class="border rounded-xl px-3 py-2 text-sm w-28">
+    <!-- Price Range: Min & Max ₹/day -->
+    <div class="flex items-center gap-1 bg-gray-50 border rounded-xl px-2 py-1">
+      <span class="text-xs text-gray-500 font-medium">₹</span>
+      <input type="number" name="min_price" min="0" step="1" placeholder="Min/day"
+             value="{{ min_price if min_price is not none else '' }}"
+             class="bg-transparent border-0 text-sm w-20 focus:outline-none focus:ring-0">
+      <span class="text-gray-400 text-xs">—</span>
+      <input type="number" name="max_price" min="0" step="1" placeholder="Max/day"
+             value="{{ max_price if max_price is not none else '' }}"
+             class="bg-transparent border-0 text-sm w-20 focus:outline-none focus:ring-0">
+    </div>
 
     <select name="sort" class="border rounded-xl px-3 py-2 text-sm">
       <option value="nearest"  {% if sort == 'nearest' %}selected{% endif %}>Nearest</option>
@@ -191,11 +250,11 @@
 
   <div class="flex gap-2">
     <button type="submit"
-            class="bg-primary text-white rounded-xl px-4 py-2 text-sm font-bold hover:bg-green-700">
+            class="bg-primary text-white rounded-xl px-4 py-2 text-sm font-bold hover:bg-green-700 shadow-sm transition">
       Apply
     </button>
-    <a href="{{ url_for('main.browse', lat=lat, lng=lng, view=view) }}"
-       class="border rounded-xl px-4 py-2 text-sm text-gray-500 hover:bg-gray-100">
+    <a href="{{ url_for('main.browse', category=sel_category, lat=lat, lng=lng, view=view) if sel_category else url_for('main.browse', lat=lat, lng=lng, view=view) }}"
+       class="border rounded-xl px-4 py-2 text-sm text-gray-500 hover:bg-gray-100 transition">
       Clear filters
     </a>
   </div>
@@ -218,42 +277,49 @@
         {% endif %}
         <!-- Image with fixed height and object-cover -->
         <a href="{{ url_for('items.item_detail', item_id=item.id) }}" class="block">
-          {% if item.image %}
-            <img src="{{ url_for('static', filename='uploads/' + item.image) }}"
-                 alt="{{ item.title }}" class="w-full h-40 object-cover rounded-xl mb-2">
-          {% else %}
-            <div class="w-full h-40 rounded-xl mb-2 relative overflow-hidden flex flex-col justify-between p-3 select-none shadow-inner
-              {% if item.category == 'clothes' %}bg-gradient-to-b from-[#800020] to-[#DAA520]
-              {% elif item.category == 'books' %}bg-gradient-to-b from-[#0F2350] to-[#14919B]
-              {% elif item.category == 'farm_tools' %}bg-gradient-to-b from-[#1E6423] to-[#784B1E]
-              {% elif item.category == 'electronics' %}bg-gradient-to-b from-[#370F55] to-[#1E50B4]
-              {% elif item.category == 'event_items' %}bg-gradient-to-b from-[#E65014] to-[#DC286E]
-              {% else %}bg-gradient-to-b from-gray-700 to-gray-900{% endif %}">
-              <div class="flex justify-center items-center flex-1">
-                <div class="w-12 h-12 rounded-full bg-white/20 backdrop-blur-xs flex items-center justify-center text-2xl shadow-inner border border-white/30">
-                  {% if item.category == 'clothes' %}👗
-                  {% elif item.category == 'books' %}📚
-                  {% elif item.category == 'farm_tools' %}🚜
-                  {% elif item.category == 'electronics' %}📷
-                  {% elif item.category == 'event_items' %}🎪
-                  {% else %}📦{% endif %}
-                </div>
-              </div>
-              <div class="bg-black/50 backdrop-blur-xs px-2.5 py-1 -mx-3 -mb-3 text-center">
-                <p class="text-xs font-bold text-white truncate">{{ item.title }}</p>
-              </div>
-            </div>
-          {% endif %}
+          {{ item_image(item, height_class="h-40") }}
         </a>
       </div>
 
       <!-- Category / Genre badge & rating -->
-      <div class="flex items-center justify-between text-xs mb-1 gap-1">
+      <div class="flex items-center justify-between text-xs mb-1 gap-1 flex-wrap">
         {% if item.category == 'books' %}
-          {% set g_info = get_book_genre_info(item) %}
-          <span class="inline-flex items-center gap-0.5 text-[11px] font-semibold px-2 py-0.5 rounded-full {{ g_info.color }}">
-            {{ g_info.emoji }} {{ g_info.short_label }}
-          </span>
+          <div class="flex items-center gap-1 flex-wrap">
+            {% set g_info = get_book_genre_info(item) %}
+            <span class="inline-flex items-center gap-0.5 text-[11px] font-semibold px-2 py-0.5 rounded-full {{ g_info.color }}">
+              {{ g_info.emoji }} {{ g_info.short_label }}
+            </span>
+            {% set b_lang = item.get_attributes().get('language') %}
+            {% if b_lang %}
+              <span class="inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-800 border border-blue-200">
+                🌐 {{ b_lang }}
+              </span>
+            {% endif %}
+          </div>
+        {% elif item.category == 'clothes' %}
+          {% set c_attrs = item.get_attributes() %}
+          <div class="flex items-center gap-1 flex-wrap">
+            {% if c_attrs.get('gender') %}
+              <span class="inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded-full {{ 'bg-blue-100 text-blue-800 border border-blue-200' if c_attrs.get('gender') == 'Boys' else ('bg-pink-100 text-pink-800 border border-pink-200' if c_attrs.get('gender') == 'Girls' else 'bg-purple-100 text-purple-800 border border-purple-200') }}">
+                {{ '👦 ' if c_attrs.get('gender') == 'Boys' else ('👧 ' if c_attrs.get('gender') == 'Girls' else '👗 ') }}{{ c_attrs.get('gender') }}
+              </span>
+            {% endif %}
+            {% if c_attrs.get('age_group') %}
+              <span class="inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200">
+                🎂 {{ c_attrs.get('age_group') }} yrs
+              </span>
+            {% endif %}
+            {% if c_attrs.get('size') %}
+              <span class="inline-flex items-center text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-700">
+                Size: {{ c_attrs.get('size') }}
+              </span>
+            {% endif %}
+            {% if c_attrs.get('clothing_type') %}
+              <span class="inline-flex items-center text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
+                {{ c_attrs.get('clothing_type') }}
+              </span>
+            {% endif %}
+          </div>
         {% else %}
           {% set cat = categories.get(item.category, {}) %}
           <span class="text-gray-400 text-xs truncate">{{ cat.get('icon','') }} {{ t(cat.get('label','')) }}</span>
@@ -269,12 +335,8 @@
         {{ item.title }}
       </a>
 
-      <!-- Brand for clothes items -->
-      {% if item.category == 'clothes' and item.get_attributes().get('brand') %}
-        <div class="text-xs text-rose-800 font-semibold mb-1">
-          by <a href="{{ url_for('shop.shop_page', slug='shravani') if item.get_attributes().get('brand')|lower == 'shravani' else (url_for('shop.shop_page', slug=item.owner.shop_slug) if item.owner and item.owner.shop_slug else url_for('shop.shop_page', slug='shravani')) }}" class="underline hover:text-rose-950 font-bold">{{ item.get_attributes().get('brand') }}</a>
-        </div>
-      {% endif %}
+      <!-- Shop / Brand badge -->
+      {{ shop_badge(item) }}
     </div>
 
     <div>
@@ -361,6 +423,101 @@
     {% endfor %}
   </div>
 
+{% elif show_clothes_sections %}
+  <!-- Organized Clothes Sections (Boys vs Girls vs Adult Collections) -->
+  <div class="space-y-6 mb-8">
+    <!-- 1. Boys Collection -->
+    {% if boys_items %}
+    <div class="bg-gradient-to-r from-blue-50/70 via-indigo-50/40 to-transparent p-3 rounded-2xl border border-blue-100/80 shadow-sm">
+      <div class="flex justify-between items-center mb-2.5 px-1">
+        <div class="flex items-center gap-2">
+          <span class="text-xl">👦</span>
+          <div>
+            <h2 class="text-base sm:text-lg font-extrabold text-gray-900 leading-tight">Boys Collection</h2>
+            <p class="text-[11px] text-gray-500">Traditional kurta sets, sherwanis, suits &amp; tuxedos for boys</p>
+          </div>
+        </div>
+        <a href="{{ url_for('main.browse', category='clothes', clothing_section='boys', lat=lat, lng=lng) }}"
+           class="text-xs font-bold text-blue-700 hover:underline flex items-center gap-0.5 shrink-0 bg-blue-100/70 px-2.5 py-1 rounded-full">
+          See all ({{ boys_items | length }}) &rarr;
+        </a>
+      </div>
+      <div class="flex gap-4 overflow-x-auto snap-x snap-mandatory flex-nowrap pb-3 pt-1 px-1 -mx-1 scrollbar-thin">
+        {% for item in boys_items %}
+          <div class="flex-none w-[260px] snap-start">
+            {{ render_item_card(item) }}
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- 2. Girls Collection -->
+    {% if girls_items %}
+    <div class="bg-gradient-to-r from-pink-50/70 via-rose-50/40 to-transparent p-3 rounded-2xl border border-pink-100/80 shadow-sm">
+      <div class="flex justify-between items-center mb-2.5 px-1">
+        <div class="flex items-center gap-2">
+          <span class="text-xl">👧</span>
+          <div>
+            <h2 class="text-base sm:text-lg font-extrabold text-gray-900 leading-tight">Girls Collection</h2>
+            <p class="text-[11px] text-gray-500">Lehengas, frocks, anarkalis &amp; pattu pavadai for girls</p>
+          </div>
+        </div>
+        <a href="{{ url_for('main.browse', category='clothes', clothing_section='girls', lat=lat, lng=lng) }}"
+           class="text-xs font-bold text-pink-700 hover:underline flex items-center gap-0.5 shrink-0 bg-pink-100/70 px-2.5 py-1 rounded-full">
+          See all ({{ girls_items | length }}) &rarr;
+        </a>
+      </div>
+      <div class="flex gap-4 overflow-x-auto snap-x snap-mandatory flex-nowrap pb-3 pt-1 px-1 -mx-1 scrollbar-thin">
+        {% for item in girls_items %}
+          <div class="flex-none w-[260px] snap-start">
+            {{ render_item_card(item) }}
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- 3. Adults & Festive Wear Collection -->
+    {% if adult_clothes_items %}
+    <div class="bg-gradient-to-r from-amber-50/70 via-orange-50/40 to-transparent p-3 rounded-2xl border border-amber-100/80 shadow-sm">
+      <div class="flex justify-between items-center mb-2.5 px-1">
+        <div class="flex items-center gap-2">
+          <span class="text-xl">👗</span>
+          <div>
+            <h2 class="text-base sm:text-lg font-extrabold text-gray-900 leading-tight">Adults &amp; Bridal Wear</h2>
+            <p class="text-[11px] text-gray-500">Bridal lehengas, silk sarees, and designer sherwanis</p>
+          </div>
+        </div>
+        <a href="{{ url_for('main.browse', category='clothes', lat=lat, lng=lng) }}"
+           class="text-xs font-bold text-amber-800 hover:underline flex items-center gap-0.5 shrink-0 bg-amber-100/70 px-2.5 py-1 rounded-full">
+          See all ({{ adult_clothes_items | length }}) &rarr;
+        </a>
+      </div>
+      <div class="flex gap-4 overflow-x-auto snap-x snap-mandatory flex-nowrap pb-3 pt-1 px-1 -mx-1 scrollbar-thin">
+        {% for item in adult_clothes_items %}
+          <div class="flex-none w-[260px] snap-start">
+            {{ render_item_card(item) }}
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- All Clothes Grid -->
+    <div class="mt-8 pt-4 border-t border-gray-100">
+      <div class="flex justify-between items-center mb-3 px-1">
+        <h2 class="text-base sm:text-lg font-extrabold text-gray-900">All Clothing Items</h2>
+        <span class="text-xs text-gray-500 font-medium">({{ items | length }} items available)</span>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {% for item in items %}
+          {{ render_item_card(item) }}
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
 {% elif show_category_rows %}
   <!-- Main /browse Category Rows View (No filters/sorting active) -->
   <div class="space-y-6 mb-8">
@@ -397,16 +554,84 @@
   </div>
 
 {% else %}
-  <!-- Empty State -->
-  <div class="text-center py-16 text-gray-400">
-    <p class="text-4xl mb-2">🔭</p>
-    <p>No items found — try a bigger distance or different filters.</p>
+  <!-- Helpful Empty State with Removable Chips, Suggestion & You Might Like -->
+  <div class="card my-6 py-8 px-4 text-center">
+    <div class="text-4xl mb-3">🔭</div>
+    <h2 class="text-lg font-extrabold text-gray-900 mb-2">No items match your selected filters</h2>
+    <p class="text-xs sm:text-sm text-gray-500 max-w-md mx-auto">
+      Try widening your search, removing one of the active filters, or clearing all filters to see available rentals.
+    </p>
+
+    <!-- Active Filter Chips (Click x to remove one) -->
+    {% if active_filter_chips %}
+      <div class="flex flex-wrap gap-2 items-center justify-center my-4">
+        {% for chip in active_filter_chips %}
+          <span class="inline-flex items-center gap-1.5 bg-gray-100 hover:bg-gray-200 text-gray-800 text-xs px-3 py-1.5 rounded-full border border-gray-300 transition">
+            <span>{{ chip.label }}</span>
+            <a href="{{ chip.remove_url }}" class="text-gray-400 hover:text-red-600 font-bold ml-1 text-sm leading-none p-0.5" title="Remove this filter">&times;</a>
+          </span>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    <!-- Single Filter Removal Suggestion Line -->
+    {% if removal_suggestion %}
+      <div class="my-4 p-3.5 bg-amber-50 border border-amber-200 rounded-2xl max-w-lg mx-auto text-center shadow-sm">
+        <p class="text-xs sm:text-sm font-semibold text-amber-900 flex flex-wrap items-center justify-center gap-2">
+          <span>{{ removal_suggestion | safe }}</span>
+          {% if removal_url %}
+            <a href="{{ removal_url }}" class="inline-flex items-center text-xs font-bold text-primary hover:underline bg-white px-3 py-1 rounded-full border border-green-300 shadow-sm transition">
+              Apply &rarr;
+            </a>
+          {% endif %}
+        </p>
+      </div>
+    {% endif %}
+
+    <!-- Clear All Filters Button -->
+    <div class="mt-4 flex justify-center">
+      <a href="{{ clear_all_url }}"
+         class="inline-flex items-center justify-center min-h-[44px] px-6 py-2.5 rounded-xl bg-gray-900 hover:bg-black text-white text-xs sm:text-sm font-bold shadow transition">
+        🔄 Clear all filters
+      </a>
+    </div>
+
+    <!-- "You Might Like" Section with 4 nearby popular items -->
+    {% if you_might_like %}
+      <div class="mt-10 pt-8 border-t border-gray-100 text-left">
+        <div class="flex items-center justify-between mb-4 px-1">
+          <h3 class="text-base sm:text-lg font-extrabold text-gray-900 flex items-center gap-1.5">
+            <span>✨</span> You might like
+          </h3>
+          <span class="text-xs text-gray-400 font-medium">Popular nearby rentals</span>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {% for it in you_might_like %}
+            {{ render_item_card(it) }}
+          {% endfor %}
+        </div>
+      </div>
+    {% endif %}
   </div>
 {% endif %}
 {% endblock %}
 
 {% block scripts %}
 <script>
+  // Reset child select when parent filter changes
+  document.querySelectorAll('select[name="attr_age_group"], select[name="age_group"]').forEach(function(el) {
+    el.addEventListener('change', function() {
+      var sizeEl = document.querySelector('select[name="attr_size"], select[name="size"]');
+      if (sizeEl) sizeEl.value = "";
+    });
+  });
+  document.querySelectorAll('select[name="attr_gender"], select[name="gender"], select[name="attr_style"], select[name="style"]').forEach(function(el) {
+    el.addEventListener('change', function() {
+      var typeEl = document.querySelector('select[name="attr_clothing_type"], select[name="clothing_type"]');
+      if (typeEl) typeEl.value = "";
+    });
+  });
+
   // 1. Switch View helper (preserves existing query parameters)
   function switchView(mode) {
     var url = new URL(window.location.href);

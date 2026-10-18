@@ -103,6 +103,10 @@ def create_app(test_config=None):
                         conn.execute(text("ALTER TABLE user ADD COLUMN shop_slug VARCHAR(120)"))
                     if "is_admin" not in u_cols:
                         conn.execute(text("ALTER TABLE user ADD COLUMN is_admin BOOLEAN DEFAULT 0"))
+                    if "shop_logo" not in u_cols:
+                        conn.execute(text("ALTER TABLE user ADD COLUMN shop_logo VARCHAR(300)"))
+                    if "shop_theme_color" not in u_cols:
+                        conn.execute(text("ALTER TABLE user ADD COLUMN shop_theme_color VARCHAR(50)"))
                 if "item" in table_names:
                     i_cols = [c["name"] for c in inspector.get_columns("item")]
                     if "purchase_price" not in i_cols:

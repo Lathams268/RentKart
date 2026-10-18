@@ -1,39 +1,27 @@
 {% extends "base.html" %}
+{% from "_macros.html" import item_image, shop_badge %}
 {% block title %}{{ item.title }} – RentKart{% endblock %}
 
 {% block content %}
 <div class="card space-y-4">
   <!-- Image -->
-  {% if item.image %}
-    <img src="{{ url_for('static', filename='uploads/' + item.image) }}"
-         alt="{{ item.title }}" class="w-full h-56 sm:h-72 object-cover rounded-xl shadow-sm">
-  {% else %}
-    <div class="w-full h-56 sm:h-72 rounded-xl mb-2 relative overflow-hidden flex flex-col justify-between p-4 select-none shadow-sm
-      {% if item.category == 'clothes' %}bg-gradient-to-b from-[#800020] to-[#DAA520]
-      {% elif item.category == 'books' %}bg-gradient-to-b from-[#0F2350] to-[#14919B]
-      {% elif item.category == 'farm_tools' %}bg-gradient-to-b from-[#1E6423] to-[#784B1E]
-      {% elif item.category == 'electronics' %}bg-gradient-to-b from-[#370F55] to-[#1E50B4]
-      {% elif item.category == 'event_items' %}bg-gradient-to-b from-[#E65014] to-[#DC286E]
-      {% else %}bg-gradient-to-b from-gray-700 to-gray-900{% endif %}">
-      <div class="flex justify-center items-center flex-1">
-        <div class="w-20 h-20 rounded-full bg-white/20 backdrop-blur-xs flex items-center justify-center text-4xl shadow-inner border border-white/30">
-          {% if item.category == 'clothes' %}👗
-          {% elif item.category == 'books' %}📚
-          {% elif item.category == 'farm_tools' %}🚜
-          {% elif item.category == 'electronics' %}📷
-          {% elif item.category == 'event_items' %}🎪
-          {% else %}📦{% endif %}
-        </div>
-      </div>
-      <div class="bg-black/50 backdrop-blur-xs px-3 py-2 -mx-4 -mb-4 text-center">
-        <p class="text-sm font-bold text-white truncate">{{ item.title }}</p>
-      </div>
-    </div>
-  {% endif %}
+  {{ item_image(item, height_class="h-56 sm:h-72", is_detail=true) }}
 
   <!-- Title & price -->
   <h1 class="text-2xl font-bold text-gray-800">{{ item.title }}</h1>
-  {% if item.category == 'clothes' and attrs.get('brand') %}
+  {% if item.owner and item.owner.shop_name %}
+    <div class="text-sm text-rose-800 font-semibold -mt-2 mb-1 flex items-center gap-1.5">
+      {% if item.owner.shop_logo %}
+        <img src="{{ url_for('static', filename='uploads/' + item.owner.shop_logo) }}" class="w-5 h-5 rounded-full object-cover shadow-sm border border-rose-300">
+      {% endif %}
+      <span>by</span>
+      {% if item.owner.shop_slug %}
+        <a href="{{ url_for('shop.shop_page', slug=item.owner.shop_slug) }}" class="underline hover:text-rose-950 font-bold">{{ item.owner.shop_name }}</a>
+      {% else %}
+        <span class="font-bold">{{ item.owner.shop_name }}</span>
+      {% endif %}
+    </div>
+  {% elif item.category == 'clothes' and attrs.get('brand') %}
     <div class="text-sm text-rose-800 font-semibold -mt-2 mb-1">
       by <a href="{{ url_for('shop.shop_page', slug='shravani') if attrs.get('brand')|lower == 'shravani' else (url_for('shop.shop_page', slug=item.owner.shop_slug) if item.owner and item.owner.shop_slug else url_for('shop.shop_page', slug='shravani')) }}" class="underline hover:text-rose-950 font-bold">{{ attrs.get('brand') }}</a>
     </div>

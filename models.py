@@ -18,6 +18,8 @@ class User(UserMixin, db.Model):
     shop_name        = db.Column(db.String(120), nullable=True)
     shop_description = db.Column(db.Text, nullable=True)
     shop_slug        = db.Column(db.String(120), unique=True, nullable=True)
+    shop_logo        = db.Column(db.String(300), nullable=True)
+    shop_theme_color = db.Column(db.String(50), nullable=True)
     is_admin         = db.Column(db.Boolean, default=False)
     created_at       = db.Column(db.DateTime, default=datetime.utcnow)
 

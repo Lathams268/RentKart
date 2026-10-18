@@ -11,12 +11,30 @@ from utils.trust import get_user_trust
 shop_bp = Blueprint("shop", __name__)
 
 
+import os
+import time
+from werkzeug.utils import secure_filename
+
+
+def _save_logo(file):
+    if file and file.filename:
+        ext = file.filename.rsplit(".", 1)[-1].lower()
+        if ext in ("png", "jpg", "jpeg"):
+            fn = f"logo_{current_user.id}_{int(time.time())}.{ext}"
+            upload_dir = current_app.config["UPLOAD_FOLDER"]
+            os.makedirs(upload_dir, exist_ok=True)
+            file.save(os.path.join(upload_dir, fn))
+            return fn
+    return None
+
+
 @shop_bp.route("/shop/create", methods=["POST"])
 @login_required
 def create_shop():
     """Create or update owner's digital shop with an auto-generated unique slug."""
     shop_name = request.form.get("shop_name", "").strip()
     shop_description = request.form.get("shop_description", "").strip()
+    shop_theme_color = request.form.get("shop_theme_color", "").strip()
 
     if not shop_name:
         flash("Shop name is required.", "error")
@@ -27,9 +45,38 @@ def create_shop():
     current_user.shop_name = shop_name
     current_user.shop_description = shop_description
     current_user.shop_slug = slug
+    if shop_theme_color:
+        current_user.shop_theme_color = shop_theme_color
+
+    logo_fn = _save_logo(request.files.get("shop_logo"))
+    if logo_fn:
+        current_user.shop_logo = logo_fn
 
     db.session.commit()
     flash(f"Shop '{shop_name}' created successfully!", "success")
+    return redirect(url_for("bookings.owner_dashboard"))
+
+
+@shop_bp.route("/shop/edit", methods=["POST"])
+@login_required
+def edit_shop():
+    """Update shop settings including name, description, theme color, and logo."""
+    shop_name = request.form.get("shop_name", "").strip()
+    shop_description = request.form.get("shop_description", "").strip()
+    shop_theme_color = request.form.get("shop_theme_color", "").strip()
+
+    if shop_name:
+        current_user.shop_name = shop_name
+    current_user.shop_description = shop_description
+    if shop_theme_color:
+        current_user.shop_theme_color = shop_theme_color
+
+    logo_fn = _save_logo(request.files.get("shop_logo"))
+    if logo_fn:
+        current_user.shop_logo = logo_fn
+
+    db.session.commit()
+    flash("Shop updated successfully!", "success")
     return redirect(url_for("bookings.owner_dashboard"))
 
 

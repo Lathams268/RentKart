@@ -146,6 +146,8 @@
     const cat = CATEGORIES[this.value];
     if (!cat) return;
 
+    const selectsByName = {};
+
     cat.fields.forEach(function(f) {
       const wrapper = document.createElement('div');
       const label = document.createElement('label');
@@ -158,34 +160,76 @@
       if (f.type === 'select') {
         input = document.createElement('select');
         input.className = 'w-full border rounded-xl px-4 py-3';
-        const blank = document.createElement('option');
-        blank.value = '';
-        blank.textContent = '— Select —';
-        input.appendChild(blank);
-        f.options.forEach(function(opt) {
-          const o = document.createElement('option');
-          o.value = opt;
-          o.textContent = opt;
-          input.appendChild(o);
-        });
+        input.name = 'attr_' + f.name;
+        selectsByName[f.name] = { select: input, field: f };
+
+        const populateOptions = function(opts) {
+          input.innerHTML = '';
+          const blank = document.createElement('option');
+          blank.value = '';
+          blank.textContent = '— Select —';
+          input.appendChild(blank);
+          (opts || []).forEach(function(opt) {
+            const o = document.createElement('option');
+            o.value = opt;
+            o.textContent = opt;
+            input.appendChild(o);
+          });
+        };
+
+        if (f.depends_on) {
+          populateOptions([]);
+        } else {
+          populateOptions(f.options || []);
+        }
       } else if (f.type === 'checkbox') {
         input = document.createElement('input');
         input.type = 'checkbox';
         input.className = 'h-5 w-5 text-primary rounded';
+        input.name = 'attr_' + f.name;
       } else if (f.type === 'number') {
         input = document.createElement('input');
         input.type = 'number';
         input.className = 'w-full border rounded-xl px-4 py-3';
         input.min = '0';
+        input.name = 'attr_' + f.name;
       } else {
         input = document.createElement('input');
         input.type = 'text';
         input.className = 'w-full border rounded-xl px-4 py-3';
+        input.name = 'attr_' + f.name;
       }
 
-      input.name = 'attr_' + f.name;
       wrapper.appendChild(input);
       container.appendChild(wrapper);
+    });
+
+    // Wire up dependent select fields
+    Object.keys(selectsByName).forEach(function(name) {
+      const item = selectsByName[name];
+      const f = item.field;
+      if (f.depends_on && selectsByName[f.depends_on]) {
+        const parentSelect = selectsByName[f.depends_on].select;
+        const updateChild = function() {
+          const parentVal = parentSelect.value;
+          const opts = (f.options_by && f.options_by[parentVal]) || [];
+          item.select.innerHTML = '';
+          const blank = document.createElement('option');
+          blank.value = '';
+          blank.textContent = parentVal ? '— Select —' : ('— Select ' + (selectsByName[f.depends_on].field.label || 'parent') + ' first —');
+          item.select.appendChild(blank);
+          opts.forEach(function(opt) {
+            const o = document.createElement('option');
+            o.value = opt;
+            o.textContent = opt;
+            item.select.appendChild(o);
+          });
+        };
+        parentSelect.addEventListener('change', updateChild);
+        if (parentSelect.value) {
+          updateChild();
+        }
+      }
     });
   });
 </script>

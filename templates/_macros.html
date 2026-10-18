@@ -1,0 +1,129 @@
+{# templates/_macros.html – Reusable item image & shop badge macros #}
+
+{% macro item_image(item, height_class="h-40", extra_class="", is_detail=false) %}
+  {% set cat = item.category %}
+  {% set cat_icon = '👗' if cat == 'clothes' else ('📚' if cat == 'books' else ('🚜' if cat == 'farm_tools' else ('📷' if cat == 'electronics' else ('🎪' if cat == 'event_items' else '📦')))) %}
+
+  {% if item.image %}
+    <img src="{{ url_for('static', filename='uploads/' + item.image) }}"
+         alt="{{ item.title }}"
+         class="w-full {{ height_class }} object-cover rounded-xl shadow-sm {{ extra_class }}">
+  {% elif item.owner and (item.owner.shop_name or item.owner.shop_slug) %}
+    {# Priority 2: Themed fallback ma    {% set theme = (item.owner.shop_theme_color or '')|lower %}
+    {% if 'maroon' in theme or 'gold' in theme %}
+      {% set style_bg = 'background: linear-gradient(135deg, #800020, #DAA520);' %}
+    {% elif 'blue' in theme %}
+      {% set style_bg = 'background: linear-gradient(135deg, #1E3A8A, #3B82F6);' %}
+    {% elif 'green' in theme %}
+      {% set style_bg = 'background: linear-gradient(135deg, #065F46, #10B981);' %}
+    {% elif 'purple' in theme %}
+      {% set style_bg = 'background: linear-gradient(135deg, #581C87, #8B5CF6);' %}
+    {% elif 'orange' in theme %}
+      {% set style_bg = 'background: linear-gradient(135deg, #C2410C, #F97316);' %}
+    {% elif 'red' in theme %}
+      {% set style_bg = 'background: linear-gradient(135deg, #991B1B, #EF4444);' %}
+    {% elif cat == 'clothes' %}
+      {% set style_bg = 'background: linear-gradient(135deg, #800020, #DAA520);' %}
+    {% elif cat == 'books' %}
+      {% set style_bg = 'background: linear-gradient(135deg, #0F2350, #14919B);' %}
+    {% elif cat == 'farm_tools' %}
+      {% set style_bg = 'background: linear-gradient(135deg, #1E6423, #784B1E);' %}
+    {% elif cat == 'electronics' %}
+      {% set style_bg = 'background: linear-gradient(135deg, #370F55, #1E50B4);' %}
+    {% elif cat == 'event_items' %}
+      {% set style_bg = 'background: linear-gradient(135deg, #E65014, #DC286E);' %}
+    {% else %}
+      {% set style_bg = 'background: linear-gradient(135deg, #374151, #111827);' %}
+    {% endif %}
+    <div class="w-full {{ height_class }} rounded-xl mb-2 relative overflow-hidden flex flex-col justify-between p-3 select-none shadow-sm {{ extra_class }}"
+         style="{{ style_bg }}">
+      <!-- Category Icon in Corner -->
+      <div class="absolute top-2 right-2 text-xs bg-black/40 text-white rounded-full px-2 py-0.5 backdrop-blur-xs flex items-center justify-center border border-white/20">
+        {{ cat_icon }}
+      </div>
+      <!-- Center: Shop Logo or Initials + Shop Name -->
+      <div class="flex flex-col justify-center items-center flex-1 mt-2">
+        {% if item.owner.shop_logo %}
+          <img src="{{ url_for('static', filename='uploads/' + item.owner.shop_logo) }}"
+               alt="{{ item.owner.shop_name }}"
+               class="w-12 h-12 rounded-full object-cover shadow-md border-2 border-white/80">
+        {% else %}
+          <div class="w-12 h-12 rounded-full bg-white/25 backdrop-blur-xs flex items-center justify-center text-base font-black text-white shadow-inner border border-white/60">
+            {% set sname = item.owner.shop_name or '' %}
+            {% set words = sname.split() %}
+            {% if words|length > 1 %}
+              {{ (words[0][0] ~ words[1][0])|upper }}
+            {% elif words|length == 1 and words[0]|length > 0 %}
+              {{ words[0][:2]|upper }}
+            {% else %}
+              🛍️
+            {% endif %}
+          </div>
+        {% endif %}
+        <span class="text-[11px] font-bold text-white/95 mt-1 tracking-wide uppercase text-center drop-shadow px-2 truncate max-w-[200px]">
+          {{ item.owner.shop_name }}
+        </span>
+      </div>
+      <!-- Bottom Strip with Title -->
+      <div class="bg-black/55 backdrop-blur-xs px-2.5 py-1 -mx-3 -mb-3 text-center">
+        <p class="text-xs font-bold text-white truncate">{{ item.title }}</p>
+      </div>
+    </div>
+
+  {% else %}
+    {# Priority 3: Category themed gradient (no shop) #}
+    {% if cat == 'clothes' %}
+      {% set cat_gradient = 'bg-gradient-to-b from-[#800020] to-[#DAA520]' %}
+    {% elif cat == 'books' %}
+      {% set cat_gradient = 'bg-gradient-to-b from-[#0F2350] to-[#14919B]' %}
+    {% elif cat == 'farm_tools' %}
+      {% set cat_gradient = 'bg-gradient-to-b from-[#1E6423] to-[#784B1E]' %}
+    {% elif cat == 'electronics' %}
+      {% set cat_gradient = 'bg-gradient-to-b from-[#370F55] to-[#1E50B4]' %}
+    {% elif cat == 'event_items' %}
+      {% set cat_gradient = 'bg-gradient-to-b from-[#E65014] to-[#DC286E]' %}
+    {% else %}
+      {% set cat_gradient = 'bg-gradient-to-b from-gray-700 to-gray-900' %}
+    {% endif %}
+    <div class="w-full {{ height_class }} rounded-xl mb-2 relative overflow-hidden flex flex-col justify-between p-3 select-none shadow-sm {{ cat_gradient }} {{ extra_class }}">
+      <div class="flex justify-center items-center flex-1">
+        <div class="w-14 h-14 rounded-full bg-white/20 backdrop-blur-xs flex items-center justify-center text-2xl shadow-inner border border-white/30">
+          {{ cat_icon }}
+        </div>
+      </div>
+      <div class="bg-black/50 backdrop-blur-xs px-2.5 py-1 -mx-3 -mb-3 text-center">
+        <p class="text-xs font-bold text-white truncate">{{ item.title }}</p>
+      </div>
+    </div>
+  {% endif %}
+{% endmacro %}
+
+
+{% macro shop_badge(item) %}
+  {% set attrs = item.get_attributes() if item.get_attributes else {} %}
+  {% set brand = attrs.get('brand') %}
+  {% if item.owner and item.owner.shop_name %}
+    <div class="text-xs text-rose-800 font-semibold mb-1 flex items-center gap-1">
+      {% if item.owner.shop_logo %}
+        <img src="{{ url_for('static', filename='uploads/' + item.owner.shop_logo) }}"
+             alt="" class="w-3.5 h-3.5 rounded-full object-cover inline border border-rose-300">
+      {% endif %}
+      <span>by</span>
+      {% if item.owner.shop_slug %}
+        <a href="{{ url_for('shop.shop_page', slug=item.owner.shop_slug) }}"
+           class="underline hover:text-rose-950 font-bold">{{ item.owner.shop_name }}</a>
+      {% else %}
+        <span class="font-bold">{{ item.owner.shop_name }}</span>
+      {% endif %}
+    </div>
+  {% elif brand %}
+    <div class="text-xs text-rose-800 font-semibold mb-1 flex items-center gap-1">
+      <span>by</span>
+      {% if brand|lower == 'shravani' %}
+        <a href="{{ url_for('shop.shop_page', slug='shravani') }}" class="underline hover:text-rose-950 font-bold">{{ brand }}</a>
+      {% else %}
+        <span class="font-bold">{{ brand }}</span>
+      {% endif %}
+    </div>
+  {% endif %}
+{% endmacro %}

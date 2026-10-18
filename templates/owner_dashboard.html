@@ -166,20 +166,34 @@
 <div class="card mb-6 border-l-4 border-primary">
   {% if current_user.shop_slug %}
     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-      <div>
-        <div class="flex items-center gap-2">
-          <span class="text-xs uppercase tracking-wider font-extrabold text-primary bg-green-50 px-2 py-0.5 rounded-full border border-green-200">My Shop</span>
-          <h2 class="font-bold text-lg text-gray-900">{{ current_user.shop_name }}</h2>
-        </div>
-        {% if current_user.shop_description %}
-          <p class="text-xs text-gray-500 mt-1">{{ current_user.shop_description }}</p>
+      <div class="flex items-center gap-3">
+        {% if current_user.shop_logo %}
+          <img src="{{ url_for('static', filename='uploads/' + current_user.shop_logo) }}"
+               alt="{{ current_user.shop_name }}"
+               class="w-12 h-12 rounded-full object-cover shadow border border-gray-200">
         {% endif %}
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="text-xs uppercase tracking-wider font-extrabold text-primary bg-green-50 px-2 py-0.5 rounded-full border border-green-200">My Shop</span>
+            <h2 class="font-bold text-lg text-gray-900">{{ current_user.shop_name }}</h2>
+            {% if current_user.shop_theme_color %}
+              <span class="text-[11px] px-2 py-0.5 rounded-md font-semibold bg-gray-100 text-gray-600 border">{{ current_user.shop_theme_color }}</span>
+            {% endif %}
+          </div>
+          {% if current_user.shop_description %}
+            <p class="text-xs text-gray-500 mt-1">{{ current_user.shop_description }}</p>
+          {% endif %}
+        </div>
       </div>
       <div class="flex flex-wrap gap-2">
         <a href="{{ url_for('shop.shop_page', slug=current_user.shop_slug) }}"
            class="bg-primary hover:bg-green-700 text-white text-xs font-bold px-3 py-1.5 rounded-xl transition shadow">
           🏪 View My Shop
         </a>
+        <button type="button" onclick="document.getElementById('edit-shop-form').classList.toggle('hidden')"
+                class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold px-3 py-1.5 rounded-xl transition border">
+          ✏️ Edit Shop
+        </button>
         <a href="{{ url_for('shop.shop_qr', slug=current_user.shop_slug) }}" download="{{ current_user.shop_slug }}-qr.png"
            class="bg-gray-800 hover:bg-black text-white text-xs font-bold px-3 py-1.5 rounded-xl transition">
           ⬇️ QR
@@ -197,15 +211,65 @@
         {% endif %}
       </div>
     </div>
+
+    <!-- Edit Shop Collapsible Form -->
+    <div id="edit-shop-form" class="mt-4 pt-4 border-t border-gray-100 hidden">
+      <h3 class="font-bold text-sm text-gray-800 mb-2">Edit Shop Details</h3>
+      <form method="post" action="{{ url_for('shop.edit_shop') }}" enctype="multipart/form-data" class="space-y-3">
+        <div>
+          <label class="block text-xs font-semibold text-gray-700 mb-1">Shop Name</label>
+          <input type="text" name="shop_name" value="{{ current_user.shop_name or '' }}" required
+                 class="w-full border rounded-xl px-3 py-2 text-sm">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-gray-700 mb-1">Shop Description</label>
+          <textarea name="shop_description" rows="2"
+                    class="w-full border rounded-xl px-3 py-2 text-sm">{{ current_user.shop_description or '' }}</textarea>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-gray-700 mb-1">Theme Color</label>
+            <input type="text" name="shop_theme_color" value="{{ current_user.shop_theme_color or '' }}"
+                   placeholder="e.g. maroon and gold, or #800020"
+                   class="w-full border rounded-xl px-3 py-2 text-sm">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-gray-700 mb-1">Shop Logo (png/jpg)</label>
+            <input type="file" name="shop_logo" accept="image/png,image/jpeg"
+                   class="w-full border rounded-xl px-3 py-1.5 text-xs bg-white">
+          </div>
+        </div>
+        <div class="flex justify-end gap-2">
+          <button type="button" onclick="document.getElementById('edit-shop-form').classList.add('hidden')"
+                  class="bg-gray-200 text-gray-700 font-bold text-xs px-4 py-2 rounded-xl transition">
+            Cancel
+          </button>
+          <button type="submit"
+                  class="bg-primary hover:bg-green-700 text-white font-bold text-xs px-4 py-2 rounded-xl shadow transition">
+            Save Changes
+          </button>
+        </div>
+      </form>
+    </div>
+
   {% else %}
     <div>
       <h2 class="font-bold text-base text-gray-800 mb-1">🏪 Create My Shop</h2>
-      <p class="text-xs text-gray-500 mb-3">Launch your branded rental shop with a QR code and instant WhatsApp sharing in 2 minutes.</p>
-      <form method="post" action="{{ url_for('shop.create_shop') }}" class="space-y-2">
+      <p class="text-xs text-gray-500 mb-3">Launch your branded rental shop with a QR code, custom theme, logo, and instant WhatsApp sharing.</p>
+      <form method="post" action="{{ url_for('shop.create_shop') }}" enctype="multipart/form-data" class="space-y-3">
         <input type="text" name="shop_name" placeholder="Shop Name (e.g. Ramesh Tools & Equipment)" required
                class="w-full border rounded-xl px-3 py-2 text-sm">
         <textarea name="shop_description" placeholder="Short description of items you rent out…" rows="2"
                   class="w-full border rounded-xl px-3 py-2 text-sm"></textarea>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <input type="text" name="shop_theme_color" placeholder="Theme Color (e.g. maroon and gold)"
+                 class="w-full border rounded-xl px-3 py-2 text-sm">
+          <div>
+            <label class="block text-[11px] text-gray-500 mb-0.5">Shop Logo (png/jpg)</label>
+            <input type="file" name="shop_logo" accept="image/png,image/jpeg"
+                   class="w-full border rounded-xl px-3 py-1.5 text-xs bg-white">
+          </div>
+        </div>
         <button type="submit"
                 class="bg-primary hover:bg-green-700 text-white font-bold text-xs px-4 py-2 rounded-xl shadow transition">
           Create My Shop

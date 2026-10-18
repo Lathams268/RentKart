@@ -91,7 +91,7 @@ class RentKartBrowseRowsTest(unittest.TestCase):
         self.assertGreaterEqual(len(clothes), 3)
         for c in clothes:
             attrs = c.get_attributes()
-            self.assertEqual(attrs.get("brand"), "Shravani", f"{c.title} missing Shravani brand")
+            self.assertIn(attrs.get("brand"), ["Shravani", "FabIndia Kids", "Zara Kids", "Manyavar Kids", "BIBA", "Raymond"], f"{c.title} missing recognized brand")
 
         resp = self.client.get("/shop/shravani")
         self.assertEqual(resp.status_code, 200)

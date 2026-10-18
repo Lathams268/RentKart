@@ -150,6 +150,29 @@ def _make_book_placeholder(upload_dir, filename, title=""):
     _make_item_placeholder(upload_dir, filename, category="books", title=title)
 
 
+def _make_shravani_logo(upload_dir):
+    """Generate a simple circular logo with initials 'SB' for Shravani Boutique."""
+    logo_path = os.path.join(upload_dir, "shravani_logo.png")
+    if os.path.exists(logo_path):
+        return "shravani_logo.png"
+    try:
+        from PIL import Image, ImageDraw, ImageFont
+        img = Image.new("RGBA", (200, 200), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(img)
+        # Maroon circle with gold border
+        draw.ellipse([(10, 10), (190, 190)], fill=(128, 0, 32, 255), outline=(218, 165, 32, 255), width=6)
+        # Draw "SB" initials in center
+        try:
+            font = ImageFont.truetype("arial.ttf", 64)
+        except Exception:
+            font = ImageFont.load_default()
+        draw.text((100, 100), "SB", fill=(255, 215, 0, 255), font=font, anchor="mm")
+        img.save(logo_path, format="PNG")
+    except Exception:
+        pass
+    return "shravani_logo.png"
+
+
 # ---------- Seed data ----------
 USERS = [
     {
@@ -172,6 +195,8 @@ USERS = [
         "shop_name": "Shravani Boutique",
         "shop_slug": "shravani",
         "shop_description": "Lehengas, sarees and sherwanis for weddings and festivals",
+        "shop_theme_color": "maroon and gold",
+        "shop_logo": "shravani_logo.png",
         "is_admin": False,
     },
     {"name": "Suresh",  "phone": "9000000003", "village_or_city": "Anekal",       "lat": 12.7105, "lng": 77.6960, "is_admin": False},
@@ -198,9 +223,9 @@ USERS = [
 
 ITEMS = [
     # Clothes (3)
-    {"owner_idx": 1, "category": "clothes",     "title": "Silk Lehenga",         "description": "Beautiful red silk lehenga for weddings", "price_per_day": 500,  "deposit": 2000, "late_fee_per_day": 100, "attrs": {"brand": "Shravani", "clothing_type": "Lehenga", "color": "Red", "size": "M", "occasion": "Wedding", "fabric": "Silk", "gender": "Women"}},
-    {"owner_idx": 1, "category": "clothes",     "title": "Designer Sherwani",    "description": "Navy blue sherwani with gold work",      "price_per_day": 800,  "deposit": 3000, "late_fee_per_day": 150, "attrs": {"brand": "Shravani", "clothing_type": "Sherwani", "color": "Navy", "size": "L", "occasion": "Wedding", "fabric": "Brocade", "gender": "Men"}},
-    {"owner_idx": 1, "category": "clothes",     "title": "Pattu Saree",          "description": "Traditional Kanjivaram pattu saree",     "price_per_day": 400,  "deposit": 1500, "late_fee_per_day": 80,  "purchase_price": 1500, "attrs": {"brand": "Shravani", "clothing_type": "Saree", "color": "Gold", "size": "Free Size", "occasion": "Festival", "fabric": "Silk", "gender": "Women"}},
+    {"owner_idx": 1, "category": "clothes",     "title": "Silk Lehenga",         "description": "Beautiful red silk lehenga for weddings", "price_per_day": 500,  "deposit": 2000, "late_fee_per_day": 100, "attrs": {"brand": "Shravani", "style": "Traditional", "clothing_type": "Lehenga", "color": "Red", "size": "M", "occasion": "Wedding", "fabric": "Silk", "gender": "Women", "age_group": "18+"}},
+    {"owner_idx": 1, "category": "clothes",     "title": "Designer Sherwani",    "description": "Navy blue sherwani with gold work",      "price_per_day": 800,  "deposit": 3000, "late_fee_per_day": 150, "attrs": {"brand": "Shravani", "style": "Traditional", "clothing_type": "Sherwani", "color": "Navy", "size": "L", "occasion": "Wedding", "fabric": "Brocade", "gender": "Men", "age_group": "18+"}},
+    {"owner_idx": 1, "category": "clothes",     "title": "Pattu Saree",          "description": "Traditional Kanjivaram pattu saree",     "price_per_day": 400,  "deposit": 1500, "late_fee_per_day": 80,  "purchase_price": 1500, "attrs": {"brand": "Shravani", "style": "Traditional", "clothing_type": "Saree", "color": "Gold", "size": "Free Size", "occasion": "Festival", "fabric": "Silk", "gender": "Women", "age_group": "18+"}},
 
     # Books (3)
     {"owner_idx": 3, "category": "books",       "title": "Engineering Maths",    "description": "BS Grewal Higher Engineering Mathematics","price_per_day": 20,   "deposit": 200,  "late_fee_per_day": 5,   "purchase_price": 300,  "attrs": {"genre": "Education / Exam Prep", "author": "BS Grewal", "edition": "44th", "language": "English", "condition": "Good"}},
@@ -218,6 +243,222 @@ ITEMS = [
     {"owner_idx": 0, "category": "event_items", "title": "Plastic Chairs Set",   "description": "50 white plastic chairs for functions",  "price_per_day": 500,  "deposit": 1000, "late_fee_per_day": 100, "purchase_price": 2000, "attrs": {"type": "Chairs", "quantity": "50"}},
     {"owner_idx": 3, "category": "event_items", "title": "Shamiyana Tent",       "description": "30x40 ft waterproof tent with poles",    "price_per_day": 2000, "deposit": 5000, "late_fee_per_day": 500, "attrs": {"type": "Tent", "quantity": "1"}},
     {"owner_idx": 0, "category": "event_items", "title": "PA Sound System",      "description": "2 speakers + amplifier + mic for events","price_per_day": 800,  "deposit": 3000, "late_fee_per_day": 200, "attrs": {"type": "Sound System", "quantity": "1"}},
+]
+
+NEW_CLOTHES = [
+    # --- Boys Clothes (spanning all age groups: 0-2, 3-5, 6-8, 9-12, 13-17) ---
+    {
+        "owner_idx": 1,
+        "category": "clothes",
+        "title": "Boys Royal Kurta Pajama Set",
+        "description": "Festive yellow silk blend kurta with comfortable cotton pajama for baby boys.",
+        "price_per_day": 120,
+        "deposit": 400,
+        "late_fee_per_day": 30,
+        "purchase_price": 999,
+        "attrs": {
+            "brand": "FabIndia Kids",
+            "style": "Traditional",
+            "clothing_type": "Kurta Set",
+            "color": "Yellow",
+            "size": "1-2Y",
+            "occasion": "Festival",
+            "fabric": "Silk Blend",
+            "gender": "Boys",
+            "age_group": "0–2",
+        },
+    },
+    {
+        "owner_idx": 1,
+        "category": "clothes",
+        "title": "Boys Festive Dhoti Kurta",
+        "description": "Traditional orange and cream dhoti kurta set with zari border for toddlers.",
+        "price_per_day": 180,
+        "deposit": 600,
+        "late_fee_per_day": 40,
+        "purchase_price": 1499,
+        "attrs": {
+            "brand": "Manyavar Kids",
+            "style": "Traditional",
+            "clothing_type": "Kurta Set",
+            "color": "Orange",
+            "size": "3-4Y",
+            "occasion": "Wedding",
+            "fabric": "Cotton Silk",
+            "gender": "Boys",
+            "age_group": "3–5",
+        },
+    },
+    {
+        "owner_idx": 1,
+        "category": "clothes",
+        "title": "Boys Indo-Western Sherwani Set",
+        "description": "Rich maroon jacquard sherwani with beige trousers and brooch for boys.",
+        "price_per_day": 250,
+        "deposit": 800,
+        "late_fee_per_day": 50,
+        "purchase_price": 2200,
+        "attrs": {
+            "brand": "Manyavar Kids",
+            "style": "Fusion / Indo-Western",
+            "clothing_type": "Sherwani",
+            "color": "Maroon",
+            "size": "6-8Y",
+            "occasion": "Wedding",
+            "fabric": "Brocade",
+            "gender": "Boys",
+            "age_group": "6–8",
+        },
+    },
+    {
+        "owner_idx": 1,
+        "category": "clothes",
+        "title": "Boys Classic Navy Blazer Suit",
+        "description": "Sharp 3-piece formal navy blazer suit with shirt and trousers for school functions and parties.",
+        "price_per_day": 280,
+        "deposit": 900,
+        "late_fee_per_day": 60,
+        "purchase_price": 2500,
+        "attrs": {
+            "brand": "Zara Kids",
+            "style": "Western",
+            "clothing_type": "Suit / Blazer",
+            "color": "Navy",
+            "size": "9-12Y",
+            "occasion": "Party",
+            "fabric": "Wool Blend",
+            "gender": "Boys",
+            "age_group": "9–12",
+        },
+    },
+    {
+        "owner_idx": 1,
+        "category": "clothes",
+        "title": "Teen Boys Tuxedo Blazer Set",
+        "description": "Slim fit black satin lapel tuxedo suit for teen farewell and banquet events.",
+        "price_per_day": 350,
+        "deposit": 1200,
+        "late_fee_per_day": 70,
+        "purchase_price": 3500,
+        "attrs": {
+            "brand": "Raymond",
+            "style": "Western",
+            "clothing_type": "Tuxedo",
+            "color": "Black",
+            "size": "XS",
+            "occasion": "Party",
+            "fabric": "Poly Viscose",
+            "gender": "Boys",
+            "age_group": "13–17",
+        },
+    },
+
+    # --- Girls Clothes (spanning all age groups: 0-2, 3-5, 6-8, 9-12, 13-17) ---
+    {
+        "owner_idx": 1,
+        "category": "clothes",
+        "title": "Baby Girls Silk Pattu Pavadai",
+        "description": "Authentic Kanchipuram pink and gold pattu pavadai lehenga set for infant and baby girls.",
+        "price_per_day": 140,
+        "deposit": 500,
+        "late_fee_per_day": 30,
+        "purchase_price": 1200,
+        "attrs": {
+            "brand": "Shravani",
+            "style": "Traditional",
+            "clothing_type": "Pattu Pavadai",
+            "color": "Pink",
+            "size": "6-12M",
+            "occasion": "Festival",
+            "fabric": "Silk",
+            "gender": "Girls",
+            "age_group": "0–2",
+        },
+    },
+    {
+        "owner_idx": 1,
+        "category": "clothes",
+        "title": "Girls Layered Birthday Frock",
+        "description": "Sky blue organza layered princess party frock with subtle glitter belt.",
+        "price_per_day": 160,
+        "deposit": 550,
+        "late_fee_per_day": 35,
+        "purchase_price": 1399,
+        "attrs": {
+            "brand": "Zara Kids",
+            "style": "Western",
+            "clothing_type": "Frock",
+            "color": "Blue",
+            "size": "3-4Y",
+            "occasion": "Party",
+            "fabric": "Organza",
+            "gender": "Girls",
+            "age_group": "3–5",
+        },
+    },
+    {
+        "owner_idx": 1,
+        "category": "clothes",
+        "title": "Girls Festive Chaniya Choli",
+        "description": "Vibrant red and yellow mirror-work Navratri lehenga choli set with matching dupatta.",
+        "price_per_day": 220,
+        "deposit": 750,
+        "late_fee_per_day": 45,
+        "purchase_price": 1899,
+        "attrs": {
+            "brand": "FabIndia Kids",
+            "style": "Traditional",
+            "clothing_type": "Lehenga",
+            "color": "Red",
+            "size": "6-8Y",
+            "occasion": "Festival",
+            "fabric": "Cotton",
+            "gender": "Girls",
+            "age_group": "6–8",
+        },
+    },
+    {
+        "owner_idx": 1,
+        "category": "clothes",
+        "title": "Girls Embroidered Anarkali Gown",
+        "description": "Floor-length bottle green georgette anarkali suit with heavy thread work for family functions.",
+        "price_per_day": 260,
+        "deposit": 850,
+        "late_fee_per_day": 50,
+        "purchase_price": 2499,
+        "attrs": {
+            "brand": "BIBA",
+            "style": "Traditional",
+            "clothing_type": "Anarkali",
+            "color": "Green",
+            "size": "9-12Y",
+            "occasion": "Engagement",
+            "fabric": "Georgette",
+            "gender": "Girls",
+            "age_group": "9–12",
+        },
+    },
+    {
+        "owner_idx": 1,
+        "category": "clothes",
+        "title": "Teen Girls Crop Top Lehenga",
+        "description": "Trendy lilac purple sequin crop top with organza flared lehenga skirt for teenagers.",
+        "price_per_day": 380,
+        "deposit": 1400,
+        "late_fee_per_day": 70,
+        "purchase_price": 3800,
+        "attrs": {
+            "brand": "Shravani",
+            "style": "Fusion / Indo-Western",
+            "clothing_type": "Lehenga",
+            "color": "Purple",
+            "size": "S",
+            "occasion": "Sangeet",
+            "fabric": "Organza",
+            "gender": "Girls",
+            "age_group": "13–17",
+        },
+    },
 ]
 
 NEW_BOOKS = [
@@ -568,18 +809,22 @@ def seed():
     from datetime import datetime, date, timedelta
     from utils.booking import calculate_price
 
+    upload_dir = current_app.config["UPLOAD_FOLDER"]
+    os.makedirs(upload_dir, exist_ok=True)
+    _make_shravani_logo(upload_dir)
+
     # Update shop details for demo owners if already existing
     for u in USERS:
         existing = User.query.filter_by(phone=u["phone"]).first()
         if existing and "shop_name" in u:
-            if not existing.shop_name or not existing.shop_slug:
-                existing.shop_name = u["shop_name"]
-                existing.shop_slug = u["shop_slug"]
-                existing.shop_description = u.get("shop_description")
+            existing.shop_name = u["shop_name"]
+            existing.shop_slug = u["shop_slug"]
+            existing.shop_description = u.get("shop_description")
+            if "shop_theme_color" in u:
+                existing.shop_theme_color = u["shop_theme_color"]
+            if "shop_logo" in u:
+                existing.shop_logo = u["shop_logo"]
     db.session.commit()
-
-    upload_dir = current_app.config["UPLOAD_FOLDER"]
-    os.makedirs(upload_dir, exist_ok=True)
 
     # 1. Ensure all users exist (including Admin, unless called from test_phase2 which expects 4 users)
     import inspect
@@ -592,6 +837,10 @@ def seed():
         if existing:
             if "is_admin" in u:
                 existing.is_admin = u["is_admin"]
+            if "shop_theme_color" in u:
+                existing.shop_theme_color = u["shop_theme_color"]
+            if "shop_logo" in u:
+                existing.shop_logo = u["shop_logo"]
             users.append(existing)
         else:
             user = User(**u)
@@ -602,7 +851,7 @@ def seed():
 
     # 2. Seed items if empty, and ensure Ramesh has exactly 5 items
     if Item.query.first() is None:
-        items_to_seed = ITEMS if is_test_phase2 else (ITEMS + NEW_BOOKS)
+        items_to_seed = ITEMS if is_test_phase2 else (ITEMS + NEW_BOOKS + NEW_CLOTHES)
         for idx, data in enumerate(items_to_seed):
             owner = users[data["owner_idx"]]
             img_name = f"seed_{idx}.png"
@@ -627,7 +876,29 @@ def seed():
         db.session.commit()
         print(f"Seeded {len(users)} users and {len(items_to_seed)} items.")
     elif not is_test_phase2:
-        # DB already has items: add any missing new books without duplicates
+        # DB already has items: add any missing new clothes without duplicates
+        for idx, data in enumerate(NEW_CLOTHES):
+            if not Item.query.filter_by(title=data["title"]).first():
+                owner = users[data["owner_idx"]]
+                img_name = f"seed_clothes_{idx}.png"
+                _make_item_placeholder(upload_dir, img_name, category="clothes", title=data["title"], attrs=data.get("attrs"))
+                item = Item(
+                    owner_id=owner.id,
+                    category=data["category"],
+                    title=data["title"],
+                    description=data["description"],
+                    price_per_day=data["price_per_day"],
+                    deposit=data["deposit"],
+                    late_fee_per_day=data["late_fee_per_day"],
+                    lat=owner.lat,
+                    lng=owner.lng,
+                    image=img_name,
+                    purchase_price=data.get("purchase_price"),
+                )
+                item.set_attributes(data["attrs"])
+                db.session.add(item)
+
+        # Add any missing new books without duplicates
         for idx, data in enumerate(NEW_BOOKS):
             if not Item.query.filter_by(title=data["title"]).first():
                 owner = users[data["owner_idx"]]
@@ -887,9 +1158,9 @@ def seed():
         shravani_owner.shop_description = "Lehengas, sarees and sherwanis for weddings and festivals"
 
     clothes_attrs = {
-        "Silk Lehenga": {"brand": "Shravani", "clothing_type": "Lehenga", "color": "Red", "size": "M", "occasion": "Wedding", "fabric": "Silk", "gender": "Women"},
-        "Designer Sherwani": {"brand": "Shravani", "clothing_type": "Sherwani", "color": "Navy", "size": "L", "occasion": "Wedding", "fabric": "Brocade", "gender": "Men"},
-        "Pattu Saree": {"brand": "Shravani", "clothing_type": "Saree", "color": "Gold", "size": "Free Size", "occasion": "Festival", "fabric": "Silk", "gender": "Women"},
+        "Silk Lehenga": {"brand": "Shravani", "style": "Traditional", "clothing_type": "Lehenga", "color": "Red", "size": "M", "occasion": "Wedding", "fabric": "Silk", "gender": "Women", "age_group": "18+"},
+        "Designer Sherwani": {"brand": "Shravani", "style": "Traditional", "clothing_type": "Sherwani", "color": "Navy", "size": "L", "occasion": "Wedding", "fabric": "Brocade", "gender": "Men", "age_group": "18+"},
+        "Pattu Saree": {"brand": "Shravani", "style": "Traditional", "clothing_type": "Saree", "color": "Gold", "size": "Free Size", "occasion": "Festival", "fabric": "Silk", "gender": "Women", "age_group": "18+"},
     }
     for title, attrs in clothes_attrs.items():
         it = Item.query.filter_by(title=title).first()
@@ -902,10 +1173,16 @@ def seed():
 
     for it in Item.query.filter_by(category="clothes").all():
         cur = it.get_attributes()
+        changed = False
         if not cur.get("brand"):
             cur["brand"] = "Shravani"
+            changed = True
+        if not cur.get("age_group"):
+            cur["age_group"] = "18+"
+            changed = True
+        if changed:
             it.set_attributes(cur)
-        if shravani_owner:
+        if shravani_owner and not it.owner_id:
             it.owner_id = shravani_owner.id
     db.session.commit()
 
