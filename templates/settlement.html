@@ -40,22 +40,22 @@
     <!-- Financial Accounting -->
     <div class="space-y-2 text-sm border-b pb-4">
       <h3 class="font-bold text-gray-700 text-xs uppercase tracking-wide">Financial Breakdown</h3>
-      <div class="flex justify-between"><span class="text-gray-500">Total Rent Paid</span><span>₹{{ booking.total_rent }}</span></div>
-      <div class="flex justify-between"><span class="text-gray-500">Security Deposit Held</span><span class="font-medium">₹{{ rec.deposit_held }}</span></div>
+      <div class="flex justify-between"><span class="text-gray-500">Total Rent Paid</span><span>{{ booking.total_rent | inr }}</span></div>
+      <div class="flex justify-between"><span class="text-gray-500">Security Deposit Held</span><span class="font-medium">{{ rec.deposit_held | inr }}</span></div>
       
       <div class="flex justify-between text-gray-600">
-        <span>Late Delay ({{ rec.late_days }} days @ ₹{{ rec.late_fee_per_day }}/day)</span>
-        <span class="text-red-600 font-medium">- ₹{{ rec.late_penalty }}</span>
+        <span>Late Delay ({{ rec.late_days }} days @ {{ rec.late_fee_per_day | inr }}/day)</span>
+        <span class="text-red-600 font-medium">- {{ rec.late_penalty | inr }}</span>
       </div>
 
       <div class="flex justify-between text-gray-600">
         <span>Damage Assessment ({{ rec.damage_level | capitalize }}, {{ rec.damage_percent }}%)</span>
-        <span class="text-red-600 font-medium">- ₹{{ rec.damage_deduction }}</span>
+        <span class="text-red-600 font-medium">- {{ rec.damage_deduction | inr }}</span>
       </div>
 
       <div class="flex justify-between font-bold border-t pt-2 text-gray-800">
         <span>Total Deductions</span>
-        <span class="text-red-600">₹{{ rec.total_deductions }}</span>
+        <span class="text-red-600">{{ rec.total_deductions | inr }}</span>
       </div>
 
       {% if current_user.id == booking.item.owner_id %}
@@ -64,11 +64,11 @@
           <span class="font-bold text-gray-700 uppercase tracking-wide block">Owner Accounting (Confidential)</span>
           <div class="flex justify-between text-gray-600">
             <span>Platform Fee ({{ booking.commission_percent }}%)</span>
-            <span class="text-red-600 font-medium">- ₹{{ rec.platform_fee }}</span>
+            <span class="text-red-600 font-medium">- {{ rec.platform_fee | inr }}</span>
           </div>
           <div class="flex justify-between font-bold text-gray-900 border-t pt-1.5">
             <span>Net Owner Earning</span>
-            <span class="text-primary font-black text-sm">₹{{ rec.owner_earning }}</span>
+            <span class="text-primary font-black text-sm">{{ rec.owner_earning | inr }}</span>
           </div>
         </div>
       {% endif %}
@@ -78,11 +78,11 @@
     <div class="rounded-xl p-4 text-center {{ 'bg-green-50 border-2 border-green-300' if rec.refund_amount > 0 or rec.extra_due == 0 else 'bg-red-50 border-2 border-red-300' }}">
       {% if rec.extra_due > 0 %}
         <span class="text-xs font-bold uppercase tracking-wider text-red-600">Extra Amount Due From Renter</span>
-        <div class="text-3xl font-extrabold text-red-600 mt-1">₹{{ rec.extra_due }}</div>
+        <div class="text-3xl font-extrabold text-red-600 mt-1">{{ rec.extra_due | inr }}</div>
         <p class="text-xs text-red-500 mt-1">Deductions exceeded the deposit held. Please settle with the owner directly.</p>
       {% else %}
         <span class="text-xs font-bold uppercase tracking-wider text-green-700">Final Security Deposit Refund</span>
-        <div class="text-3xl font-extrabold text-green-700 mt-1">₹{{ rec.refund_amount }}</div>
+        <div class="text-3xl font-extrabold text-green-700 mt-1">{{ rec.refund_amount | inr }}</div>
         <p class="text-xs text-green-600 mt-1">Refund processed to renter via original payment method.</p>
       {% endif %}
     </div>

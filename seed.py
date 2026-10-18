@@ -694,7 +694,7 @@ def seed():
     """Insert demo data if the DB is empty."""
     from flask import current_app
     from datetime import datetime, date, timedelta
-    from utils.booking import calculate_price
+    from utils.booking import calculate_price, booking_snapshot
 
     upload_dir = current_app.config["UPLOAD_FOLDER"]
     os.makedirs(upload_dir, exist_ok=True)
@@ -832,28 +832,28 @@ def seed():
         if lehenga:
             s1, e1 = today + timedelta(days=2), today + timedelta(days=4)
             p1 = calculate_price(lehenga, s1, e1)
-            b1 = Booking(item_id=lehenga.id, renter_id=users[3].id, start_date=s1, end_date=e1, **p1,
+            b1 = Booking(item_id=lehenga.id, renter_id=users[3].id, start_date=s1, end_date=e1, **booking_snapshot(p1),
                          status="requested", payment_method="upi", payment_status="pending", commission_percent=10.0)
             db.session.add(b1)
 
         if chairs:
             s_ch, e_ch = today + timedelta(days=3), today + timedelta(days=5)
             p_ch = calculate_price(chairs, s_ch, e_ch)
-            b_ch = Booking(item_id=chairs.id, renter_id=users[3].id, start_date=s_ch, end_date=e_ch, **p_ch,
+            b_ch = Booking(item_id=chairs.id, renter_id=users[3].id, start_date=s_ch, end_date=e_ch, **booking_snapshot(p_ch),
                            status="requested", payment_method="cash", payment_status="pending", commission_percent=10.0)
             db.session.add(b_ch)
 
         if camera:
             s2, e2 = today + timedelta(days=5), today + timedelta(days=7)
             p2 = calculate_price(camera, s2, e2)
-            b2 = Booking(item_id=camera.id, renter_id=users[0].id, start_date=s2, end_date=e2, **p2,
+            b2 = Booking(item_id=camera.id, renter_id=users[0].id, start_date=s2, end_date=e2, **booking_snapshot(p2),
                          status="approved", payment_method="cash", payment_status="pay_on_pickup", commission_percent=2.0)
             db.session.add(b2)
 
         if sherwani:
             s3, e3 = today - timedelta(days=1), today + timedelta(days=2)
             p3 = calculate_price(sherwani, s3, e3)
-            b3 = Booking(item_id=sherwani.id, renter_id=users[2].id, start_date=s3, end_date=e3, **p3,
+            b3 = Booking(item_id=sherwani.id, renter_id=users[2].id, start_date=s3, end_date=e3, **booking_snapshot(p3),
                          status="picked_up", payment_method="upi", payment_status="paid_demo",
                          handover_note="Checked condition. Given in travel suit cover.", commission_percent=2.0)
             db.session.add(b3)
@@ -862,7 +862,7 @@ def seed():
         if tent:
             so, eo = today - timedelta(days=6), today - timedelta(days=2)
             po = calculate_price(tent, so, eo)
-            bo = Booking(item_id=tent.id, renter_id=users[0].id, start_date=so, end_date=eo, **po,
+            bo = Booking(item_id=tent.id, renter_id=users[0].id, start_date=so, end_date=eo, **booking_snapshot(po),
                          status="picked_up", payment_method="cash", payment_status="paid_demo",
                          handover_note="Supplied with complete poles and pegs.", commission_percent=2.0)
             db.session.add(bo)
@@ -874,7 +874,7 @@ def seed():
             actual_return = e_late + timedelta(days=2)
             p_drill = calculate_price(drill, s_late, e_late)
             b_late = Booking(item_id=drill.id, renter_id=users[2].id, start_date=s_late, end_date=e_late,
-                             **p_drill, status="returned", payment_method="upi", payment_status="paid_demo",
+                             **booking_snapshot(p_drill), status="returned", payment_method="upi", payment_status="paid_demo",
                              handover_note="Tested working before pickup.", commission_percent=5.0)
             db.session.add(b_late)
             db.session.flush()
@@ -901,7 +901,7 @@ def seed():
         if saree:
             sa, ea = today - timedelta(days=25), today - timedelta(days=23)
             pa = calculate_price(saree, sa, ea)
-            ba = Booking(item_id=saree.id, renter_id=users[3].id, start_date=sa, end_date=ea, **pa,
+            ba = Booking(item_id=saree.id, renter_id=users[3].id, start_date=sa, end_date=ea, **booking_snapshot(pa),
                          status="returned", payment_method="upi", payment_status="paid_demo", commission_percent=5.0)
             db.session.add(ba)
             db.session.flush()
@@ -916,7 +916,7 @@ def seed():
         if chairs:
             sb, eb = today - timedelta(days=18), today - timedelta(days=16)
             pb = calculate_price(chairs, sb, eb)
-            bb = Booking(item_id=chairs.id, renter_id=users[3].id, start_date=sb, end_date=eb, **pb,
+            bb = Booking(item_id=chairs.id, renter_id=users[3].id, start_date=sb, end_date=eb, **booking_snapshot(pb),
                          status="returned", payment_method="cash", payment_status="paid_demo", commission_percent=10.0)
             db.session.add(bb)
             db.session.flush()
@@ -931,7 +931,7 @@ def seed():
         if physics:
             sc, ec = today - timedelta(days=12), today - timedelta(days=10)
             pc = calculate_price(physics, sc, ec)
-            bc = Booking(item_id=physics.id, renter_id=users[3].id, start_date=sc, end_date=ec, **pc,
+            bc = Booking(item_id=physics.id, renter_id=users[3].id, start_date=sc, end_date=ec, **booking_snapshot(pc),
                          status="returned", payment_method="upi", payment_status="paid_demo", commission_percent=5.0)
             db.session.add(bc)
             db.session.flush()

@@ -68,7 +68,7 @@
   <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
     <div class="bg-gray-50 p-3 rounded-xl border border-gray-100">
       <span class="text-xs text-gray-500 font-medium block">Total Net Earnings</span>
-      <span class="text-xl font-extrabold text-primary">₹{{ total_net_earnings }}</span>
+      <span class="text-xl font-extrabold text-primary">{{ total_net_earnings | inr }}</span>
     </div>
     <div class="bg-gray-50 p-3 rounded-xl border border-gray-100">
       <span class="text-xs text-gray-500 font-medium block">Best Performing Item</span>
@@ -104,7 +104,7 @@
             <a href="{{ url_for('items.item_detail', item_id=ins.item.id) }}" class="font-bold text-sm text-gray-800 hover:text-primary">
               {{ ins.item.title }}
             </a>
-            <span class="text-xs text-gray-500 block">₹{{ ins.item.price_per_day }}/day</span>
+            <span class="text-xs text-gray-500 block">{{ ins.item.price_per_day | inr }}/day</span>
           </div>
           <span class="text-[11px] px-2 py-0.5 rounded-full font-bold {% if ins.utilization_30d > 0 %}bg-blue-100 text-blue-700{% else %}bg-gray-100 text-gray-500{% endif %}">
             {{ ins.utilization_30d }}% utilization (30d)
@@ -114,7 +114,7 @@
         {% if ins.has_purchase_price %}
           <div class="space-y-1">
             <div class="flex justify-between text-xs text-gray-600">
-              <span>Earned: <strong>₹{{ ins.earned }}</strong> of ₹{{ ins.purchase_price }} cost</span>
+              <span>Earned: <strong>{{ ins.earned | inr }}</strong> of {{ ins.purchase_price | inr }} cost</span>
               <span class="font-bold text-primary">{{ ins.progress_percent }}%</span>
             </div>
             <div class="w-full bg-gray-200 rounded-full h-2">
@@ -132,7 +132,7 @@
           </div>
         {% else %}
           <div class="text-xs text-gray-400 flex justify-between items-center pt-1">
-            <span>Earned so far: ₹{{ ins.earned }}</span>
+            <span>Earned so far: {{ ins.earned | inr }}</span>
             <span class="italic">No purchase price set</span>
           </div>
         {% endif %}
@@ -159,7 +159,7 @@
 <!-- Earnings Summary -->
 <div class="card mb-4 flex items-center justify-between">
   <span class="font-bold text-gray-700">Total Earnings</span>
-  <span class="text-2xl font-extrabold text-primary">₹{{ total_earnings }}</span>
+  <span class="text-2xl font-extrabold text-primary">{{ total_earnings | inr }}</span>
 </div>
 
 <!-- My Shop / Create Shop -->
@@ -330,7 +330,7 @@
           {% else %}bg-red-100 text-red-800 border border-red-300{% endif %}">
           🛡️ {{ rtrust.label }} ({{ rtrust.score }})
         </span>
-        <span>&bull; {{ b.start_date }} → {{ b.end_date }} &bull; Total: ₹{{ b.total_payable }}</span>
+        <span>&bull; {{ b.start_date }} → {{ b.end_date }} &bull; Total: {{ b.total_payable | inr }}</span>
       </div>
       <div class="flex gap-2">
         <form method="post" action="{{ url_for('bookings.approve', booking_id=b.id) }}">
@@ -384,7 +384,7 @@
             {% set late_days = (today - b.end_date).days %}
             {% set late_pen = late_days * (b.item.late_fee_per_day or 0) %}
             <span class="bg-red-100 text-red-700 font-extrabold text-xs px-2.5 py-1 rounded-full border border-red-300">
-              ⚠️ OVERDUE {{ late_days }}d (+₹{{ late_pen }})
+              ⚠️ OVERDUE {{ late_days }}d (+{{ late_pen | inr }})
             </span>
           {% endif %}
           <a href="{{ url_for('bookings.return_item', booking_id=b.id) }}"
@@ -410,7 +410,7 @@
         <span class="text-xs text-gray-500 block">
           {{ b.renter.name }} &bull; Returned {{ b.return_record.actual_return_date if b.return_record else b.end_date }}
           {% if b.return_record and b.return_record.total_deductions > 0 %}
-            <span class="text-accent font-medium">(Collected ₹{{ b.return_record.total_deductions }} deductions)</span>
+            <span class="text-accent font-medium">(Collected {{ b.return_record.total_deductions | inr }} deductions)</span>
           {% endif %}
         </span>
       </div>

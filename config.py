@@ -30,6 +30,24 @@ TWILIO_ACCOUNT_SID = os.environ.get("TWILIO_ACCOUNT_SID", "")
 TWILIO_AUTH_TOKEN = os.environ.get("TWILIO_AUTH_TOKEN", "")
 TWILIO_PHONE_NUMBER = os.environ.get("TWILIO_PHONE_NUMBER", "")
 
+# ---------- Checkout: platform fee, pending payment, order id ----------
+RENTER_FEE_PERCENT = 0          # platform fee charged to the renter (% of rent)
+RENTER_FEE_MIN = 0              # minimum fee in Rs
+RENTER_FEE_MAX = 50             # maximum fee in Rs
+PENDING_PAYMENT_MINUTES = 15    # a pending_payment booking auto-cancels after this
+ORDER_PREFIX = "RK"             # order id prefix (RK-YYYYMMDD-XXXXXX)
+
+# ---------- Payments ----------
+PAYMENT_MODE = os.environ.get("PAYMENT_MODE", "mock")  # "mock" or "razorpay"
+RAZORPAY_KEY_ID = os.environ.get("RAZORPAY_KEY_ID", "")
+RAZORPAY_KEY_SECRET = os.environ.get("RAZORPAY_KEY_SECRET", "")
+
+# ---------- Return policy ----------
+RETURN_BY_TIME = "6:00 PM"
+RETURN_POLICY_TEXT = ("Return the item by {time} on the return date. A late fee of "
+                      "{late_fee} per day applies. The security deposit is refunded "
+                      "after inspection, minus any late or damage deductions.")
+
 # ---------- Phase 4: Damage levels and Trust levels ----------
 DAMAGE_LEVELS = {
     "none":  {"label": "No damage", "percent": 0},

@@ -83,6 +83,9 @@ class Item(db.Model):
     image            = db.Column(db.String(300), nullable=True)
     attributes       = db.Column(db.Text, nullable=True, default="{}")  # JSON
     is_available     = db.Column(db.Boolean, default=True)
+    delivery_available = db.Column(db.Boolean, nullable=True, default=False)
+    delivery_charge  = db.Column(db.Float, nullable=True, default=0)
+    cod_available    = db.Column(db.Boolean, nullable=True, default=True)
     purchase_price   = db.Column(db.Integer, nullable=True)
     created_at       = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -115,9 +118,9 @@ class Item(db.Model):
 
 class Booking(db.Model):
     """A rental booking linking a renter to an item for a date range."""
-    STATUSES = ("requested", "approved", "picked_up", "returned", "rejected", "cancelled")
-    PAYMENT_METHODS = ("upi", "cash")
-    PAYMENT_STATUSES = ("pending", "paid_demo", "pay_on_pickup")
+    STATUSES = ("pending_payment", "requested", "approved", "picked_up", "returned", "rejected", "cancelled")
+    PAYMENT_METHODS = ("upi", "gpay", "phonepe", "debit_card", "credit_card", "cash")
+    PAYMENT_STATUSES = ("pending", "paid", "pay_on_pickup", "refunded", "paid_demo")
 
     id               = db.Column(db.Integer, primary_key=True)
     item_id          = db.Column(db.Integer, db.ForeignKey("item.id"), nullable=False)
@@ -129,9 +132,14 @@ class Booking(db.Model):
     deposit          = db.Column(db.Float, nullable=False, default=0)
     total_payable    = db.Column(db.Float, nullable=False)
     status           = db.Column(db.String(20), nullable=False, default="requested")
-    payment_method   = db.Column(db.String(10), nullable=True)
+    payment_method   = db.Column(db.String(20), nullable=True)
     payment_status   = db.Column(db.String(20), nullable=False, default="pending")
     commission_percent = db.Column(db.Float, nullable=False, default=10.0)
+    delivery_method    = db.Column(db.String(10), nullable=True, default="pickup")
+    delivery_charge    = db.Column(db.Float, nullable=True, default=0)
+    platform_fee       = db.Column(db.Float, nullable=True, default=0)
+    order_id           = db.Column(db.String(40), nullable=True, unique=True)
+    payment_expires_at = db.Column(db.DateTime, nullable=True)
     handover_note    = db.Column(db.Text, nullable=True)
     handover_photo   = db.Column(db.String(300), nullable=True)
     created_at       = db.Column(db.DateTime, default=datetime.utcnow)

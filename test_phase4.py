@@ -6,7 +6,7 @@ import unittest, tempfile, shutil
 from datetime import date, timedelta
 from app import create_app
 from models import db, User, Item, Booking, ReturnRecord, Review
-from utils.booking import calculate_price
+from utils.booking import calculate_price, booking_snapshot
 from utils.settlement import calculate_settlement
 from utils.trust import calculate_trust_score, get_trust_level, get_user_trust
 
@@ -126,7 +126,7 @@ class RentKartPhase4(unittest.TestCase):
         start = date.today() - timedelta(days=5)
         end = date.today() - timedelta(days=1)
         p = calculate_price(item, start, end)
-        b = Booking(item_id=item.id, renter_id=renter.id, start_date=start, end_date=end, **p,
+        b = Booking(item_id=item.id, renter_id=renter.id, start_date=start, end_date=end, **booking_snapshot(p),
                     status="picked_up", payment_method="upi", payment_status="paid_demo")
         db.session.add(b)
         db.session.commit()
@@ -169,7 +169,7 @@ class RentKartPhase4(unittest.TestCase):
         start = date.today() - timedelta(days=3)
         end = date.today()
         p = calculate_price(item, start, end)
-        b = Booking(item_id=item.id, renter_id=renter.id, start_date=start, end_date=end, **p,
+        b = Booking(item_id=item.id, renter_id=renter.id, start_date=start, end_date=end, **booking_snapshot(p),
                     status="returned", payment_method="upi", payment_status="paid_demo")
         db.session.add(b)
         db.session.flush()
@@ -294,7 +294,7 @@ class RentKartPhase4(unittest.TestCase):
         start = date.today() - timedelta(days=3)
         end = date.today()
         p = calculate_price(item, start, end)
-        b = Booking(item_id=item.id, renter_id=renter.id, start_date=start, end_date=end, **p,
+        b = Booking(item_id=item.id, renter_id=renter.id, start_date=start, end_date=end, **booking_snapshot(p),
                     status="returned", payment_method="upi", payment_status="paid_demo")
         db.session.add(b)
         db.session.commit()

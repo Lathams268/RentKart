@@ -1,5 +1,25 @@
-"""Booking helpers – pricing, availability and blocked-date calculations."""
+"""Booking helpers – pricing, availability and blocked-date calculations.
+
+All money is calculated here (server-side only) using Decimal, rounded half-up.
+"""
 from datetime import date, timedelta
+from decimal import Decimal
+
+from utils.money import q2
+
+
+def _cfg(key, default=None):
+    """Read a config value: app config first (test overrides), then config module."""
+    try:
+        from flask import current_app, has_app_context
+        if has_app_context():
+            val = current_app.config.get(key, None)
+            if val is not None:
+                return val
+    except Exception:
+        pass
+    import config
+    return getattr(config, key, default)
 
 
 def calculate_days(start: date, end: date) -> int:
@@ -7,21 +27,106 @@ def calculate_days(start: date, end: date) -> int:
     return max((end - start).days + 1, 1)
 
 
-def calculate_price(item, start: date, end: date) -> dict:
-    """Return pricing breakdown dict for a booking."""
+def calculate_price(item, start: date, end: date, user=None,
+                    delivery_method: str = "pickup") -> dict:
+    """Return the full pricing breakdown dict for a booking.
+
+    This is the single source of truth for money on the site. Values are Decimals
+    rounded half-up to 2 decimals. The browser never decides any amount.
+    """
+    dm = "delivery" if (delivery_method or "").lower() == "delivery" else "pickup"
+
     days = calculate_days(start, end)
-    total_rent = days * item.price_per_day
-    deposit = item.deposit or 0
+    price_per_day = q2(item.price_per_day or 0)
+    rent = q2(price_per_day * days)
+
+    # Deposit after the trust discount (same rule as before: deposit * multiplier)
+    deposit_original = q2(item.deposit or 0)
+    if user is not None:
+        from utils.trust import get_user_trust
+        multiplier = Decimal(str(get_user_trust(user)["multiplier"]))
+    else:
+        multiplier = Decimal("1")
+    deposit = q2(deposit_original * multiplier)
+    trust_discount = q2(deposit_original - deposit)
+
+    # Delivery charge: 0 for pickup; only if the item offers delivery
+    if dm == "delivery" and getattr(item, "delivery_available", False):
+        delivery_charge = q2(item.delivery_charge or 0)
+    else:
+        dm = "pickup"
+        delivery_charge = q2(0)
+
+    # Platform fee charged to the renter (% of rent, clamped between min and max)
+    percent = Decimal(str(_cfg("RENTER_FEE_PERCENT", 0) or 0))
+    fee_min = q2(_cfg("RENTER_FEE_MIN", 0) or 0)
+    fee_max = q2(_cfg("RENTER_FEE_MAX", 50) or 0)
+    if percent <= 0:
+        platform_fee = q2(0)
+    else:
+        raw = q2(rent * percent / Decimal("100"))
+        platform_fee = min(max(raw, fee_min), fee_max)
+
+    total_payable = q2(rent + deposit + delivery_charge + platform_fee)
+    refundable_amount = deposit
+    non_refundable_amount = q2(rent + delivery_charge + platform_fee)
+
+    # Transparency only – NOT added to the total
+    possible_later_charges = []
+    late_fee = q2(getattr(item, "late_fee_per_day", 0) or 0)
+    if late_fee > 0:
+        possible_later_charges.append({
+            "type": "late_fee", "label": "Late fee per day",
+            "amount": float(late_fee), "of_deposit_percent": None,
+        })
+    import config as _config
+    for lvl, info in _config.DAMAGE_LEVELS.items():
+        if lvl == "none":
+            continue
+        pct = Decimal(str(info.get("percent", 0)))
+        if pct <= 0:
+            continue
+        possible_later_charges.append({
+            "type": "damage", "level": lvl, "label": info.get("label", lvl),
+            "of_deposit_percent": float(pct),
+            "amount": float(q2(deposit_original * pct / Decimal("100"))),
+        })
+
     return {
         "days": days,
-        "total_rent": total_rent,
-        "deposit": deposit,
-        "total_payable": total_rent + deposit,
+        "price_per_day": float(price_per_day),
+        "rent": float(rent),
+        "total_rent": float(rent),          # alias kept for booking column compatibility
+        "deposit_original": float(deposit_original),
+        "deposit": float(deposit),
+        "trust_discount": float(trust_discount),
+        "delivery_method": dm,
+        "delivery_charge": float(delivery_charge),
+        "platform_fee": float(platform_fee),
+        "total_payable": float(total_payable),
+        "refundable_amount": float(refundable_amount),
+        "non_refundable_amount": float(non_refundable_amount),
+        "possible_later_charges": possible_later_charges,
     }
 
 
+# Booking columns that a pricing dict can be snapshotted into (splat-safe).
+BOOKING_PRICING_FIELDS = {
+    "days", "total_rent", "deposit", "total_payable",
+    "delivery_method", "delivery_charge", "platform_fee",
+}
+
+
+def booking_snapshot(pricing: dict) -> dict:
+    """Filter a calculate_price dict to only Booking-column keys (safe for **)."""
+    return {k: v for k, v in pricing.items() if k in BOOKING_PRICING_FIELDS}
+
+
 def is_available(item, start: date, end: date) -> bool:
-    """False if any approved/picked_up booking overlaps the requested range."""
+    """False if any approved/picked_up booking overlaps the requested range.
+
+    A pending_payment booking does NOT block the dates.
+    """
     from models import Booking
     overlap = Booking.query.filter(
         Booking.item_id == item.id,

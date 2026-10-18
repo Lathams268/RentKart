@@ -14,9 +14,9 @@
   <div class="card space-y-1 text-sm">
     <div class="flex justify-between"><span>Item</span><span class="font-bold">{{ booking.item.title }}</span></div>
     <div class="flex justify-between"><span>Days</span><span>{{ booking.days }}</span></div>
-    <div class="flex justify-between"><span>Rent</span><span>₹{{ booking.total_rent }}</span></div>
-    <div class="flex justify-between"><span>Deposit</span><span>₹{{ booking.deposit }}</span></div>
-    <div class="flex justify-between font-bold border-t pt-1"><span>Total</span><span>₹{{ booking.total_payable }}</span></div>
+    <div class="flex justify-between"><span>Rent</span><span>{{ booking.total_rent | inr }}</span></div>
+    <div class="flex justify-between"><span>Deposit</span><span>{{ booking.deposit | inr }}</span></div>
+    <div class="flex justify-between font-bold border-t pt-1"><span>Total</span><span>{{ booking.total_payable | inr }}</span></div>
   </div>
 
   <!-- Payment buttons -->

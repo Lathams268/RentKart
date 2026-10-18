@@ -13,8 +13,8 @@
     <div class="flex justify-between"><span class="text-gray-500">Item</span><span class="font-bold">{{ booking.item.title }}</span></div>
     <div class="flex justify-between"><span class="text-gray-500">Renter</span><span>{{ booking.renter.name }} ({{ booking.renter.phone }})</span></div>
     <div class="flex justify-between"><span class="text-gray-500">Rental Period</span><span>{{ booking.start_date }} → {{ booking.end_date }} ({{ booking.days }} days)</span></div>
-    <div class="flex justify-between"><span class="text-gray-500">Deposit Held</span><span>₹{{ booking.deposit }}</span></div>
-    <div class="flex justify-between"><span class="text-gray-500">Late Fee Rate</span><span>₹{{ booking.item.late_fee_per_day or 0 }} / day</span></div>
+    <div class="flex justify-between"><span class="text-gray-500">Deposit Held</span><span>{{ booking.deposit | inr }}</span></div>
+    <div class="flex justify-between"><span class="text-gray-500">Late Fee Rate</span><span>{{ (booking.item.late_fee_per_day or 0) | inr }} / day</span></div>
   </div>
 
   <!-- Return form -->

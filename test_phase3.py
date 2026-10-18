@@ -6,7 +6,7 @@ import unittest, tempfile, shutil
 from datetime import date, timedelta
 from app import create_app
 from models import db, User, Item, Booking
-from utils.booking import calculate_days, calculate_price, is_available
+from utils.booking import calculate_days, calculate_price, booking_snapshot, is_available
 from seed import seed as run_seed
 
 
@@ -95,7 +95,7 @@ class RentKartPhase3(unittest.TestCase):
             renter_id=renter1.id,
             start_date=start1,
             end_date=end1,
-            **p1,
+            **booking_snapshot(p1),
             status="approved",
         )
         db.session.add(b1)
@@ -130,12 +130,12 @@ class RentKartPhase3(unittest.TestCase):
         d1 = date.today() + timedelta(days=5)
         d2 = date.today() + timedelta(days=8)
         p1 = calculate_price(item, d1, d2)
-        b1 = Booking(item_id=item.id, renter_id=r1.id, start_date=d1, end_date=d2, **p1, status="requested")
+        b1 = Booking(item_id=item.id, renter_id=r1.id, start_date=d1, end_date=d2, **booking_snapshot(p1), status="requested")
 
         d3 = date.today() + timedelta(days=7)
         d4 = date.today() + timedelta(days=10)
         p2 = calculate_price(item, d3, d4)
-        b2 = Booking(item_id=item.id, renter_id=r2.id, start_date=d3, end_date=d4, **p2, status="requested")
+        b2 = Booking(item_id=item.id, renter_id=r2.id, start_date=d3, end_date=d4, **booking_snapshot(p2), status="requested")
 
         db.session.add_all([b1, b2])
         db.session.commit()
@@ -169,7 +169,7 @@ class RentKartPhase3(unittest.TestCase):
             renter_id=renter.id,
             start_date=start,
             end_date=end,
-            **p,
+            **booking_snapshot(p),
             status="approved",
             payment_method="cash",
             payment_status="pay_on_pickup",
@@ -217,7 +217,7 @@ class RentKartPhase3(unittest.TestCase):
             renter_id=renter.id,
             start_date=start,
             end_date=end,
-            **p,
+            **booking_snapshot(p),
             status="requested",
         )
         db.session.add(booking)
@@ -250,12 +250,12 @@ class RentKartPhase3(unittest.TestCase):
         p = calculate_price(item, start, end)
 
         # Booking 1: Pay with UPI
-        b1 = Booking(item_id=item.id, renter_id=renter.id, start_date=start, end_date=end, **p, status="requested")
+        b1 = Booking(item_id=item.id, renter_id=renter.id, start_date=start, end_date=end, **booking_snapshot(p), status="requested")
         # Booking 2: Pay with Cash on pickup
         start2 = date.today() + timedelta(days=10)
         end2 = start2 + timedelta(days=12)
         p2 = calculate_price(item, start2, end2)
-        b2 = Booking(item_id=item.id, renter_id=renter.id, start_date=start2, end_date=end2, **p2, status="requested")
+        b2 = Booking(item_id=item.id, renter_id=renter.id, start_date=start2, end_date=end2, **booking_snapshot(p2), status="requested")
 
         db.session.add_all([b1, b2])
         db.session.commit()

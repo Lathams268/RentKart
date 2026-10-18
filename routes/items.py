@@ -57,6 +57,15 @@ def add_item():
         lat           = request.form.get("lat", type=float)
         lng           = request.form.get("lng", type=float)
 
+        # Delivery + cash-on-pickup (every category)
+        delivery_available = "delivery_available" in request.form
+        cod_available = "cod_available" in request.form
+        delivery_charge_raw = request.form.get("delivery_charge", "0").strip() or "0"
+        try:
+            delivery_charge = float(delivery_charge_raw)
+        except ValueError:
+            delivery_charge = 0.0
+
         purchase_price = None
         if purchase_price_raw:
             try:
@@ -114,6 +123,9 @@ def add_item():
             lng=lng if lng else current_user.lng,
             image=image_filename,
             purchase_price=purchase_price,
+            delivery_available=delivery_available,
+            delivery_charge=delivery_charge,
+            cod_available=cod_available,
         )
         item.set_attributes(attrs)
         db.session.add(item)

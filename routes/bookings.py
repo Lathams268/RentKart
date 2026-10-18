@@ -7,7 +7,7 @@ from flask import (
 )
 from flask_login import login_required, current_user
 from models import db, Item, Booking, ReturnRecord, Review
-from utils.booking import calculate_price, is_available
+from utils.booking import calculate_price, booking_snapshot, is_available
 from utils.trust import get_user_trust
 from utils.settlement import calculate_settlement
 
@@ -50,12 +50,7 @@ def book_item(item_id):
         flash("Item is not available for the selected dates.", "error")
         return redirect(url_for("items.item_detail", item_id=item.id))
 
-    pricing = calculate_price(item, start, end)
-    # Apply smart deposit based on renter trust tier
-    trust_info = get_user_trust(current_user)
-    smart_deposit = round((item.deposit or 0) * trust_info["multiplier"])
-    pricing["deposit"] = smart_deposit
-    pricing["total_payable"] = pricing["total_rent"] + smart_deposit
+    pricing = calculate_price(item, start, end, user=current_user)
 
     from utils.plans import commission_for
     owner_commission = commission_for(item.owner)
@@ -66,7 +61,7 @@ def book_item(item_id):
         start_date=start,
         end_date=end,
         commission_percent=owner_commission,
-        **pricing,
+        **booking_snapshot(pricing),
         status="requested",
     )
     db.session.add(booking)

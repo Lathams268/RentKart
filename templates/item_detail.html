@@ -27,17 +27,17 @@
     </div>
   {% endif %}
   <div class="flex flex-wrap items-center gap-2 text-sm">
-    <span class="bg-green-100 text-primary font-bold rounded-full px-3 py-1">₹{{ item.price_per_day }} / {{ t('per day') }}</span>
+    <span class="bg-green-100 text-primary font-bold rounded-full px-3 py-1">{{ item.price_per_day | inr }} / {{ t('per day') }}</span>
     {% if current_user.is_authenticated and trust_info and trust_info.multiplier < 1.0 and item.deposit %}
       <span class="bg-orange-100 text-accent font-bold rounded-full px-3 py-1">
-        {{ t('Deposit') }}: ₹{{ smart_deposit }} <span class="line-through text-gray-400 text-xs">₹{{ item.deposit }}</span>
+        {{ t('Deposit') }}: {{ smart_deposit | inr }} <span class="line-through text-gray-400 text-xs">{{ item.deposit | inr }}</span>
       </span>
       <span class="text-xs text-green-600 font-semibold">Trusted renter discount applied</span>
     {% elif item.deposit %}
-      <span class="bg-orange-100 text-accent font-bold rounded-full px-3 py-1">{{ t('Deposit') }} ₹{{ item.deposit }}</span>
+      <span class="bg-orange-100 text-accent font-bold rounded-full px-3 py-1">{{ t('Deposit') }} {{ item.deposit | inr }}</span>
     {% endif %}
     {% if item.late_fee_per_day %}
-      <span class="bg-red-100 text-red-600 font-bold rounded-full px-3 py-1">{{ t('Late penalty') }}: ₹{{ item.late_fee_per_day }} / {{ t('per day') }}</span>
+      <span class="bg-red-100 text-red-600 font-bold rounded-full px-3 py-1">{{ t('Late penalty') }}: {{ item.late_fee_per_day | inr }} / {{ t('per day') }}</span>
     {% endif %}
 
     {% if item.category == 'books' %}

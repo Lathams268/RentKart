@@ -26,9 +26,15 @@
     </div>
     <div class="flex justify-between"><span class="text-gray-500">Dates</span><span>{{ booking.start_date }} → {{ booking.end_date }}</span></div>
     <div class="flex justify-between"><span class="text-gray-500">Days</span><span>{{ booking.days }}</span></div>
-    <div class="flex justify-between"><span class="text-gray-500">Rent</span><span>₹{{ booking.total_rent }}</span></div>
-    <div class="flex justify-between"><span class="text-gray-500">Deposit</span><span>₹{{ booking.deposit }}</span></div>
-    <div class="flex justify-between font-bold"><span>Total Payable</span><span>₹{{ booking.total_payable }}</span></div>
+    <div class="flex justify-between"><span class="text-gray-500">Rent</span><span>{{ booking.total_rent | inr }}</span></div>
+    <div class="flex justify-between"><span class="text-gray-500">Deposit</span><span>{{ booking.deposit | inr }}</span></div>
+    {% if booking.delivery_charge %}
+      <div class="flex justify-between"><span class="text-gray-500">Delivery charge</span><span>{{ booking.delivery_charge | inr }}</span></div>
+    {% endif %}
+    {% if booking.platform_fee %}
+      <div class="flex justify-between"><span class="text-gray-500">Platform fee</span><span>{{ booking.platform_fee | inr }}</span></div>
+    {% endif %}
+    <div class="flex justify-between font-bold"><span>Total Payable</span><span>{{ booking.total_payable | inr }}</span></div>
   </div>
 
   <!-- Payment -->

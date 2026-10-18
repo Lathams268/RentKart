@@ -345,7 +345,7 @@
 
     <div>
       <div class="flex gap-1.5 mt-1 text-xs flex-wrap items-center">
-        <span class="bg-green-100 text-primary font-bold rounded-full px-2 py-0.5">₹{{ item.price_per_day }} / {{ t('per day') }}</span>
+        <span class="bg-green-100 text-primary font-bold rounded-full px-2 py-0.5">{{ item.price_per_day | inr }} / {{ t('per day') }}</span>
         {% if item.is_available %}
           <span class="bg-emerald-50 text-emerald-700 font-semibold rounded-full px-2 py-0.5">Available</span>
         {% else %}

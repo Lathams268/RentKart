@@ -186,9 +186,9 @@
               <p class="text-xs text-rose-800 font-semibold mt-0.5">by Shravani</p>
             </div>
             <div class="mt-2 pt-2 border-t border-gray-100 flex items-center justify-between text-xs">
-              <span class="bg-green-100 text-primary font-bold rounded-full px-2 py-0.5">₹{{ item.price_per_day }}/day</span>
+              <span class="bg-green-100 text-primary font-bold rounded-full px-2 py-0.5">{{ item.price_per_day | inr }}/day</span>
               {% if item.deposit %}
-                <span class="text-gray-500 font-medium">Dep: ₹{{ item.deposit }}</span>
+                <span class="text-gray-500 font-medium">Dep: {{ item.deposit | inr }}</span>
               {% endif %}
             </div>
           </div>
@@ -225,9 +225,9 @@
 
         <!-- Price & deposit -->
         <div class="flex gap-2 mt-1 text-sm">
-          <span class="bg-green-100 text-primary font-bold rounded-full px-2 py-0.5">₹{{ item.price_per_day }}/day</span>
+          <span class="bg-green-100 text-primary font-bold rounded-full px-2 py-0.5">{{ item.price_per_day | inr }}/day</span>
           {% if item.deposit %}
-            <span class="bg-orange-100 text-accent font-bold rounded-full px-2 py-0.5">Dep ₹{{ item.deposit }}</span>
+            <span class="bg-orange-100 text-accent font-bold rounded-full px-2 py-0.5">Dep {{ item.deposit | inr }}</span>
           {% endif %}
         </div>
 

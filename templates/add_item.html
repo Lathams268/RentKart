@@ -84,6 +84,23 @@
            class="w-full border rounded-xl px-4 py-3 bg-white">
   </div>
 
+  <!-- Delivery & cash-on-pickup (all categories) -->
+  <div class="space-y-2 border-t pt-3">
+    <label class="flex items-center gap-2 text-sm font-medium text-gray-700">
+      <input type="checkbox" name="delivery_available" value="1" class="h-5 w-5 text-primary rounded">
+      I can deliver
+    </label>
+    <div>
+      <label class="block text-xs font-medium text-gray-700 mb-1">Delivery charge in Rs</label>
+      <input type="number" name="delivery_charge" min="0" step="0.01" value="0"
+             class="w-full border rounded-xl px-3 py-3">
+    </div>
+    <label class="flex items-center gap-2 text-sm font-medium text-gray-700">
+      <input type="checkbox" name="cod_available" value="1" checked class="h-5 w-5 text-primary rounded">
+      Cash on pickup accepted
+    </label>
+  </div>
+
   <!-- Hidden location (prefilled from user) -->
   <input type="hidden" name="lat" id="lat" value="{{ current_user.lat or '' }}">
   <input type="hidden" name="lng" id="lng" value="{{ current_user.lng or '' }}">

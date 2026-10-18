@@ -88,6 +88,10 @@ def create_app(test_config=None):
             "SUPPORTED_LANGUAGES": SUPPORTED_LANGUAGES,
         }
 
+    # Register Jinja money-format filter
+    from utils.money import inr as _inr_filter
+    app.jinja_env.filters["inr"] = _inr_filter
+
     # Error handlers for 403, 404, 500
     from flask import render_template
 
@@ -135,10 +139,26 @@ def create_app(test_config=None):
                     i_cols = [c["name"] for c in inspector.get_columns("item")]
                     if "purchase_price" not in i_cols:
                         conn.execute(text("ALTER TABLE item ADD COLUMN purchase_price INTEGER"))
+                    if "delivery_available" not in i_cols:
+                        conn.execute(text("ALTER TABLE item ADD COLUMN delivery_available BOOLEAN"))
+                    if "delivery_charge" not in i_cols:
+                        conn.execute(text("ALTER TABLE item ADD COLUMN delivery_charge FLOAT DEFAULT 0"))
+                    if "cod_available" not in i_cols:
+                        conn.execute(text("ALTER TABLE item ADD COLUMN cod_available BOOLEAN DEFAULT 1"))
                 if "booking" in table_names:
                     b_cols = [c["name"] for c in inspector.get_columns("booking")]
                     if "commission_percent" not in b_cols:
                         conn.execute(text("ALTER TABLE booking ADD COLUMN commission_percent FLOAT DEFAULT 10.0"))
+                    if "delivery_method" not in b_cols:
+                        conn.execute(text("ALTER TABLE booking ADD COLUMN delivery_method VARCHAR(10) DEFAULT 'pickup'"))
+                    if "delivery_charge" not in b_cols:
+                        conn.execute(text("ALTER TABLE booking ADD COLUMN delivery_charge FLOAT DEFAULT 0"))
+                    if "platform_fee" not in b_cols:
+                        conn.execute(text("ALTER TABLE booking ADD COLUMN platform_fee FLOAT DEFAULT 0"))
+                    if "order_id" not in b_cols:
+                        conn.execute(text("ALTER TABLE booking ADD COLUMN order_id VARCHAR(40)"))
+                    if "payment_expires_at" not in b_cols:
+                        conn.execute(text("ALTER TABLE booking ADD COLUMN payment_expires_at DATETIME"))
                 if "return_record" in table_names:
                     r_cols = [c["name"] for c in inspector.get_columns("return_record")]
                     if "platform_fee" not in r_cols:
