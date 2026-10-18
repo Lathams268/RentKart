@@ -39,6 +39,7 @@ def create_app(test_config=None):
     from routes.feedback import feedback_bp
     from routes.admin import admin_bp
     from routes.addresses import addresses_bp
+    from routes.trustshield import ts_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(items_bp)
@@ -49,6 +50,7 @@ def create_app(test_config=None):
     app.register_blueprint(feedback_bp)
     app.register_blueprint(admin_bp)
     app.register_blueprint(addresses_bp)
+    app.register_blueprint(ts_bp)
 
     from translations import t, SUPPORTED_LANGUAGES
     from utils.trending import get_book_genre_info, is_book_trending
@@ -177,6 +179,9 @@ def create_app(test_config=None):
                         conn.execute(text("ALTER TABLE booking ADD COLUMN price_per_day FLOAT"))
                     if "price_original" not in b_cols:
                         conn.execute(text("ALTER TABLE booking ADD COLUMN price_original FLOAT"))
+                    # TrustShield: opt-in damage-protection flag (additive)
+                    if "trustshield" not in b_cols:
+                        conn.execute(text("ALTER TABLE booking ADD COLUMN trustshield BOOLEAN DEFAULT 0"))
                     # Stage 2: shipping address snapshot columns
                     for col, typ in (
                         ("address_id", "INTEGER"), ("ship_full_name", "VARCHAR(120)"),

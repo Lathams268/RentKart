@@ -185,6 +185,7 @@ class Booking(db.Model):
     ship_pincode    = db.Column(db.String(6),   nullable=True)
     handover_note    = db.Column(db.Text, nullable=True)
     handover_photo   = db.Column(db.String(300), nullable=True)
+    trustshield      = db.Column(db.Boolean, nullable=True, default=False)  # TrustShield damage-protection booking
     created_at       = db.Column(db.DateTime, default=datetime.utcnow)
 
     return_record    = db.relationship("ReturnRecord", backref="booking", uselist=False, lazy=True)
@@ -309,3 +310,265 @@ class Feedback(db.Model):
 
     def __repr__(self):
         return f"<Feedback {self.id} type={self.type} status={self.status}>"
+
+
+# ==========================================================================
+# RentKart TrustShield models (all NEW, additive).
+# ==========================================================================
+class ConditionReport(db.Model):
+    """A photo/video + checklist condition report for a booking phase."""
+    PHASES = ("handover", "return")
+    STATUSES = ("draft", "submitted", "confirmed", "mismatch", "reviewed")
+
+    id             = db.Column(db.Integer, primary_key=True)
+    booking_id     = db.Column(db.Integer, db.ForeignKey("booking.id"), nullable=False)
+    item_id        = db.Column(db.Integer, db.ForeignKey("item.id"), nullable=False)
+    phase          = db.Column(db.String(12), nullable=False, default="handover")
+    status         = db.Column(db.String(16), nullable=False, default="draft")
+    created_by     = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
+    confirmed_by   = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
+    note           = db.Column(db.Text, nullable=True)
+    checklist      = db.Column(db.Text, nullable=True, default="[]")   # JSON list of {item, ok}
+    accessories    = db.Column(db.Text, nullable=True, default="[]")   # JSON list of strings
+    angles         = db.Column(db.Text, nullable=True, default="[]")   # JSON list of angle names captured
+    return_date    = db.Column(db.Date, nullable=True)
+    mismatch_reason = db.Column(db.Text, nullable=True)
+    confirmed_at   = db.Column(db.DateTime, nullable=True)
+    created_at     = db.Column(db.DateTime, default=datetime.utcnow)
+
+    booking = db.relationship("Booking", backref=db.backref("condition_reports", lazy=True))
+    files   = db.relationship("EvidenceFile", backref="report", lazy=True,
+                              foreign_keys="EvidenceFile.report_id")
+
+    def _jload(self, col, default):
+        try:
+            return json.loads(col) if col else default
+        except (json.JSONDecodeError, TypeError):
+            return default
+
+    def get_checklist(self):
+        return self._jload(self.checklist, [])
+
+    def set_checklist(self, data):
+        self.checklist = json.dumps(data)
+
+    def get_accessories(self):
+        return self._jload(self.accessories, [])
+
+    def set_accessories(self, data):
+        self.accessories = json.dumps(data)
+
+    def get_angles(self):
+        return self._jload(self.angles, [])
+
+    def set_angles(self, data):
+        self.angles = json.dumps(data)
+
+    def __repr__(self):
+        return f"<ConditionReport {self.id} booking={self.booking_id} {self.phase} {self.status}>"
+
+
+class EvidenceFile(db.Model):
+    """A PRIVATE uploaded photo/video stored under instance/evidence (uuid name)."""
+    KINDS = ("photo", "video", "quote", "dispute", "damage", "overlay")
+
+    id             = db.Column(db.Integer, primary_key=True)
+    report_id      = db.Column(db.Integer, db.ForeignKey("condition_report.id"), nullable=True)
+    booking_id     = db.Column(db.Integer, db.ForeignKey("booking.id"), nullable=True)
+    item_id        = db.Column(db.Integer, db.ForeignKey("item.id"), nullable=True)
+    damage_record_id = db.Column(db.Integer, db.ForeignKey("damage_record.id"), nullable=True)
+    dispute_id     = db.Column(db.Integer, db.ForeignKey("dispute.id"), nullable=True)
+    kind           = db.Column(db.String(12), nullable=False, default="photo")
+    angle          = db.Column(db.String(40), nullable=True)
+    stored_name    = db.Column(db.String(300), nullable=False)   # uuid.ext, no path
+    original_name  = db.Column(db.String(300), nullable=True)
+    mime           = db.Column(db.String(80), nullable=True)
+    size_bytes     = db.Column(db.Integer, nullable=True, default=0)
+    exif_stripped  = db.Column(db.Boolean, nullable=True, default=False)
+    uploaded_by    = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
+    created_at     = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<EvidenceFile {self.id} {self.kind} {self.stored_name}>"
+
+
+class DamageRecord(db.Model):
+    """Damage history for an ITEM across ALL rentals."""
+    STATUSES = ("existing", "new_proposed", "verified", "dismissed", "repaired")
+
+    id            = db.Column(db.Integer, primary_key=True)
+    item_id       = db.Column(db.Integer, db.ForeignKey("item.id"), nullable=False)
+    booking_id    = db.Column(db.Integer, db.ForeignKey("booking.id"), nullable=True)
+    damage_type   = db.Column(db.String(40), nullable=True)
+    area          = db.Column(db.String(120), nullable=True)
+    angle         = db.Column(db.String(40), nullable=True)
+    description   = db.Column(db.Text, nullable=True)
+    status        = db.Column(db.String(16), nullable=False, default="existing")
+    source_phase  = db.Column(db.String(12), nullable=True)   # handover | return
+    reported_by   = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
+    attributed_renter_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
+    amount        = db.Column(db.Float, nullable=True, default=0)  # verified amount (whole rupees)
+    repaired_at   = db.Column(db.DateTime, nullable=True)
+    created_at    = db.Column(db.DateTime, default=datetime.utcnow)
+
+    item = db.relationship("Item", backref=db.backref("damage_records", lazy=True))
+
+    def __repr__(self):
+        return f"<DamageRecord {self.id} item={self.item_id} {self.status}>"
+
+
+class DamageCase(db.Model):
+    """A proposed damage case raised after return comparison."""
+    STATUSES = ("awaiting_customer", "partially_accepted", "disputed",
+                "resolved", "admin_review", "closed")
+
+    id                = db.Column(db.Integer, primary_key=True)
+    booking_id        = db.Column(db.Integer, db.ForeignKey("booking.id"), nullable=False)
+    item_id           = db.Column(db.Integer, db.ForeignKey("item.id"), nullable=False)
+    created_by        = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
+    status            = db.Column(db.String(20), nullable=False, default="awaiting_customer")
+    proposed_total    = db.Column(db.Float, nullable=False, default=0)
+    verified_total    = db.Column(db.Float, nullable=False, default=0)
+    review_deadline   = db.Column(db.DateTime, nullable=True)
+    finalized         = db.Column(db.Boolean, nullable=False, default=False)
+    return_record_id  = db.Column(db.Integer, db.ForeignKey("return_record.id"), nullable=True)
+    created_at        = db.Column(db.DateTime, default=datetime.utcnow)
+
+    booking = db.relationship("Booking", backref=db.backref("damage_cases", lazy=True))
+    claims  = db.relationship("DamageClaimItem", backref="case", lazy=True,
+                              order_by="DamageClaimItem.id")
+    dispute = db.relationship("Dispute", backref="case", uselist=False, lazy=True)
+
+    def __repr__(self):
+        return f"<DamageCase {self.id} booking={self.booking_id} {self.status}>"
+
+
+class DamageClaimItem(db.Model):
+    """One claimed damage line inside a case, priced from TS_DAMAGE_RULES."""
+    STATUSES = ("proposed", "accepted", "disputed", "upheld", "reduced", "rejected")
+
+    id               = db.Column(db.Integer, primary_key=True)
+    case_id          = db.Column(db.Integer, db.ForeignKey("damage_case.id"), nullable=False)
+    damage_record_id = db.Column(db.Integer, db.ForeignKey("damage_record.id"), nullable=True)
+    rule_key         = db.Column(db.String(40), nullable=True)
+    label            = db.Column(db.String(120), nullable=True)
+    severity         = db.Column(db.String(12), nullable=True)
+    min_amount       = db.Column(db.Integer, nullable=True, default=0)
+    max_amount       = db.Column(db.Integer, nullable=True, default=0)
+    proposed_amount  = db.Column(db.Float, nullable=False, default=0)
+    verified_amount  = db.Column(db.Float, nullable=False, default=0)
+    percent_of_deposit = db.Column(db.Float, nullable=True)  # for 'lost'
+    requires_quote   = db.Column(db.Boolean, nullable=False, default=False)
+    quote_file_id    = db.Column(db.Integer, db.ForeignKey("evidence_file.id"), nullable=True)
+    admin_approved   = db.Column(db.Boolean, nullable=False, default=False)
+    status           = db.Column(db.String(16), nullable=False, default="proposed")
+    decided_by       = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
+    note             = db.Column(db.Text, nullable=True)
+    created_at       = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<DamageClaimItem {self.id} {self.rule_key} {self.status}>"
+
+
+class Dispute(db.Model):
+    """One dispute per case raised by the renter."""
+    STATUSES = ("open", "resolved")
+
+    id              = db.Column(db.Integer, primary_key=True)
+    case_id         = db.Column(db.Integer, db.ForeignKey("damage_case.id"), unique=True, nullable=False)
+    raised_by       = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
+    reason          = db.Column(db.String(40), nullable=False)
+    comment         = db.Column(db.Text, nullable=False)
+    disputed_claim_ids = db.Column(db.Text, nullable=True, default="[]")  # JSON list
+    status          = db.Column(db.String(12), nullable=False, default="open")
+    resolution_note = db.Column(db.Text, nullable=True)
+    resolved_by     = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
+    resolved_at     = db.Column(db.DateTime, nullable=True)
+    created_at      = db.Column(db.DateTime, default=datetime.utcnow)
+
+    files = db.relationship("DisputeFile", backref="dispute", lazy=True)
+
+    def get_claim_ids(self):
+        try:
+            return json.loads(self.disputed_claim_ids) if self.disputed_claim_ids else []
+        except (json.JSONDecodeError, TypeError):
+            return []
+
+    def set_claim_ids(self, ids):
+        self.disputed_claim_ids = json.dumps(list(ids))
+
+    def __repr__(self):
+        return f"<Dispute {self.id} case={self.case_id} {self.status}>"
+
+
+class DisputeFile(db.Model):
+    """Counter-evidence attached to a dispute (stored privately)."""
+    id            = db.Column(db.Integer, primary_key=True)
+    dispute_id    = db.Column(db.Integer, db.ForeignKey("dispute.id"), nullable=False)
+    stored_name   = db.Column(db.String(300), nullable=False)
+    kind          = db.Column(db.String(12), nullable=False, default="photo")
+    original_name = db.Column(db.String(300), nullable=True)
+    size_bytes    = db.Column(db.Integer, nullable=True, default=0)
+    uploaded_by   = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
+    created_at    = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<DisputeFile {self.id} dispute={self.dispute_id}>"
+
+
+class ComparisonResult(db.Model):
+    """SUGGESTION-ONLY per-angle comparison output (never a charge)."""
+    id                  = db.Column(db.Integer, primary_key=True)
+    booking_id          = db.Column(db.Integer, db.ForeignKey("booking.id"), nullable=False)
+    handover_report_id  = db.Column(db.Integer, db.ForeignKey("condition_report.id"), nullable=True)
+    return_report_id    = db.Column(db.Integer, db.ForeignKey("condition_report.id"), nullable=True)
+    angle               = db.Column(db.String(40), nullable=True)
+    similarity          = db.Column(db.Float, nullable=True, default=1.0)
+    confidence          = db.Column(db.String(12), nullable=True, default="high")
+    regions_json        = db.Column(db.Text, nullable=True, default="[]")
+    overlay_stored_name = db.Column(db.String(300), nullable=True)
+    needs_manual        = db.Column(db.Boolean, nullable=False, default=False)
+    matched_existing    = db.Column(db.Boolean, nullable=False, default=False)
+    created_at          = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def get_regions(self):
+        try:
+            return json.loads(self.regions_json) if self.regions_json else []
+        except (json.JSONDecodeError, TypeError):
+            return []
+
+    def set_regions(self, regions):
+        self.regions_json = json.dumps(regions)
+
+    def __repr__(self):
+        return f"<ComparisonResult {self.id} angle={self.angle} sim={self.similarity}>"
+
+
+# --------------------------------------------------------------------------
+# TrustShield opt-in for NEW bookings (additive ORM hook; does not touch any
+# existing function). Old rows already in the DB keep trustshield = 0/False.
+# --------------------------------------------------------------------------
+def _ts_enabled_flag() -> bool:
+    """Read TRUSTSHIELD_ENABLED: app config first (test override), else module."""
+    try:
+        from flask import current_app, has_app_context
+        if has_app_context():
+            val = current_app.config.get("TRUSTSHIELD_ENABLED", None)
+            if val is not None:
+                return bool(val)
+    except Exception:
+        pass
+    import config as _config
+    return bool(getattr(_config, "TRUSTSHIELD_ENABLED", False))
+
+
+from sqlalchemy import event as _ts_event
+
+
+@_ts_event.listens_for(Booking, "before_insert")
+def _ts_new_booking_default(mapper, connection, target):
+    """New bookings opt into TrustShield when the feature is enabled."""
+    try:
+        target.trustshield = _ts_enabled_flag()
+    except Exception:
+        target.trustshield = False

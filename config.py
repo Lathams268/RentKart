@@ -862,3 +862,111 @@ KEYWORD_MAP = {
     "ಕುರ್ಚಿಗಳು": "event_items",
     "ಸೋಫಾ": "event_items",
 }
+
+
+# ==========================================================================
+# RentKart TrustShield (AI-assisted rental damage protection)
+# ALL additions below are NEW and additive. Nothing above this line changed.
+# ==========================================================================
+
+# Furniture is a category the TrustShield feature must support. It is NOT added
+# to the public CATEGORIES form dict (that would change the shared add-item /
+# browse behaviour and existing tests). Instead it is registered here for
+# TrustShield only: this label map + its own CONDITION_CHECKLISTS /
+# TS_DAMAGE_RULES keys (below) make every TrustShield page work for 'furniture'.
+TS_CATEGORY_LABELS = {
+    "clothes": "Clothes", "books": "Books", "electronics": "Electronics",
+    "furniture": "Furniture", "farm_tools": "Farm Tools",
+    "event_items": "Events", "events": "Events", "security": "Security",
+}
+
+# ---------- Vision / AI (off by default; never log the key) ----------
+VISION_API_KEY = os.environ.get("VISION_API_KEY", "")
+TRUSTSHIELD_AI_ENABLED = bool(VISION_API_KEY)
+
+# ---------- Feature toggle & limits ----------
+TRUSTSHIELD_ENABLED = os.environ.get("TRUSTSHIELD_ENABLED", "True").lower() in ("1", "true", "yes")
+MAX_PHOTO_MB = int(os.environ.get("MAX_PHOTO_MB", "6"))
+MAX_VIDEO_MB = int(os.environ.get("MAX_VIDEO_MB", "40"))
+MIN_PHOTOS_HANDOVER = 4
+MIN_PHOTOS_RETURN = 4
+CUSTOMER_REVIEW_HOURS = 48
+DISPUTE_WINDOW_HOURS = 72
+DAMAGE_CAP_PERCENT_OF_DEPOSIT = 100   # verified damage deduction capped at this % of deposit
+QUOTE_MAX_MB = 5                       # repair quote/invoice upload cap
+EVIDENCE_MAX_DIMENSION = 1600          # photos re-encoded & resized to <= this (px)
+
+# ---------- Comparison thresholds (Pillow-only, heuristic) ----------
+TS_GRID_BLOCKS = 16                    # grid resolution for block diffing
+TS_BLOCK_DIFF_THRESHOLD = 28           # 0-255 mean per-block difference to flag
+TS_REGION_MERGE_DISTANCE = 1           # merge flagged blocks within this many cells
+TS_SIMILARITY_LOW = 0.70               # below -> low confidence
+TS_SIMILARITY_MEDIUM = 0.90            # below -> medium, else high
+
+# ---------- Required photo angles for a condition report ----------
+PHOTO_ANGLES = [
+    "front", "back", "left", "right", "top",
+    "close-up", "accessories", "serial or label",
+]
+
+# ---------- Category condition checklists ("default" used when key missing) ----------
+CONDITION_CHECKLISTS = {
+    "default":     ["Clean overall", "No new scratches", "No dents", "No stains", "All parts present", "Functions properly"],
+    "clothes":     ["No stains", "No tears", "No missing buttons", "Zipper works", "No odour", "All accessories present"],
+    "books":       ["Cover intact", "No torn pages", "No writing / marks", "Spine intact", "All pages present"],
+    "electronics": ["Screen intact", "No dents / scratches", "Charging works", "Buttons work", "Cables present", "Powers on"],
+    "furniture":   ["No wobbles", "Surface scratch-free", "Upholstery intact", "Legs / handles present", "Stable"],
+    "farm_tools":  ["Blade / part intact", "No rust added", "Handle secure", "Motor starts", "Fuel / oil ok"],
+    "events":      ["No breakage", "All parts present", "Clean", "Lights work", "Structure stable"],
+    "security":    ["Lens clean", "Cables present", "Records properly", "Housing intact", "Power adapter present"],
+}
+
+# ---------- Damage rules per category ----------
+# Each entry: {key,label,severity,min,max} repair-cost range in WHOLE rupees.
+# The "lost" entry uses percent_of_deposit instead of a rupee range.
+TS_DAMAGE_RULES = {
+    "default": [
+        {"key": "scratch",    "label": "Surface scratch / scuff", "severity": "minor", "min": 100,  "max": 400},
+        {"key": "dent",       "label": "Dent / crack",            "severity": "major", "min": 300,  "max": 1200},
+        {"key": "stain",      "label": "Stain / mark",            "severity": "minor", "min": 80,   "max": 300},
+        {"key": "broken_part","label": "Broken / missing part",   "severity": "major", "min": 200,  "max": 1500},
+        {"key": "lost",       "label": "Lost or unusable",        "severity": "lost",  "percent_of_deposit": 100},
+    ],
+    "clothes": [
+        {"key": "stain",      "label": "Stain",                   "severity": "minor", "min": 100,  "max": 400},
+        {"key": "tear",       "label": "Tear / rip",              "severity": "major", "min": 250,  "max": 900},
+        {"key": "broken_part","label": "Missing button / zip",    "severity": "minor", "min": 80,   "max": 300},
+        {"key": "lost",       "label": "Lost or unusable",        "severity": "lost",  "percent_of_deposit": 100},
+    ],
+    "electronics": [
+        {"key": "screen",     "label": "Screen damage",           "severity": "major", "min": 800,  "max": 4000},
+        {"key": "scratch",    "label": "Body scratch",            "severity": "minor", "min": 150,  "max": 500},
+        {"key": "broken_part","label": "Broken port / key",       "severity": "major", "min": 300,  "max": 1500},
+        {"key": "lost",       "label": "Lost or unusable",        "severity": "lost",  "percent_of_deposit": 100},
+    ],
+    "books": [
+        {"key": "torn_pages", "label": "Torn pages",              "severity": "minor", "min": 50,   "max": 200},
+        {"key": "writing",    "label": "Writing / marks",         "severity": "minor", "min": 40,   "max": 150},
+        {"key": "cover",      "label": "Cover / spine damage",    "severity": "major", "min": 150,  "max": 600},
+        {"key": "lost",       "label": "Lost or unusable",        "severity": "lost",  "percent_of_deposit": 100},
+    ],
+    "furniture": [
+        {"key": "scratch",    "label": "Surface scratch",         "severity": "minor", "min": 150,  "max": 600},
+        {"key": "dent",       "label": "Dent / crack",            "severity": "major", "min": 400,  "max": 2000},
+        {"key": "upholstery", "label": "Upholstery tear / stain", "severity": "major", "min": 500,  "max": 2500},
+        {"key": "broken_part","label": "Broken leg / handle",     "severity": "major", "min": 300,  "max": 1200},
+        {"key": "lost",       "label": "Lost or unusable",        "severity": "lost",  "percent_of_deposit": 100},
+    ],
+    "farm_tools": [
+        {"key": "blade",      "label": "Blade / part damage",     "severity": "major", "min": 500,  "max": 3000},
+        {"key": "dent",       "label": "Dent / crack",            "severity": "major", "min": 400,  "max": 2000},
+        {"key": "scratch",    "label": "Surface scratch",         "severity": "minor", "min": 150,  "max": 500},
+        {"key": "lost",       "label": "Lost or unusable",        "severity": "lost",  "percent_of_deposit": 100},
+    ],
+}
+
+# ---------- Dispute reasons (fixed list) ----------
+TS_DISPUTE_REASONS = [
+    "damage_preexisting", "not_my_damage", "amount_too_high", "wrong_item",
+    "already_reported", "other",
+]
