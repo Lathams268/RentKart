@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Dispute #{{ dispute.id }} – Admin{% endblock %}
+
+{% block content %}
+<div class="space-y-4">
+  <h1 class="text-xl font-bold">🛡️ Dispute #{{ dispute.id }}</h1>
+  <div class="card text-sm">
+    <p><strong>Reason:</strong> {{ dispute.reason }}</p>
+    <p><strong>Customer comment:</strong> {{ dispute.comment }}</p>
+    <p class="text-xs text-gray-500 mt-1">Status: {{ dispute.status }}
+       · Case proposed Rs {{ case.proposed_total|int }} · Booking #{{ booking.id }}
+       ({{ booking.item.title }})</p>
+    {% if dispute.files %}
+      <p class="text-xs mt-1">Counter-evidence attached: {{ dispute.files|length }} file(s).</p>
+    {% endif %}
+  </div>
+
+  {% if dispute.status == 'resolved' %}
+    <div class="card text-sm">Resolved by admin. This case is finalised.</div>
+  {% endif %}
+
+  <form method="post" class="space-y-3">
+    {% for cl in claims %}
+      <div class="card space-y-2 border rounded-xl p-3">
+        <p class="text-sm font-semibold">{{ cl.label }}
+           — proposed Rs {{ cl.proposed_amount|int }}
+           {% if cl.min_amount is not none and cl.max_amount %}(rule Rs {{ cl.min_amount }}–{{ cl.max_amount }}){% endif %}</p>
+        {% if cl.requires_quote and cl.quote_file_id %}
+          <a class="text-xs underline" href="{{ url_for('trustshield.serve_evidence', evidence_id=cl.quote_file_id) }}">View repair quote</a>
+        {% endif %}
+        <div class="flex flex-wrap gap-2 items-center">
+          <label class="text-sm"><input type="radio" name="decision_{{ cl.id }}" value="uphold" class="mr-1"> Uphold (Rs {{ cl.proposed_amount|int }})</label>
+          <label class="text-sm"><input type="radio" name="decision_{{ cl.id }}" value="reduce" class="mr-1"> Reduce to Rs</label>
+          <input type="number" name="amount_{{ cl.id }}" min="0" max="{{ cl.proposed_amount|int }}" value="{{ cl.proposed_amount|int }}"
+                 class="border rounded-lg px-2 py-2 text-sm min-h-[44px] w-28">
+          <label class="text-sm"><input type="radio" name="decision_{{ cl.id }}" value="reject" class="mr-1"> Reject (Rs 0)</label>
+        </div>
+      </div>
+    {% endfor %}
+
+    <div class="card space-y-2">
+      <label class="block text-sm font-semibold">Admin note
+        <textarea name="note" rows="2" class="w-full border rounded-lg px-2 py-2 text-sm mt-1"></textarea>
+      </label>
+      {% if dispute.status != 'resolved' %}
+      <button type="submit" class="bg-primary text-white rounded-xl px-4 py-2 text-sm font-bold min-h-[44px]">
+        Save decisions &amp; finalise settlement
+      </button>
+      {% endif %}
+    </div>
+  </form>
+
+  <a href="{{ url_for('trustshield.admin_disputes') }}" class="text-sm underline">Back to disputes</a>
+</div>
+{% endblock %}

@@ -99,3 +99,52 @@ def finalize_settlement(booking, actual_return_date, verified_amount=0,
     if commit:
         db.session.commit()
     return rec, s
+
+
+def finalize_case(booking, case, actual_return_date=None, commit=True):
+    """Settle a resolved DamageCase: sum verified claim amounts, layer them on the
+    existing settlement, update DamageRecord statuses, and stamp the case.
+
+    Called ONLY when the renter accepts all items or an admin resolves a dispute.
+    Returns (return_record, settlement_dict) or (existing_record, None).
+    """
+    from datetime import date as _date
+    from models import db, DamageRecord
+
+    if actual_return_date is None:
+        rep = (case and _return_report(case.booking_id)) or None
+        actual_return_date = (rep.return_date if rep and rep.return_date else _date.today())
+
+    verified_total = 0
+    for claim in case.claims:
+        if claim.status in ("accepted", "upheld", "reduced"):
+            amt = int(round(float(claim.verified_amount or 0)))
+            verified_total += amt
+            if claim.damage_record_id:
+                dr = DamageRecord.query.get(claim.damage_record_id)
+                if dr:
+                    dr.status = "verified"
+                    dr.amount = amt
+        elif claim.status == "rejected":
+            if claim.damage_record_id:
+                dr = DamageRecord.query.get(claim.damage_record_id)
+                if dr:
+                    dr.status = "dismissed"
+
+    rec, s = finalize_settlement(booking, actual_return_date,
+                                 verified_amount=verified_total,
+                                 return_note="TrustShield: verified damage settlement.",
+                                 commit=commit)
+    case.verified_total = verified_total
+    case.return_record_id = rec.id
+    case.finalized = True
+    case.status = "resolved"
+    if commit:
+        db.session.commit()
+    return rec, s
+
+
+def _return_report(booking_id):
+    from models import ConditionReport
+    return (ConditionReport.query.filter_by(booking_id=booking_id, phase="return")
+            .order_by(ConditionReport.id.desc()).first())
