@@ -3,11 +3,14 @@ import os, uuid
 from datetime import date, datetime
 from flask import (
     Blueprint, render_template, request, redirect, url_for, flash,
-    current_app, abort,
+    current_app, abort, jsonify,
 )
 from flask_login import login_required, current_user
 from models import db, Item, Booking, ReturnRecord, Review
-from utils.booking import calculate_price, booking_snapshot, is_available
+from utils.booking import (
+    calculate_price, booking_snapshot, is_available,
+    generate_order_id, payment_expiry,
+)
 from utils.trust import get_user_trust
 from utils.settlement import calculate_settlement
 
@@ -68,6 +71,117 @@ def book_item(item_id):
     db.session.commit()
     flash("Booking requested! Please complete payment.", "success")
     return redirect(url_for("bookings.payment", booking_id=booking.id))
+
+
+# ---------- Checkout: order summary + create pending booking ----------
+def _parse_checkout(item, source):
+    """Parse/validate start, end, delivery from a dict-like source. Return (start, end, dm, error)."""
+    try:
+        start = date.fromisoformat(source.get("start", "") or source.get("start_date", ""))
+        end = date.fromisoformat(source.get("end", "") or source.get("end_date", ""))
+    except (ValueError, TypeError):
+        return None, None, "pickup", "Please select valid start and end dates."
+    dm = "delivery" if (source.get("delivery", "pickup") or "pickup").lower() == "delivery" else "pickup"
+    if end < start:
+        return None, None, dm, "End date cannot be before start date."
+    if start < date.today():
+        return None, None, dm, "Start date cannot be in the past."
+    return start, end, dm, None
+
+
+@bookings_bp.route("/items/<int:item_id>/checkout", methods=["GET"])
+@login_required
+def checkout(item_id):
+    """Show the order summary page before payment. All money is server-calculated."""
+    item = Item.query.get_or_404(item_id)
+    if item.owner_id == current_user.id:
+        flash("You cannot book your own item.", "error")
+        return redirect(url_for("items.item_detail", item_id=item.id))
+
+    start, end, dm, err = _parse_checkout(item, request.args)
+    if err:
+        flash(err, "error")
+        return redirect(url_for("items.item_detail", item_id=item.id))
+    if not item.is_available or not is_available(item, start, end):
+        flash("Item is not available for the selected dates.", "error")
+        return redirect(url_for("items.item_detail", item_id=item.id))
+
+    pricing = calculate_price(item, start, end, user=current_user, delivery_method=dm)
+    return render_template(
+        "checkout.html", item=item, pricing=pricing, start=start, end=end,
+        delivery_method=dm, today=date.today().isoformat(),
+    )
+
+
+@bookings_bp.route("/api/checkout-price")
+@login_required
+def api_checkout_price():
+    """Server-side price recompute for the pickup/delivery toggle (JS reads this)."""
+    item = Item.query.get_or_404(request.args.get("item_id", type=int) or 0)
+    start, end, dm, err = _parse_checkout(item, request.args)
+    if err:
+        return jsonify({"error": err}), 400
+    pricing = calculate_price(item, start, end, user=current_user, delivery_method=dm)
+    return jsonify(pricing)
+
+
+@bookings_bp.route("/items/<int:item_id>/checkout", methods=["POST"])
+@login_required
+def checkout_submit(item_id):
+    """Create (or reuse) a pending_payment booking, snapshotting server amounts."""
+    item = Item.query.get_or_404(item_id)
+    if item.owner_id == current_user.id:
+        flash("You cannot book your own item.", "error")
+        return redirect(url_for("items.item_detail", item_id=item.id))
+
+    start, end, dm, err = _parse_checkout(item, request.form)
+    if err:
+        flash(err, "error")
+        return redirect(url_for("items.item_detail", item_id=item.id))
+
+    if not request.form.get("agree"):
+        flash("Please agree to the rental terms and return date.", "error")
+        return redirect(url_for("bookings.checkout", item_id=item.id,
+                               start=start.isoformat(), end=end.isoformat(), delivery=dm))
+
+    if not item.is_available or not is_available(item, start, end):
+        flash("Item is not available for the selected dates.", "error")
+        return redirect(url_for("items.item_detail", item_id=item.id))
+
+    # Reuse an existing pending booking for the same user/item/dates (no duplicates).
+    existing = Booking.query.filter_by(
+        item_id=item.id, renter_id=current_user.id,
+        start_date=start, end_date=end, status="pending_payment",
+    ).first()
+    if existing:
+        return redirect(url_for("bookings.pay", booking_id=existing.id))
+
+    # Amounts are always recalculated here; any total sent by the browser is ignored.
+    pricing = calculate_price(item, start, end, user=current_user, delivery_method=dm)
+    from utils.plans import commission_for
+    booking = Booking(
+        item_id=item.id,
+        renter_id=current_user.id,
+        start_date=start,
+        end_date=end,
+        commission_percent=commission_for(item.owner),
+        order_id=generate_order_id(),
+        payment_expires_at=payment_expiry(),
+        payment_status="pending",
+        **booking_snapshot(pricing),
+        status="pending_payment",
+    )
+    db.session.add(booking)
+    db.session.commit()
+    return redirect(url_for("bookings.pay", booking_id=booking.id))
+
+
+# ---------- Placeholder pay route (fully implemented in Stage 3) ----------
+@bookings_bp.route("/bookings/<int:booking_id>/pay", methods=["GET", "POST"])
+@login_required
+def pay(booking_id):
+    booking = Booking.query.get_or_404(booking_id)
+    return render_template("payment.html", booking=booking)
 
 
 # ---------- Payment ----------

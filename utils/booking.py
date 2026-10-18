@@ -122,6 +122,25 @@ def booking_snapshot(pricing: dict) -> dict:
     return {k: v for k, v in pricing.items() if k in BOOKING_PRICING_FIELDS}
 
 
+def generate_order_id() -> str:
+    """Return a unique order id like RK-YYYYMMDD-XXXXXX (random A-Z0-9)."""
+    import secrets
+    import string
+    from datetime import datetime
+    prefix = str(_cfg("ORDER_PREFIX", "RK"))
+    datepart = datetime.utcnow().strftime("%Y%m%d")
+    alphabet = string.ascii_uppercase + string.digits
+    suffix = "".join(secrets.choice(alphabet) for _ in range(6))
+    return f"{prefix}-{datepart}-{suffix}"
+
+
+def payment_expiry():
+    """Return the datetime a pending payment expires (now + PENDING_PAYMENT_MINUTES)."""
+    from datetime import datetime, timedelta
+    minutes = int(_cfg("PENDING_PAYMENT_MINUTES", 15) or 15)
+    return datetime.utcnow() + timedelta(minutes=minutes)
+
+
 def is_available(item, start: date, end: date) -> bool:
     """False if any approved/picked_up booking overlaps the requested range.
 
