@@ -54,6 +54,8 @@ def create_app(test_config=None):
     from utils.trending import get_book_genre_info, is_book_trending
     from utils.logo import shop_logo_url, shop_initials, item_image_static_path
     from utils.illustrations import item_picture, ensure_illustrations
+    from utils.booking import effective_price
+    from utils.filters import rating_summary
     from flask import url_for
 
     illus_dir = os.path.join(app.root_path, "static", "illustrations")
@@ -72,6 +74,8 @@ def create_app(test_config=None):
     app.jinja_env.globals["shop_initials"] = shop_initials
     app.jinja_env.globals["item_image_url"] = item_image_url
     app.jinja_env.globals["item_picture"] = item_picture
+    app.jinja_env.globals["effective_price"] = effective_price
+    app.jinja_env.globals["rating_summary"] = rating_summary
 
     @app.context_processor
     def inject_global_data():
@@ -147,6 +151,8 @@ def create_app(test_config=None):
                         conn.execute(text("ALTER TABLE item ADD COLUMN delivery_charge FLOAT DEFAULT 0"))
                     if "cod_available" not in i_cols:
                         conn.execute(text("ALTER TABLE item ADD COLUMN cod_available BOOLEAN DEFAULT 1"))
+                    if "discount_percent" not in i_cols:
+                        conn.execute(text("ALTER TABLE item ADD COLUMN discount_percent INTEGER DEFAULT 0"))
                 if "booking" in table_names:
                     b_cols = [c["name"] for c in inspector.get_columns("booking")]
                     if "commission_percent" not in b_cols:
@@ -163,6 +169,10 @@ def create_app(test_config=None):
                         conn.execute(text("ALTER TABLE booking ADD COLUMN payment_expires_at DATETIME"))
                     if "razorpay_order_id" not in b_cols:
                         conn.execute(text("ALTER TABLE booking ADD COLUMN razorpay_order_id VARCHAR(120)"))
+                    if "price_per_day" not in b_cols:
+                        conn.execute(text("ALTER TABLE booking ADD COLUMN price_per_day FLOAT"))
+                    if "price_original" not in b_cols:
+                        conn.execute(text("ALTER TABLE booking ADD COLUMN price_original FLOAT"))
                     # Stage 2: shipping address snapshot columns
                     for col, typ in (
                         ("address_id", "INTEGER"), ("ship_full_name", "VARCHAR(120)"),

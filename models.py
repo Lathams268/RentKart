@@ -102,6 +102,7 @@ class Item(db.Model):
     title            = db.Column(db.String(200), nullable=False)
     description      = db.Column(db.Text, nullable=True)
     price_per_day    = db.Column(db.Float, nullable=False)
+    discount_percent = db.Column(db.Integer, nullable=True, default=0)  # 0-90, applied to price_per_day
     deposit          = db.Column(db.Float, nullable=True, default=0)
     late_fee_per_day = db.Column(db.Float, nullable=True, default=0)
     lat              = db.Column(db.Float, nullable=True)
@@ -154,6 +155,8 @@ class Booking(db.Model):
     start_date       = db.Column(db.Date, nullable=False)
     end_date         = db.Column(db.Date, nullable=False)
     days             = db.Column(db.Integer, nullable=False)
+    price_per_day    = db.Column(db.Float, nullable=True)   # effective per-day price used for this booking
+    price_original   = db.Column(db.Float, nullable=True)   # undiscounted original per-day price snapshot
     total_rent       = db.Column(db.Float, nullable=False)
     deposit          = db.Column(db.Float, nullable=False, default=0)
     total_payable    = db.Column(db.Float, nullable=False)

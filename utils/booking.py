@@ -34,6 +34,26 @@ def calculate_days(start: date, end: date) -> int:
     return max((end - start).days + 1, 1)
 
 
+def effective_price(item) -> float:
+    """Return the per-day price after the item's discount_percent is applied.
+
+    Whole rupees (half-up). With no discount (None/0) the original price is
+    returned unchanged so old rows behave exactly as before.
+    """
+    base = Decimal(str(getattr(item, "price_per_day", None) or 0))
+    try:
+        disc = int(getattr(item, "discount_percent", None) or 0)
+    except (TypeError, ValueError):
+        disc = 0
+    disc = max(0, min(90, disc))
+    if disc <= 0:
+        return float(base)
+    val = (base * Decimal(100 - disc) / Decimal(100)).quantize(
+        Decimal("1"), rounding=ROUND_HALF_UP
+    )
+    return float(val)
+
+
 def calculate_price(item, start: date, end: date, user=None,
                     delivery_method: str = "pickup") -> dict:
     """Return the full pricing breakdown dict for a booking.
@@ -44,7 +64,8 @@ def calculate_price(item, start: date, end: date, user=None,
     dm = "delivery" if (delivery_method or "").lower() == "delivery" else "pickup"
 
     days = calculate_days(start, end)
-    price_per_day = q2(item.price_per_day or 0)
+    price_per_day = q2(effective_price(item))
+    price_original = q2(item.price_per_day or 0)
     rent = q2(price_per_day * days)
 
     # Deposit after the trust discount (same rule as before: deposit * multiplier)
@@ -102,6 +123,7 @@ def calculate_price(item, start: date, end: date, user=None,
     return {
         "days": days,
         "price_per_day": float(price_per_day),
+        "price_original": float(price_original),
         "rent": float(rent),
         "total_rent": float(rent),          # alias kept for booking column compatibility
         "deposit_original": float(deposit_original),
@@ -121,6 +143,7 @@ def calculate_price(item, start: date, end: date, user=None,
 BOOKING_PRICING_FIELDS = {
     "days", "total_rent", "deposit", "total_payable",
     "delivery_method", "delivery_charge", "platform_fee",
+    "price_per_day", "price_original",
 }
 
 

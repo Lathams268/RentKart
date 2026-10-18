@@ -46,6 +46,16 @@ RAZORPAY_KEY_SECRET = os.environ.get("RAZORPAY_KEY_SECRET", "")
 UPI_ID = os.environ.get("UPI_ID", "")
 UPI_PAYEE_NAME = os.environ.get("UPI_PAYEE_NAME", "RentKart")
 
+# ---------- Clothes marketplace tabs (this mapping lives ONLY here) ----------
+# Each tab lists the item 'gender' attribute values that belong to it. Tabs
+# flagged include_unisex also show items whose gender is "Unisex" or missing.
+# Tab order is Men, Women, Children.
+CLOTH_TABS = [
+    {"key": "men",      "label": "Men",      "genders": ["Men"],               "include_unisex": True},
+    {"key": "women",    "label": "Women",    "genders": ["Women"],             "include_unisex": True},
+    {"key": "children", "label": "Children", "genders": ["Boys", "Girls", "Kids"], "include_unisex": False},
+]
+
 # ---------- Indian states and union territories (address validation) ----------
 INDIAN_STATES = [
     "Andaman and Nicobar Islands", "Andhra Pradesh", "Arunachal Pradesh", "Assam",

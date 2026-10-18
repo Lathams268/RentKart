@@ -27,7 +27,10 @@
     </div>
   {% endif %}
   <div class="flex flex-wrap items-center gap-2 text-sm">
-    <span class="bg-green-100 text-primary font-bold rounded-full px-3 py-1">{{ item.price_per_day | inr }} / {{ t('per day') }}</span>
+    <span class="bg-green-100 text-primary font-bold rounded-full px-3 py-1">{{ effective_price(item) | inr }} / {{ t('per day') }}</span>
+    {% if (item.discount_percent or 0) > 0 %}
+      <span class="text-xs text-gray-400 font-semibold"><span class="line-through">{{ item.price_per_day | inr }}</span> <span class="text-green-600 font-bold">{{ item.discount_percent }}% OFF</span></span>
+    {% endif %}
     {% if current_user.is_authenticated and trust_info and trust_info.multiplier < 1.0 and item.deposit %}
       <span class="bg-orange-100 text-accent font-bold rounded-full px-3 py-1">
         {{ t('Deposit') }}: {{ smart_deposit | inr }} <span class="line-through text-gray-400 text-xs">{{ item.deposit | inr }}</span>
@@ -204,7 +207,7 @@
 <script>
   (function() {
     var blocked = {{ blocked_dates | tojson }};
-    var pricePerDay = {{ item.price_per_day }};
+    var pricePerDay = {{ effective_price(item) }};
     var deposit = {{ smart_deposit }};
 
     var startEl = document.getElementById('start_date');

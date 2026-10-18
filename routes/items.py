@@ -89,6 +89,14 @@ def add_item():
             except ValueError:
                 errors.append("Price must be a number.")
 
+        # Discount percent (0-90, optional, whole number)
+        discount_raw = request.form.get("discount_percent", "0").strip() or "0"
+        try:
+            discount_percent = int(float(discount_raw))
+        except (ValueError, TypeError):
+            discount_percent = 0
+        discount_percent = max(0, min(90, discount_percent))
+
         if errors:
             for e in errors:
                 flash(e, "error")
@@ -119,6 +127,7 @@ def add_item():
             title=title,
             description=description,
             price_per_day=price_per_day,
+            discount_percent=discount_percent,
             deposit=float(deposit or 0),
             late_fee_per_day=float(round(float(late_fee or 0))),
             lat=lat if lat else current_user.lat,

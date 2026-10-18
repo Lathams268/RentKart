@@ -52,7 +52,7 @@
       </div>
     </div>
     <div class="grid grid-cols-2 gap-2 text-sm border-t pt-2">
-      <div class="flex justify-between"><span class="text-gray-500">Price/day</span><span class="font-semibold">{{ item.price_per_day | inr }}</span></div>
+      <div class="flex justify-between"><span class="text-gray-500">Price/day</span><span class="font-semibold">{{ effective_price(item) | inr }}</span></div>
       <div class="flex justify-between"><span class="text-gray-500">Duration</span><span class="font-semibold">{{ pricing.days }} days</span></div>
       <div class="flex justify-between"><span class="text-gray-500">Start</span><span>{{ start }}</span></div>
       <div class="flex justify-between"><span class="text-gray-500">Return by</span><span>{{ end }}</span></div>
@@ -78,7 +78,7 @@
   <!-- Price table -->
   <div class="card space-y-1 text-sm" id="price-table">
     <h2 class="font-bold text-gray-800 mb-1">Price details</h2>
-    <div class="flex justify-between"><span>Rent ({{ pricing.days }} × {{ item.price_per_day | inr }})</span><span data-line="rent">{{ pricing.rent | inr }}</span></div>
+    <div class="flex justify-between"><span>Rent ({{ pricing.days }} × {{ effective_price(item) | inr }})</span><span data-line="rent">{{ pricing.rent | inr }}</span></div>
     <div class="flex justify-between">
       <span>Security deposit (refundable)</span>
       <span>

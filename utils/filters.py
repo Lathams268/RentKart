@@ -3,6 +3,8 @@ import re
 import urllib.parse
 from flask import url_for
 
+import config
+
 KIDS_AGE_GROUPS = {"0–2", "0-2", "3–5", "3-5", "6–8", "6-8", "9–12", "9-12", "13–17", "13-17"}
 ADULT_AGE_GROUPS = {"18+", "18"}
 
@@ -107,3 +109,43 @@ def get_you_might_like(available_items: list, limit: int = 4) -> list:
         key=lambda i: (getattr(i, "distance_km", None) is None, getattr(i, "distance_km", 9999), -i.id)
     )
     return sorted_items[:limit]
+
+
+def _item_gender(item) -> str:
+    """Return the normalised 'gender' attribute of an item ('' when missing)."""
+    try:
+        attrs = item.get_attributes()
+    except Exception:
+        attrs = {}
+    return norm_str(attrs.get("gender"))
+
+
+def cloth_tab_filter(items, tab):
+    """Return the subset of clothes items that belong to the given tab key.
+
+    The tab -> gender mapping lives ONLY in config.CLOTH_TABS. Tabs flagged
+    include_unisex also match items with gender 'Unisex' or a missing gender.
+    An unknown tab returns the items unchanged.
+    """
+    tab_cfg = next((t for t in config.CLOTH_TABS if t["key"] == tab), None)
+    if tab_cfg is None:
+        return list(items)
+    genders = {norm_str(g) for g in tab_cfg.get("genders", [])}
+    include_unisex = tab_cfg.get("include_unisex", False)
+    result = []
+    for item in items:
+        g = _item_gender(item)
+        if g in genders:
+            result.append(item)
+        elif include_unisex and (g == "unisex" or g == ""):
+            result.append(item)
+    return result
+
+
+def rating_summary(item):
+    """Return {'avg': float, 'count': int} from the item's reviews, or None
+    when the item has no reviews."""
+    stats = getattr(item, "review_stats", None)
+    if not stats or not stats.get("count"):
+        return None
+    return {"avg": round(float(stats["avg"]), 1), "count": int(stats["count"])}
