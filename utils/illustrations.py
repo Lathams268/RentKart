@@ -11,6 +11,21 @@ from config import BASE_DIR, CATEGORIES, illustration_keys, match_subcategory
 ILLUSTRATION_DIR = os.path.join(BASE_DIR, "static", "illustrations")
 DEMO_PHOTOS_DIR = os.path.join(BASE_DIR, "static", "demo_photos")
 
+# Accepted real-photo extensions, checked in this order.
+PHOTO_EXTS = (".jpg", ".jpeg", ".png", ".webp")
+
+# Legacy generated placeholder files (blue gradient + white circle) that must
+# never count as an item's real photo, so the matching illustration shows.
+PLACEHOLDER_IMAGE_RE = re.compile(r"^seed(?:_[a-z]+)*_\d+\.png$", re.IGNORECASE)
+
+
+def is_placeholder_image(value) -> bool:
+    """True when an image value is a legacy seed_<n>.png placeholder."""
+    if not value:
+        return False
+    base = os.path.basename(str(value).replace("\\", "/"))
+    return bool(PLACEHOLDER_IMAGE_RE.match(base))
+
 CAT_COLORS = {
     "clothes": ("#FDE8EE", "#800020", "#DAA520"),
     "books": ("#E8F4FC", "#0F2350", "#14919B"),
@@ -468,6 +483,9 @@ def _upload_file(item) -> str:
     image = getattr(item, "image", None)
     if not image:
         return ""
+    # A legacy generated placeholder is treated as "no photo" so the illustration shows.
+    if is_placeholder_image(image):
+        return ""
     if str(image).startswith(("http://", "https://", "/static/")):
         return image
     rel = image.replace("\\", "/")
@@ -482,10 +500,23 @@ def _demo_photo_for_slug(slug: str) -> str:
     if not slug:
         return ""
     folder = DEMO_PHOTOS_DIR
-    for ext in (".jpg", ".jpeg", ".png"):
+    for ext in PHOTO_EXTS:
         name = slug + ext
         if os.path.isfile(os.path.join(folder, name)):
             return f"demo_photos/{name}"
+    return ""
+
+
+def _stock_photo(category: str, subcat_key: str = "") -> str:
+    """Find a real stock photo for stock/<category>/<subcat_key> then .../default.
+    Returns a static-relative path like 'demo_photos/stock/books/spiritual.jpg'."""
+    if not category:
+        return ""
+    folder = os.path.join(DEMO_PHOTOS_DIR, "stock", category)
+    for name in (n for n in (subcat_key, "default") if n):
+        for ext in PHOTO_EXTS:
+            if os.path.isfile(os.path.join(folder, name + ext)):
+                return f"demo_photos/stock/{category}/{name}{ext}"
     return ""
 
 
@@ -542,7 +573,14 @@ def is_allowed_stock_picture(value: str, category=None) -> bool:
 
 
 def item_picture(item) -> dict:
-    """Resolve picture: upload, demo slug photo, stock_picture, subcat SVG, category SVG, logo/initials."""
+    """Resolve a picture in priority order:
+    1) the item's own uploaded photo (not a legacy seed_<n>.png)
+    2) static/demo_photos/<item-slug>.(jpg|jpeg|png|webp)
+    3) static/demo_photos/stock/<category>/<subcategory-key>.(...)
+    4) static/demo_photos/stock/<category>/default.(...)
+    5) the existing drawing for the sub-category, then the category drawing
+    Real photos use object-fit: cover; drawings keep their current look.
+    """
     ensure_illustrations()
     title = getattr(item, "title", "") or ""
     category = getattr(item, "category", "") or ""
@@ -554,31 +592,29 @@ def item_picture(item) -> dict:
     fit = "cover"
 
     uploaded = _upload_file(item)
+    demo = _demo_photo_for_slug(slug)
+    sc = match_subcategory(category, attrs)
+    subcat_key = sc["key"] if sc else ""
+    stock = _stock_photo(category, subcat_key)
+
     if uploaded:
-        kind, rel, fit = "photo", uploaded, "contain"
+        kind, rel, fit = "photo", uploaded, "cover"
+    elif demo:
+        kind, rel, fit = "demo", demo, "cover"
+    elif stock:
+        kind, rel, fit = "stock", stock, "cover"
     else:
-        demo = _demo_photo_for_slug(slug)
-        if demo:
-            kind, rel, fit = "demo", demo, "contain"
+        if sc and os.path.isfile(illustration_path(sc["key"])):
+            kind, rel, fit = "illustration", f"illustrations/{sc['key']}.svg", "cover"
+        elif category and os.path.isfile(illustration_path(category)):
+            kind, rel, fit = "category", f"illustrations/{category}.svg", "cover"
         else:
-            stock = getattr(item, "stock_picture", None)
-            if stock and is_allowed_stock_picture(stock, category):
-                kind = "stock"
-                rel = stock.replace("\\", "/")
-                fit = "contain" if not rel.endswith(".svg") else "cover"
+            owner = getattr(item, "owner", None)
+            logo = getattr(owner, "shop_logo", None) if owner else None
+            if logo:
+                kind, rel, fit = "logo", (logo if "/" in str(logo) else f"uploads/{logo}"), "contain"
             else:
-                sc = match_subcategory(category, attrs)
-                if sc and os.path.isfile(illustration_path(sc["key"])):
-                    kind, rel, fit = "illustration", f"illustrations/{sc['key']}.svg", "cover"
-                elif category and os.path.isfile(illustration_path(category)):
-                    kind, rel, fit = "category", f"illustrations/{category}.svg", "cover"
-                else:
-                    owner = getattr(item, "owner", None)
-                    logo = getattr(owner, "shop_logo", None) if owner else None
-                    if logo:
-                        kind, rel, fit = "logo", (logo if "/" in str(logo) else f"uploads/{logo}"), "contain"
-                    else:
-                        kind, rel, fit = "initials", "", "cover"
+                kind, rel, fit = "initials", "", "cover"
 
     src = _static_url(rel) if rel else ""
     initials = ""

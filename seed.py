@@ -1,8 +1,10 @@
 """Seed script – populates RentKart with demo users and items.
-Safe to run multiple times: skips if items already exist.
-Generates a simple placeholder image with Pillow.
+Safe to run multiple times: skips existing rows and never assigns generated
+placeholders. Item.image stays empty unless a real photo exists in
+static/demo_photos/<item-slug>.(jpg|jpeg|png); otherwise the matching
+illustration is shown.
 """
-import os, sys, json
+import os, sys, json, re
 
 sys.path.insert(0, os.path.dirname(__file__))
 
@@ -12,144 +14,27 @@ from utils.demo_shops import SHOPS, LEGACY_USERS, ensure_shop_logo, item_slug
 from utils.logo import slugify_name
 from datetime import date, timedelta
 
-# ---------- Placeholder image generator ----------
-def _make_item_placeholder(upload_dir, filename, category="other", title="", attrs=None, force=False):
-    """Generate an intentional 800x600 placeholder image with Pillow."""
-    attrs = attrs or {}
-    path = os.path.join(upload_dir, filename)
-    if not force and os.path.exists(path):
-        try:
-            from PIL import Image
-            with Image.open(path) as existing:
-                if existing.size == (800, 600):
-                    return
-        except Exception:
-            pass
-
-    try:
-        from PIL import Image, ImageDraw, ImageFont
-
-        # Category theme colors (RGB pairs for soft gradients)
-        CATEGORY_THEMES = {
-            "clothes": ((128, 0, 32), (218, 165, 32)),      # maroon to gold
-            "books": ((15, 35, 85), (20, 145, 155)),         # deep blue to teal
-            "farm_tools": ((25, 100, 35), (120, 75, 30)),    # green to brown
-            "electronics": ((55, 15, 85), (30, 80, 180)),     # dark purple to blue
-            "event_items": ((230, 80, 20), (220, 40, 110)),   # orange to pink
-        }
-
-        # Clothes color gradients based on item color attribute
-        CLOTHES_COLOR_GRADIENTS = {
-            "red": ((180, 20, 30), (230, 80, 60)),
-            "maroon": ((115, 15, 30), (215, 160, 30)),
-            "pink": ((190, 45, 105), (245, 140, 180)),
-            "orange": ((205, 75, 15), (250, 160, 50)),
-            "yellow": ((185, 140, 20), (245, 210, 60)),
-            "green": ((20, 100, 40), (80, 170, 80)),
-            "blue": ((20, 50, 140), (60, 120, 210)),
-            "navy": ((12, 22, 65), (30, 60, 130)),
-            "purple": ((75, 20, 100), (150, 70, 175)),
-            "black": ((25, 25, 30), (70, 70, 80)),
-            "white": ((170, 170, 165), (230, 230, 225)),
-            "cream": ((185, 175, 150), (240, 235, 210)),
-            "gold": ((180, 135, 20), (240, 205, 60)),
-            "silver": ((130, 140, 150), (200, 210, 220)),
-            "multicolor": ((160, 30, 80), (220, 140, 40)),
-        }
-
-        if category == "clothes":
-            color_attr = str(attrs.get("color", "")).strip().lower()
-            if color_attr in CLOTHES_COLOR_GRADIENTS:
-                c1, c2 = CLOTHES_COLOR_GRADIENTS[color_attr]
-            else:
-                c1, c2 = CATEGORY_THEMES["clothes"]
-        else:
-            c1, c2 = CATEGORY_THEMES.get(category, ((50, 50, 60), (100, 100, 115)))
-
-        img = Image.new("RGBA", (800, 600))
-        draw = ImageDraw.Draw(img)
-
-        # Draw smooth vertical gradient (fast line-by-line drawing)
-        r1, g1, b1 = c1
-        r2, g2, b2 = c2
-        for y in range(600):
-            ratio = y / 599.0
-            r = int(r1 + (r2 - r1) * ratio)
-            g = int(g1 + (g2 - g1) * ratio)
-            b = int(b1 + (b2 - b1) * ratio)
-            draw.line([(0, y), (800, y)], fill=(r, g, b, 255))
-
-        # Center soft glowing circular badge
-        draw.ellipse([(280, 140), (520, 380)], fill=(255, 255, 255, 35), outline=(255, 255, 255, 80), width=3)
-
-        # Draw category geometric icon shape in center
-        if category == "clothes":
-            draw.arc([(385, 170), (415, 200)], start=180, end=0, fill=(255, 255, 255, 240), width=4)
-            draw.line([(340, 225), (460, 225)], fill=(255, 255, 255, 240), width=5)
-            draw.line([(340, 225), (400, 200), (460, 225)], fill=(255, 255, 255, 240), width=5)
-            draw.polygon([(380, 230), (420, 230), (450, 345), (350, 345)], fill=(255, 255, 255, 180), outline=(255, 255, 255, 240), width=3)
-        elif category == "books":
-            draw.polygon([(395, 200), (310, 215), (310, 325), (395, 310)], fill=(255, 255, 255, 200), outline=(255, 255, 255, 240), width=3)
-            draw.polygon([(405, 200), (490, 215), (490, 325), (405, 310)], fill=(255, 255, 255, 200), outline=(255, 255, 255, 240), width=3)
-            draw.line([(400, 195), (400, 320)], fill=(255, 255, 255, 240), width=5)
-        elif category == "farm_tools":
-            draw.polygon([(400, 180), (460, 260), (400, 340), (340, 260)], fill=(255, 255, 255, 180), outline=(255, 255, 255, 240), width=4)
-            draw.line([(400, 180), (400, 355)], fill=(255, 255, 255, 240), width=4)
-            draw.line([(400, 235), (440, 215)], fill=(255, 255, 255, 240), width=3)
-            draw.line([(400, 235), (360, 215)], fill=(255, 255, 255, 240), width=3)
-            draw.line([(400, 275), (440, 255)], fill=(255, 255, 255, 240), width=3)
-            draw.line([(400, 275), (360, 255)], fill=(255, 255, 255, 240), width=3)
-        elif category == "electronics":
-            draw.rounded_rectangle([(320, 200), (480, 310)], radius=12, fill=(255, 255, 255, 180), outline=(255, 255, 255, 240), width=4)
-            draw.rectangle([(335, 215), (465, 295)], fill=(0, 0, 0, 70))
-            draw.polygon([(390, 235), (420, 255), (390, 275)], fill=(255, 255, 255, 250))
-            draw.line([(400, 310), (400, 335)], fill=(255, 255, 255, 240), width=6)
-            draw.line([(365, 335), (435, 335)], fill=(255, 255, 255, 240), width=5)
-        elif category == "event_items":
-            star_pts = [(400, 180), (425, 235), (485, 240), (440, 280), (455, 335), (400, 305), (345, 335), (360, 280), (315, 240), (375, 235)]
-            draw.polygon(star_pts, fill=(255, 255, 255, 200), outline=(255, 255, 255, 240), width=3)
-        else:
-            draw.rectangle([(340, 210), (460, 310)], fill=(255, 255, 255, 180), outline=(255, 255, 255, 240), width=4)
-
-        # Bottom semi-transparent strip
-        draw.rectangle([(0, 480), (800, 600)], fill=(0, 0, 0, 160))
-        draw.line([(0, 480), (800, 480)], fill=(255, 255, 255, 60), width=1)
-
-        # Fonts
-        try:
-            font_title = ImageFont.truetype("arial.ttf", 30)
-            font_label = ImageFont.truetype("arial.ttf", 16)
-        except Exception:
-            font_title = ImageFont.load_default()
-            font_label = ImageFont.load_default()
-
-        # For clothes: small label showing clothing_type
-        clothing_type = attrs.get("clothing_type") if category == "clothes" else None
-        if clothing_type:
-            label_text = f"👗 {clothing_type.upper()}"
-            draw.rounded_rectangle([(35, 495), (200, 520)], radius=5, fill=(255, 255, 255, 220))
-            draw.text((45, 498), label_text, fill=(80, 0, 20), font=font_label)
-            draw.text((35, 536), title[:42], fill=(255, 255, 255), font=font_title)
-        else:
-            draw.text((35, 520), title[:42], fill=(255, 255, 255), font=font_title)
-
-        final_img = img.convert("RGB")
-        final_img.save(path, quality=95)
-    except Exception:
-        # Fallback to simple colored image
-        from PIL import Image
-        img = Image.new("RGB", (800, 600), (120, 120, 120))
-        img.save(path)
+# ---------- Real photo detection (no generated placeholders) ----------
+# Legacy generated placeholder names (blue gradient + white circle).
+SEED_PLACEHOLDER_RE = re.compile(r"^seed(?:_[a-z]+)*_\d+\.png$", re.IGNORECASE)
 
 
-def _make_placeholder(upload_dir, filename, color=(34, 139, 34), category="other", title="", attrs=None):
-    """Wrapper backwards-compatible placeholder generator."""
-    _make_item_placeholder(upload_dir, filename, category=category, title=title, attrs=attrs)
+def _is_placeholder_name(value) -> bool:
+    """True for a legacy generated seed_<n>.png placeholder file name."""
+    if not value:
+        return False
+    base = os.path.basename(str(value).replace("\\", "/"))
+    return bool(SEED_PLACEHOLDER_RE.match(base))
 
 
-def _make_book_placeholder(upload_dir, filename, title=""):
-    """Wrapper backwards-compatible book placeholder generator."""
-    _make_item_placeholder(upload_dir, filename, category="books", title=title)
+def _real_photo_name(title) -> str:
+    """Return 'demo_photos/<slug>.<ext>' only when a real photo file exists."""
+    slug = slugify_name(title)
+    folder = os.path.join(os.path.dirname(__file__), "static", "demo_photos")
+    for ext in (".jpg", ".jpeg", ".png"):
+        if os.path.isfile(os.path.join(folder, slug + ext)):
+            return f"demo_photos/{slug}{ext}"
+    return ""
 
 
 def _make_shravani_logo(upload_dir):
@@ -856,9 +741,6 @@ def seed():
         items_to_seed = ITEMS if is_test_phase2 else (ITEMS + NEW_BOOKS + NEW_CLOTHES)
         for idx, data in enumerate(items_to_seed):
             owner = users[data["owner_idx"]]
-            img_name = f"seed_{idx}.png"
-            _make_item_placeholder(upload_dir, img_name, category=data["category"], title=data["title"], attrs=data.get("attrs"))
-
             item = Item(
                 owner_id=owner.id,
                 category=data["category"],
@@ -869,7 +751,7 @@ def seed():
                 late_fee_per_day=data["late_fee_per_day"],
                 lat=owner.lat,
                 lng=owner.lng,
-                image=img_name,
+                image=_real_photo_name(data["title"]) or None,
                 purchase_price=data.get("purchase_price"),
             )
             item.set_attributes(data["attrs"])
@@ -882,8 +764,6 @@ def seed():
         for idx, data in enumerate(NEW_CLOTHES):
             if not Item.query.filter_by(title=data["title"]).first():
                 owner = users[data["owner_idx"]]
-                img_name = f"seed_clothes_{idx}.png"
-                _make_item_placeholder(upload_dir, img_name, category="clothes", title=data["title"], attrs=data.get("attrs"))
                 item = Item(
                     owner_id=owner.id,
                     category=data["category"],
@@ -894,7 +774,7 @@ def seed():
                     late_fee_per_day=data["late_fee_per_day"],
                     lat=owner.lat,
                     lng=owner.lng,
-                    image=img_name,
+                    image=_real_photo_name(data["title"]) or None,
                     purchase_price=data.get("purchase_price"),
                 )
                 item.set_attributes(data["attrs"])
@@ -904,8 +784,6 @@ def seed():
         for idx, data in enumerate(NEW_BOOKS):
             if not Item.query.filter_by(title=data["title"]).first():
                 owner = users[data["owner_idx"]]
-                img_name = f"seed_book_{idx}.png"
-                _make_item_placeholder(upload_dir, img_name, category="books", title=data["title"], attrs=data.get("attrs"))
                 item = Item(
                     owner_id=owner.id,
                     category=data["category"],
@@ -916,7 +794,7 @@ def seed():
                     late_fee_per_day=data["late_fee_per_day"],
                     lat=owner.lat,
                     lng=owner.lng,
-                    image=img_name,
+                    image=_real_photo_name(data["title"]) or None,
                     purchase_price=data.get("purchase_price"),
                 )
                 item.set_attributes(data["attrs"])
@@ -1289,10 +1167,12 @@ def seed():
 
         db.session.commit()
 
-    # Ensure generated 800x600 seed images exist for every seeded item
+    # Clear any legacy generated seed_<n>.png placeholder so the matching
+    # illustration shows; keep it only if a real demo photo exists.
     for it in Item.query.all():
-        if it.image:
-            _make_item_placeholder(upload_dir, it.image, category=it.category, title=it.title, attrs=it.get_attributes())
+        if _is_placeholder_name(it.image):
+            it.image = _real_photo_name(it.title) or None
+    db.session.commit()
 
 if __name__ == "__main__":
     application = create_app()

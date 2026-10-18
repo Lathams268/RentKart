@@ -114,21 +114,20 @@ class RentKartBrowseRowsTest(unittest.TestCase):
         self.assertIn("/shop/shravani", detail_html)
         self.assertIn("Shravani", detail_html)
 
-    def test_05_generated_seed_images_exist_for_every_seeded_item(self):
-        """5. generated seed images exist for every seeded item."""
+    def test_05_seeded_items_never_carry_legacy_placeholder_images(self):
+        """5. no seeded item keeps a legacy seed_<n>.png placeholder."""
         run_seed()
+        import re
         items = Item.query.all()
         self.assertGreaterEqual(len(items), 15)
-
-        upload_dir = self.app.config["UPLOAD_FOLDER"]
+        placeholder = re.compile(r"^seed(?:_[a-z]+)*_\d+\.png$", re.IGNORECASE)
         for it in items:
-            self.assertIsNotNone(it.image, f"Item {it.title} has no image set")
-            img_path = os.path.join(upload_dir, it.image)
-            self.assertTrue(os.path.exists(img_path), f"Image file {it.image} not found for {it.title}")
-
-            # Check 800x600 resolution
-            with Image.open(img_path) as im:
-                self.assertEqual(im.size, (800, 600), f"Image {it.image} has size {im.size}, expected (800, 600)")
+            if it.image:
+                base = os.path.basename(it.image.replace("\\", "/"))
+                self.assertIsNone(
+                    placeholder.match(base),
+                    f"{it.title} still uses generated placeholder {it.image}",
+                )
 
 
 if __name__ == "__main__":

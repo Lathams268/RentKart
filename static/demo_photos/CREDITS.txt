@@ -1,0 +1,12 @@
+# RentKart demo photo credits
+# ---------------------------
+# One line per photo file. Fields, comma separated:
+#   file name, source site, photographer, licence, link
+#
+# Lines that start with '#' and blank lines are ignored.
+# The photo report (python tools/photo_report.py) warns about any photo file
+# in static/demo_photos/ that has no matching line here.
+#
+# Example (uncomment and edit for each real photo you add):
+# stock/books/spiritual.jpg, Unsplash, Jane Doe, CC0, https://unsplash.com/photos/xxxx
+# bhagavad-gita-as-it-is.jpg, Pexels, John Smith, Pexels License, https://pexels.com/photo/yyyy
