@@ -33,6 +33,35 @@ PAYMENT_BADGE = {
 }
 
 
+# ---------- Address visibility (Stage 3) ----------
+_CAPTURED = ("paid", "paid_demo", "pay_on_pickup")
+
+
+def _can_view_address(booking, viewer_id) -> bool:
+    """Renter always sees their address. The owner sees it only after payment
+    and never when the booking is cancelled."""
+    if booking.renter_id == viewer_id:
+        return True
+    if booking.item.owner_id == viewer_id:
+        return (booking.payment_status in _CAPTURED
+                and booking.status != "cancelled")
+    return False
+
+
+def _address_lines(booking):
+    """Formatted shipping address lines from the booking snapshot (never live)."""
+    l1 = " ".join(x for x in (booking.ship_house_no, booking.ship_building) if x)
+    l2 = " ".join(x for x in (booking.ship_street,
+                             ("near " + booking.ship_landmark) if booking.ship_landmark else "") if x)
+    city_tail = ", ".join(x for x in (booking.ship_city, booking.ship_district) if x)
+    l3 = f"{city_tail}, {booking.ship_state} - {booking.ship_pincode}" if city_tail else ""
+    return {
+        "name_phone": " | ".join(x for x in (booking.ship_full_name, booking.ship_phone) if x),
+        "line1": l1, "line2": l2, "line3": l3,
+        "present": bool(booking.ship_full_name or booking.ship_city or booking.ship_street),
+    }
+
+
 def _refund(booking):
     """Refund the full amount actually captured. Cash-on-pickup / unpaid -> nothing.
 
@@ -345,6 +374,13 @@ def pay(booking_id):
         return _failure(method, reason)
 
     # ----- GET: render the payment page -----
+    per_day = round(booking.total_rent / booking.days) if booking.days else booking.total_rent
+    deposit_original = booking.item.deposit or 0
+    trust_discount = deposit_original > (booking.deposit or 0)
+    change_addr_url = url_for("bookings.checkout", item_id=booking.item_id,
+                              start=booking.start_date.isoformat(),
+                              end=booking.end_date.isoformat(),
+                              delivery=booking.delivery_method or "pickup")
     rzp_order_id = None
     if provider == "razorpay":
         from utils.gateway import create_order
@@ -359,7 +395,10 @@ def pay(booking_id):
     return render_template("pay.html", booking=booking, tiles=PAY_TILES, cash_ok=cash_ok,
                            provider=provider, mock=mock, last_failure=last_failure,
                            attempt_no=next_attempt, rzp_key_id=rzp_id,
-                           rzp_order_id=rzp_order_id)
+                           rzp_order_id=rzp_order_id,
+                           per_day=per_day, deposit_original=deposit_original,
+                           trust_discount=trust_discount, addr=_address_lines(booking),
+                           change_addr_url=change_addr_url)
 
 
 # ---------- Confirmation & Receipt (Stage 4) ----------
@@ -380,6 +419,8 @@ def _receipt_context(booking):
         return_policy=return_policy,
         late_fee=late_fee,
         damage_levels=current_app.config["DAMAGE_LEVELS"],
+        show_address=_can_view_address(booking, current_user.id),
+        addr=_address_lines(booking),
     )
 
 
@@ -445,7 +486,9 @@ def booking_detail(booking_id):
     if booking.renter_id != current_user.id and booking.item.owner_id != current_user.id:
         abort(403)
     renter_trust = get_user_trust(booking.renter)
-    return render_template("booking_detail.html", booking=booking, renter_trust=renter_trust)
+    return render_template("booking_detail.html", booking=booking, renter_trust=renter_trust,
+                           addr=_address_lines(booking),
+                           show_address=_can_view_address(booking, current_user.id))
 
 
 # ---------- Status transitions ----------

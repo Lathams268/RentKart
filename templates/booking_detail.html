@@ -53,6 +53,18 @@
     {% endif %}
   </div>
 
+  {% if show_address and addr.present %}
+  <div class="border-t pt-3 text-sm">
+    <span class="text-gray-500">{% if booking.delivery_method == 'delivery' %}Delivery address{% else %}Renter address{% endif %}:</span>
+    <div class="text-gray-700 leading-snug mt-1">
+      {{ addr.name_phone }}<br>
+      {% if addr.line1 %}{{ addr.line1 }}, {% endif %}
+      {% if addr.line2 %}{{ addr.line2 }}, {% endif %}
+      {% if addr.line3 %}{{ addr.line3 }}{% endif %}
+    </div>
+  </div>
+  {% endif %}
+
   <!-- Renter info & Trust Badge -->
   <div class="border-t pt-3 text-sm flex justify-between items-center">
     <div>

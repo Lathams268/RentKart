@@ -7,6 +7,7 @@ from datetime import date, datetime, timedelta
 from app import create_app
 from models import db, User, Item, Booking, Address, Payment
 from utils.booking import calculate_price, booking_snapshot, generate_order_id
+from utils.address import snapshot_fields
 
 
 class PaymentDetails(unittest.TestCase):
@@ -123,6 +124,73 @@ class PaymentDetails(unittest.TestCase):
         b = Booking.query.filter_by(renter_id=renter.id, status="pending_payment").first()
         self.assertEqual(b.delivery_charge, 46.0)      # 45.5 -> 46, whole rupees
         self.assertEqual(b.delivery_charge % 1, 0.0)
+
+    def _pending(self, renter, item, addr=None, delivery="pickup", charge=0.0):
+        s = date.today() + timedelta(days=2); e = s + timedelta(days=4)
+        p = calculate_price(item, s, e, user=renter, delivery_method=delivery)
+        snap = snapshot_fields(addr) if addr else {}
+        b = Booking(item_id=item.id, renter_id=renter.id, start_date=s, end_date=e,
+                    order_id=generate_order_id(),
+                    payment_expires_at=datetime.utcnow() + timedelta(minutes=15),
+                    payment_status="pending", address_id=(addr.id if addr else None),
+                    **booking_snapshot(p), **snap, status="pending_payment")
+        db.session.add(b); db.session.commit()
+        return b
+
+    def _pay(self, renter, b, method="upi"):
+        self._login(renter.phone)
+        self.client.post(f"/bookings/{b.id}/pay",
+                         data={"method": method, "outcome": "success"}, follow_redirects=True)
+
+    # ---- TEST 4: payment details card ----
+    def test_06_payment_page_shows_lines_and_address(self):
+        owner = self._mk("9000004051", "O"); renter = self._mk("9000004052", "R")
+        item = self._item(owner, delivery=True, charge=60.0)
+        a = self._addr(renter)
+        b = self._pending(renter, item, addr=a, delivery="delivery")
+        self._login(renter.phone)
+        body = self.client.get(f"/bookings/{b.id}/pay").data.decode("utf-8")
+        for token in ["Payment details", str(b.start_date), str(b.end_date),
+                      "Security deposit", a.street, a.city, a.state,
+                      "TOTAL AMOUNT PAYABLE", "No hidden charges"]:
+            self.assertIn(token, body)
+        self.assertIn("Change address", body)
+        total = b.total_rent + b.deposit + (b.delivery_charge or 0) + (b.platform_fee or 0)
+        self.assertAlmostEqual(b.total_payable, round(total, 2), places=2)
+
+    def test_07_html_in_address_is_escaped(self):
+        owner = self._mk("9000004061", "O"); renter = self._mk("9000004062", "R")
+        item = self._item(owner)
+        a = self._addr(renter)
+        a.street = "12 <i>Bait</i> Road"; db.session.commit()
+        b = self._pending(renter, item, addr=a)
+        self._login(renter.phone)
+        body = self.client.get(f"/bookings/{b.id}/pay").data.decode("utf-8")
+        self.assertIn("&lt;i&gt;Bait&lt;/i&gt;", body)
+        self.assertNotIn("<i>Bait</i>", body)
+
+    def test_08_third_user_cannot_view_pay(self):
+        owner = self._mk("9000004071", "O"); renter = self._mk("9000004072", "R")
+        other = self._mk("9000004073", "X")
+        item = self._item(owner); a = self._addr(renter)
+        b = self._pending(renter, item, addr=a)
+        self._login(other.phone)
+        self.assertEqual(self.client.get(f"/bookings/{b.id}/pay").status_code, 403)
+
+    def test_09_owner_sees_address_only_after_payment(self):
+        owner = self._mk("9000004081", "O"); renter = self._mk("9000004082", "R")
+        item = self._item(owner); a = self._addr(renter)
+        a.street = "Zebra Lane 99"; db.session.commit()
+        b = self._pending(renter, item, addr=a)
+        # Before payment: owner must NOT see the renter address.
+        self._login(owner.phone, "Owner")
+        body = self.client.get(f"/bookings/{b.id}").data.decode("utf-8")
+        self.assertNotIn("Zebra Lane 99", body)
+        # Pay as renter, then owner can see it.
+        self._pay(renter, b)
+        self._login(owner.phone, "Owner")
+        body2 = self.client.get(f"/bookings/{b.id}").data.decode("utf-8")
+        self.assertIn("Zebra Lane 99", body2)
 
 
 if __name__ == "__main__":

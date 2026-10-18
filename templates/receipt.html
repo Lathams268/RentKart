@@ -42,6 +42,14 @@
         <div class="text-gray-500 text-xs uppercase">Renter</div>
         <div class="font-bold">{{ booking.renter.name }}</div>
         <div>{{ booking.renter.village_or_city }}</div>
+        {% if show_address and addr.present %}
+          <div class="mt-1 text-xs leading-snug">
+            {{ addr.name_phone }}<br>
+            {% if addr.line1 %}{{ addr.line1 }}, {% endif %}
+            {% if addr.line2 %}{{ addr.line2 }}, {% endif %}
+            {% if addr.line3 %}{{ addr.line3 }}{% endif %}
+          </div>
+        {% endif %}
       </div>
       <div>
         <div class="text-gray-500 text-xs uppercase">Shop</div>

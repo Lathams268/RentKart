@@ -69,6 +69,19 @@
     {% endif %}
   </div>
 
+  <!-- Delivery / renter address (owner only sees it after payment) -->
+  {% if show_address and addr.present %}
+  <div class="card space-y-1 text-sm">
+    <h3 class="font-bold text-gray-800">{% if booking.delivery_method == 'delivery' %}Delivery address{% else %}Renter address{% endif %}</h3>
+    <div class="text-gray-700 leading-snug">
+      {{ addr.name_phone }}<br>
+      {% if addr.line1 %}{{ addr.line1 }}<br>{% endif %}
+      {% if addr.line2 %}{{ addr.line2 }}<br>{% endif %}
+      {% if addr.line3 %}{{ addr.line3 }}{% endif %}
+    </div>
+  </div>
+  {% endif %}
+
   <!-- Return instructions -->
   <div class="card bg-orange-50 border border-orange-200 text-sm space-y-2">
     <h3 class="font-bold text-accent">Return instructions</h3>
