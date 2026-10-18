@@ -1,0 +1,206 @@
+{% extends "base.html" %}
+{% import "_macros.html" as macros %}
+{% block title %}Cloth · RentKart{% endblock %}
+
+{% block content %}
+{# Pink accent (#E11D48) and soft pink (#FFF1F2) are used ONLY inside .clothx #}
+<style>
+  .clothx-wrap { width: 100vw; margin-left: calc(-50vw + 50%); }
+  .clothx-line-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .clothx-hidden { display: none !important; }
+</style>
+
+<div class="clothx-wrap clothx bg-[#FFF1F2] min-h-screen pb-10">
+  <div class="max-w-7xl mx-auto px-3 py-3">
+
+    {# ---------- Header row ---------- #}
+    <div class="flex items-center justify-between mb-3">
+      <a href="{{ url_for('main.browse') }}" aria-label="Back"
+         class="w-10 h-10 rounded-full bg-white border border-[#E11D48]/20 shadow-sm flex items-center justify-center text-[#E11D48] text-lg font-bold">&larr;</a>
+      <h1 class="text-2xl font-extrabold text-[#E11D48] tracking-tight">Cloth</h1>
+      <button onclick="window.location.reload()" aria-label="Refresh"
+              class="w-10 h-10 rounded-full bg-white border border-[#E11D48]/20 shadow-sm flex items-center justify-center text-[#E11D48] text-lg">&#8635;</button>
+    </div>
+
+    {# ---------- Tab row (Men, Women, Children) ---------- #}
+    <div class="grid grid-cols-3 gap-3 mb-3">
+      {% for ct in cloth_tabs %}
+        {% set tab_url = url_for('main.browse', **dict(request.args.to_dict(), category='clothes', tab=ct.key)) %}
+        {% set selected = (ct.key == tab) %}
+        <a href="{{ tab_url }}"
+           class="flex flex-col items-center justify-center gap-1 rounded-2xl py-3 px-2 transition
+                  {% if selected %}bg-[#FFF1F2] border-2 border-[#E11D48] shadow{% else %}bg-white border border-[#E11D48]/15 shadow-sm{% endif %}">
+          <span class="{% if not selected %}opacity-70{% endif %}">{{ tab_tile_svg(ct.key, 56, 56) | safe }}</span>
+          <span class="text-sm font-bold {% if selected %}text-[#E11D48]{% else %}text-gray-600{% endif %}">{{ ct.label }}</span>
+        </a>
+      {% endfor %}
+    </div>
+
+    {# ---------- Filters button + chips ---------- #}
+    <div class="flex items-center gap-2 flex-wrap mb-3">
+      <button onclick="document.getElementById('clothFilters').classList.toggle('hidden')"
+              class="inline-flex items-center gap-1.5 rounded-full bg-white border border-[#E11D48]/30 text-[#E11D48] px-4 py-1.5 text-sm font-bold shadow-sm">
+        &#9776; Filters
+      </button>
+      {% for c in active_filter_chips %}
+        <a href="{{ c.remove_url }}"
+           class="inline-flex items-center gap-1 rounded-full bg-white border border-[#E11D48]/30 px-3 py-1 text-xs font-semibold text-gray-700">
+          {{ c.label }} <span class="text-[#E11D48] font-bold">&times;</span>
+        </a>
+      {% endfor %}
+      {% if active_filter_chips %}
+        <a href="{{ clear_all_url }}" class="text-xs font-bold text-[#E11D48] underline">Clear filters</a>
+      {% endif %}
+    </div>
+
+    {# ---------- Filter drawer ---------- #}
+    <form id="clothFilters" method="get" action="{{ url_for('main.browse') }}" class="hidden bg-white rounded-2xl border border-[#E11D48]/20 shadow p-4 mb-4">
+      <input type="hidden" name="category" value="clothes">
+      <input type="hidden" name="tab" value="{{ tab }}">
+      {% if lat is not none %}<input type="hidden" name="lat" value="{{ lat }}">{% endif %}
+      {% if lng is not none %}<input type="hidden" name="lng" value="{{ lng }}">{% endif %}
+
+      <div class="grid grid-cols-2 gap-3">
+        <div class="col-span-2">
+          <label class="block text-xs font-bold text-gray-600 mb-1">Search</label>
+          <input name="q" value="{{ search }}" placeholder="Search clothes"
+                 class="w-full border rounded-xl px-3 py-2 text-sm">
+        </div>
+        {% for f in cat_select_fields %}
+          <div>
+            <label class="block text-xs font-bold text-gray-600 mb-1">{{ f.label }}</label>
+            <select name="attr_{{ f.name }}" class="w-full border rounded-xl px-3 py-2 text-sm bg-white">
+              <option value="">All</option>
+              {% for opt in f.options %}
+                <option value="{{ opt }}" {% if attr_filters.get(f.name) == opt %}selected{% endif %}>{{ opt }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        {% endfor %}
+        <div>
+          <label class="block text-xs font-bold text-gray-600 mb-1">Min price</label>
+          <input name="min_price" type="number" min="0" value="{{ min_price if min_price is not none else '' }}" class="w-full border rounded-xl px-3 py-2 text-sm">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-gray-600 mb-1">Max price</label>
+          <input name="max_price" type="number" min="0" value="{{ max_price if max_price is not none else '' }}" class="w-full border rounded-xl px-3 py-2 text-sm">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-gray-600 mb-1">Sort</label>
+          <select name="sort" class="w-full border rounded-xl px-3 py-2 text-sm bg-white">
+            <option value="nearest" {% if sort == 'nearest' %}selected{% endif %}>Nearest</option>
+            <option value="cheapest" {% if sort == 'cheapest' %}selected{% endif %}>Cheapest</option>
+            <option value="newest" {% if sort == 'newest' %}selected{% endif %}>Newest</option>
+          </select>
+        </div>
+      </div>
+      <div class="flex gap-2 mt-4">
+        <button type="submit" class="flex-1 rounded-xl bg-[#E11D48] text-white font-bold py-2 text-sm">Apply</button>
+        <a href="{{ clear_all_url }}" class="rounded-xl border border-[#E11D48]/40 text-[#E11D48] font-bold py-2 px-4 text-sm">Clear</a>
+      </div>
+    </form>
+
+    {# ---------- Product grid (ALWAYS many cards, never one large image) ---------- #}
+    {% if items %}
+    <div class="grid grid-cols-2 md:grid-cols-3 min-[1200px]:grid-cols-4 gap-3">
+      {% for item in items %}
+        {% set pic = item_picture(item) %}
+        {% set rating = rating_summary(item) %}
+        {% set is_off = (item.discount_percent or 0) > 0 %}
+        <a href="{{ url_for('items.item_detail', item_id=item.id) }}"
+           class="cloth-card bg-white rounded-[20px] border border-gray-100 shadow-sm overflow-hidden flex flex-col
+                  {% if loop.index > 12 %}clothx-hidden{% endif %}">
+          {# Photo area 4/5 with rating badge top-right #}
+          <div class="relative w-full" style="aspect-ratio: 4 / 5;">
+            {% if pic.src and pic.kind in ('photo', 'demo', 'stock') %}
+              <img src="{{ pic.src }}" alt="{{ item.title }}"
+                   class="absolute inset-0 w-full h-full object-cover">
+            {% else %}
+              <div class="absolute inset-0">{{ clothes_tinted_svg(item) | safe }}</div>
+            {% endif %}
+            {% if rating %}
+              <span class="absolute top-2 right-2 inline-flex items-center gap-1 rounded-full bg-black/60 text-white text-xs font-bold px-2 py-0.5">
+                <span style="color:#FBBF24;">&#9733;</span> {{ rating.avg }}
+              </span>
+            {% else %}
+              <span class="absolute top-2 right-2 rounded-full bg-black/60 text-white text-[11px] font-bold px-2 py-0.5">New</span>
+            {% endif %}
+          </div>
+
+          {# Card body #}
+          <div class="p-2.5 flex flex-col gap-1 flex-1">
+            <span class="text-[11px] text-gray-400 truncate">{{ item.owner.name if item.owner else '' }}</span>
+            <span class="text-sm font-semibold text-gray-800 clothx-line-2 leading-snug">{{ item.title }}</span>
+
+            <div class="mt-auto pt-1">
+              <div class="flex items-center gap-1.5">
+                <span class="text-[#E11D48] font-extrabold text-base">{{ effective_price(item) | inr }}</span>
+                <span class="text-[11px] text-gray-500">/{{ t('per day') }}</span>
+              </div>
+              <div class="border-t border-gray-100 my-1"></div>
+              {% if is_off %}
+                <div class="flex items-center gap-1.5 text-[11px]">
+                  <span class="text-green-600 font-bold">{{ item.discount_percent }}% OFF</span>
+                  <span class="text-gray-400 line-through">{{ item.price_per_day | inr }}</span>
+                </div>
+              {% endif %}
+            </div>
+
+            <div class="flex items-center justify-between mt-1">
+              {% if item.cloth_available %}
+                <span class="text-[11px] font-bold rounded-full px-2 py-0.5 bg-green-100 text-green-700">Available</span>
+              {% else %}
+                <span class="text-[11px] font-bold rounded-full px-2 py-0.5 bg-gray-200 text-gray-600">Rented out</span>
+              {% endif %}
+              {% if item.distance_km is not none %}
+                <span class="text-[11px] text-gray-400">{{ '%.1f'|format(item.distance_km) }} km</span>
+              {% endif %}
+            </div>
+          </div>
+        </a>
+      {% endfor %}
+    </div>
+
+    {% if items|length > 12 %}
+      <div class="flex justify-center mt-5">
+        <button id="clothLoadMore"
+                class="rounded-full bg-white border border-[#E11D48]/40 text-[#E11D48] font-bold px-6 py-2 text-sm shadow-sm">
+          Load more
+        </button>
+      </div>
+    {% endif %}
+
+    {% else %}
+      {# ---------- Empty state ---------- #}
+      <div class="bg-white rounded-[20px] border border-[#E11D48]/15 shadow-sm p-8 text-center">
+        <p class="text-gray-600 font-semibold mb-1">No clothes found here yet.</p>
+        <p class="text-sm text-gray-400 mb-4">Try clearing filters or check another tab.</p>
+        <a href="{{ clear_all_url }}"
+           class="inline-block rounded-full bg-[#E11D48] text-white font-bold px-5 py-2 text-sm mb-4">Clear filters</a>
+        <div class="flex justify-center gap-2 flex-wrap">
+          {% for ct in cloth_tabs %}
+            {% if ct.key != tab %}
+              <a href="{{ url_for('main.browse', category='clothes', tab=ct.key) }}"
+                 class="rounded-full border border-[#E11D48]/30 text-[#E11D48] text-sm font-bold px-4 py-1.5">{{ ct.label }}</a>
+            {% endif %}
+          {% endfor %}
+        </div>
+      </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  (function () {
+    var btn = document.getElementById('clothLoadMore');
+    if (!btn) return;
+    btn.addEventListener('click', function () {
+      var hidden = document.querySelectorAll('.cloth-card.clothx-hidden');
+      hidden.forEach(function (el) { el.classList.remove('clothx-hidden'); });
+      btn.style.display = 'none';
+    });
+  })();
+</script>
+{% endblock %}

@@ -120,9 +120,15 @@ def item_matches_brand(item, target_brand):
 
 
 @main_bp.route("/browse")
+@main_bp.route("/clothes")
 def browse():
-    """Browse items with filters, sorting, and distance badges."""
+    """Browse items with filters, sorting, and distance badges.
+
+    /browse?category=clothes and the /clothes alias render the dedicated
+    mobile clothes marketplace page (Men / Women / Children tabs + card grid).
+    """
     categories = current_app.config["CATEGORIES"]
+    is_clothes_path = request.path.startswith("/clothes")
 
     # --- Determine user location ---
     lat = request.args.get("lat", type=float)
@@ -172,6 +178,8 @@ def browse():
         search = ""
     else:
         search = raw_query
+    if is_clothes_path:
+        sel_category = "clothes"
 
     # Dedicated clothing section: boys / girls / all
     clothing_section = request.args.get("clothing_section", "").strip().lower()
@@ -182,8 +190,18 @@ def browse():
     if matched_genre and not sel_genre:
         sel_genre = matched_genre
 
-    # --- Base query: only available items ---
-    q = Item.query.filter_by(is_available=True)
+    # --- Clothes marketplace page (mobile: Men / Women / Children tabs + grid) ---
+    clothes_mode = (sel_category == "clothes" and view != "map")
+    cloth_tabs = current_app.config.get("CLOTH_TABS", [])
+    tab = (request.args.get("tab") or "women").strip().lower()
+    if tab not in [t["key"] for t in cloth_tabs]:
+        tab = "women"
+
+    # --- Base query: available items (clothes page also shows rented-out items) ---
+    if clothes_mode:
+        q = Item.query
+    else:
+        q = Item.query.filter_by(is_available=True)
 
     # --- Filter: category ---
     if sel_category and sel_category in categories:
@@ -465,6 +483,52 @@ def browse():
                 parent_val = attr_filters.get(parent_name)
                 f_copy["options"] = get_field_options(sel_category, field["name"], parent_val)
             cat_select_fields.append(f_copy)
+
+    # --- Render the dedicated clothes marketplace page ---
+    if clothes_mode:
+        from datetime import date as _date
+        from utils.booking import is_available as _is_available
+        from utils.filters import cloth_tab_filter as _cloth_tab_filter
+        today = _date.today()
+        tab_items = _cloth_tab_filter(items, tab)
+        for it in tab_items:
+            it.cloth_available = bool(it.is_available) and _is_available(it, today, today)
+        # Available items first inside the default sort (stable for cheapest/newest)
+        if sort not in ("cheapest", "newest"):
+            tab_items.sort(key=lambda i: not getattr(i, "cloth_available", True))
+
+        cloth_chips = []
+        req_args = dict(request.args)
+        if search:
+            cloth_chips.append({"key": "search", "label": search,
+                                "remove_url": build_remove_filter_url(req_args, "search")})
+        if min_price is not None:
+            cloth_chips.append({"key": "min_price", "label": f"Min ₹{int(min_price)}",
+                                "remove_url": build_remove_filter_url(req_args, "min_price")})
+        if max_price is not None:
+            cloth_chips.append({"key": "max_price", "label": f"Max ₹{int(max_price)}",
+                                "remove_url": build_remove_filter_url(req_args, "max_price")})
+        if sel_brand and sel_brand.lower() != "all":
+            cloth_chips.append({"key": "brand", "label": f"Brand: {sel_brand}",
+                                "remove_url": build_remove_filter_url(req_args, "brand")})
+        for fname, fval in attr_filters.items():
+            if fname == "brand" or not fval or str(fval).lower() == "all":
+                continue
+            cloth_chips.append({"key": f"attr_{fname}", "label": f"{fname.replace('_', ' ').title()}: {fval}",
+                                "remove_url": build_remove_filter_url(req_args, f"attr_{fname}")})
+
+        return render_template(
+            "clothes.html",
+            items=tab_items, tab=tab, cloth_tabs=cloth_tabs,
+            categories=categories, sel_category=sel_category,
+            cat_select_fields=cat_select_fields, attr_filters=attr_filters,
+            active_filter_chips=cloth_chips, search=search,
+            min_price=min_price, max_price=max_price, max_dist=max_dist,
+            sort=sort or "nearest", lat=lat, lng=lng,
+            sel_brand=sel_brand,
+            clear_all_url=url_for("main.browse", category="clothes", tab=tab),
+            age_groups=["0–2", "3–5", "6–8", "9–12", "13–17", "18+"],
+        )
 
     # Build map items list for map view (only items with valid lat/lng)
     map_items = []

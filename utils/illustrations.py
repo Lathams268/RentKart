@@ -437,6 +437,216 @@ DRAWERS = {
 }
 
 
+# ---------------------------------------------------------------------------
+# Clothes marketplace: colour-tinted flat garment drawings (4:5 aspect).
+# These are ORIGINAL, generated-in-code shapes only (no downloaded images).
+# Every silhouette is drawn with fill="currentColor" so the same shape can be
+# tinted with the item's colour attribute.
+# ---------------------------------------------------------------------------
+
+# garment colour name -> (soft background hex, garment ink hex)
+CLOTH_TINTS = {
+    "red":        ("#FEE2E2", "#B91C1C"),
+    "maroon":     ("#F6E7EC", "#7B1E3B"),
+    "pink":       ("#FCE7F3", "#DB2777"),
+    "orange":     ("#FFEDD5", "#EA580C"),
+    "yellow":     ("#FEF9C3", "#CA8A04"),
+    "green":      ("#DCFCE7", "#15803D"),
+    "blue":       ("#DBEAFE", "#1D4ED8"),
+    "navy":       ("#E0E7FF", "#1E3A8A"),
+    "purple":     ("#EDE9FE", "#6D28D9"),
+    "black":      ("#E5E7EB", "#111827"),
+    "white":      ("#F3F4F6", "#9CA3AF"),
+    "cream":      ("#FBF3E0", "#B98A3C"),
+    "gold":       ("#FEF3C7", "#B8860B"),
+    "silver":     ("#F1F5F9", "#94A3B8"),
+    "multicolor": ("#FCE7F3", "#DB2777"),
+    "other":      ("#F3F4F6", "#6B7280"),
+}
+DEFAULT_TINT = ("#FFF1F2", "#E11D48")
+
+
+def _cloth_tint(color):
+    key = re.sub(r"[^a-z]", "", str(color or "").lower())
+    for name, pair in CLOTH_TINTS.items():
+        if key.startswith(name[:4]):
+            return pair
+    return DEFAULT_TINT
+
+
+# --- flat garment silhouettes (drawn with currentColor) ---
+def _sh_shirt():
+    return ('<path d="M150 90 L200 70 L230 95 L260 70 L310 90 L340 150 L300 170 '
+            'L300 400 L160 400 L160 170 L120 150 Z" fill="currentColor"/>'
+            '<path d="M200 70 L230 95 L260 70 L245 130 L215 130 Z" fill="#ffffff" opacity="0.35"/>'
+            '<rect x="222" y="130" width="16" height="260" fill="#ffffff" opacity="0.25"/>')
+
+
+def _sh_tshirt():
+    return ('<path d="M150 95 L205 72 Q230 100 255 72 L310 95 L335 160 L295 175 L295 380 '
+            'L165 380 L165 175 L125 160 Z" fill="currentColor"/>'
+            '<path d="M205 72 Q230 108 255 72" fill="#ffffff" opacity="0.3"/>')
+
+
+def _sh_kurti():
+    return ('<path d="M165 90 L210 72 L250 72 L295 90 L320 150 L290 165 L290 410 '
+            'L170 410 L170 165 L140 150 Z" fill="currentColor"/>'
+            '<rect x="215" y="72" width="30" height="120" fill="#ffffff" opacity="0.3"/>'
+            '<path d="M180 300 L280 300" stroke="#ffffff" stroke-width="6" opacity="0.3"/>')
+
+
+def _sh_dress():
+    return ('<path d="M200 90 L260 90 L275 170 L320 400 L140 400 L185 170 Z" fill="currentColor"/>'
+            '<path d="M205 70 L230 95 L255 70" fill="none" stroke="currentColor" stroke-width="10"/>'
+            '<rect x="185" y="160" width="90" height="24" fill="#ffffff" opacity="0.3"/>')
+
+
+def _sh_saree():
+    return ('<path d="M170 100 Q230 70 290 100 L300 410 L160 410 Z" fill="currentColor"/>'
+            '<path d="M250 95 Q320 200 300 410 L260 410 Q275 210 225 120 Z" fill="#ffffff" opacity="0.28"/>'
+            '<path d="M160 400 L300 400" stroke="#ffffff" stroke-width="10" opacity="0.4"/>')
+
+
+def _sh_lehenga():
+    return ('<path d="M195 80 L265 80 L280 150 L215 150 Z" fill="currentColor"/>'
+            '<path d="M150 400 Q230 150 310 400 Z" fill="currentColor"/>'
+            '<path d="M150 400 Q230 160 310 400" fill="none" stroke="#ffffff" stroke-width="8" opacity="0.35"/>')
+
+
+def _sh_sharara():
+    return ('<path d="M185 150 L275 150 L300 400 L235 400 L230 250 L225 400 L160 400 Z" fill="currentColor"/>'
+            '<path d="M195 80 L265 80 L275 150 L185 150 Z" fill="currentColor" opacity="0.85"/>')
+
+
+def _sh_choli():
+    return ('<path d="M180 120 L280 120 L290 210 L170 210 Z" fill="currentColor"/>'
+            '<path d="M150 400 Q230 230 310 400 Z" fill="currentColor" opacity="0.8"/>'
+            '<path d="M200 95 L230 120 L260 95" fill="none" stroke="currentColor" stroke-width="10"/>')
+
+
+def _sh_cord():
+    return ('<path d="M175 90 L285 90 L300 180 L160 180 Z" fill="currentColor"/>'
+            '<path d="M170 200 L290 200 L300 410 L240 410 L232 280 L224 410 L160 410 Z" fill="currentColor" opacity="0.85"/>')
+
+
+def _sh_jacket():
+    return ('<path d="M150 95 L210 75 L230 110 L250 75 L310 95 L335 170 L300 185 L300 400 '
+            'L160 400 L160 185 L125 170 Z" fill="currentColor"/>'
+            '<path d="M230 110 L230 400" stroke="#ffffff" stroke-width="8" opacity="0.4"/>'
+            '<path d="M210 75 L230 110 L200 140 Z" fill="#ffffff" opacity="0.3"/>'
+            '<path d="M250 75 L230 110 L260 140 Z" fill="#ffffff" opacity="0.3"/>')
+
+
+def _sh_sherwani():
+    return ('<path d="M160 95 L210 75 L230 100 L250 75 L300 95 L320 160 L300 175 L300 420 '
+            'L160 420 L160 175 L140 160 Z" fill="currentColor"/>'
+            '<path d="M230 100 L230 420" stroke="#ffffff" stroke-width="6" opacity="0.35"/>'
+            '<circle cx="230" cy="200" r="6" fill="#ffffff" opacity="0.6"/>'
+            '<circle cx="230" cy="260" r="6" fill="#ffffff" opacity="0.6"/>'
+            '<circle cx="230" cy="320" r="6" fill="#ffffff" opacity="0.6"/>')
+
+
+def _sh_suit_tie():
+    return ('<path d="M150 95 L210 75 L250 75 L310 95 L335 170 L300 185 L300 410 L160 410 '
+            'L160 185 L125 170 Z" fill="currentColor"/>'
+            '<path d="M210 75 L230 120 L200 150 Z" fill="#ffffff" opacity="0.5"/>'
+            '<path d="M250 75 L230 120 L260 150 Z" fill="#ffffff" opacity="0.5"/>'
+            '<path d="M230 120 L240 160 L230 300 L220 160 Z" fill="#E11D48"/>')
+
+
+def _sh_frock():
+    return ('<circle cx="230" cy="110" r="34" fill="currentColor" opacity="0.5"/>'
+            '<path d="M200 145 L260 145 L320 400 L140 400 Z" fill="currentColor"/>'
+            '<rect x="188" y="145" width="84" height="26" fill="#ffffff" opacity="0.4"/>')
+
+
+GARMENT_SHAPES = {
+    "shirt": _sh_shirt, "tshirt": _sh_tshirt, "kurti": _sh_kurti,
+    "dress": _sh_dress, "saree": _sh_saree, "lehenga": _sh_lehenga,
+    "sharara": _sh_sharara, "choli": _sh_choli, "cord": _sh_cord,
+    "jacket": _sh_jacket, "sherwani": _sh_sherwani, "suit": _sh_suit_tie,
+    "frock": _sh_frock,
+}
+
+
+def garment_shape(clothing_type, style="", gender="") -> str:
+    """Map an item's clothing_type / style / gender to a garment shape key."""
+    ct = re.sub(r"[^a-z]", "", str(clothing_type or "").lower())
+    st = _norm_lower(style)
+    g = _norm_lower(gender)
+    if "tshirt" in ct or ct in ("tee", "ttee"):
+        return "tshirt"
+    if "kurta" in ct and "set" in ct and (g in ("boys", "kids") or st == "kids"):
+        return "kurti"
+    if "kurta" in ct or "pajama" in ct or "ethnic" in ct or "dhoti" in ct:
+        return "sherwani"
+    if "sherwani" in ct:
+        return "sherwani"
+    if "blazer" in ct or "suit" in ct or "tuxedo" in ct:
+        return "suit"
+    if "jacket" in ct or "nehru" in ct or "shrug" in ct:
+        return "jacket"
+    if "shirt" in ct or ct in ("top", "kurtop"):
+        return "shirt"
+    if "co ord" in ct or "co-ord" in str(clothing_type or "").lower() or "ord" in ct or "jumpsuit" in ct:
+        return "cord"
+    if "sharara" in ct or "salwar" in ct or "palazzo" in ct:
+        return "sharara"
+    if "choli" in ct or "pavadai" in ct:
+        return "choli"
+    if "saree" in ct or "sari" in ct:
+        return "saree"
+    if "lehenga" in ct or "langa" in ct:
+        return "lehenga"
+    if "anarkali" in ct or "gown" in ct or "dress" in ct or "cocktail" in ct:
+        return "dress"
+    if "frock" in ct or st == "kids":
+        return "frock"
+    if "kurti" in ct:
+        return "kurti"
+    return "dress"
+
+
+def _norm_lower(s) -> str:
+    return re.sub(r"[^a-z]", "", str(s or "").lower())
+
+
+def clothes_tinted_svg(item, width=200, height=250) -> str:
+    """Return an inline, colour-tinted garment SVG string for a clothes item.
+
+    Uses only the generated shapes above (never a downloaded image). The
+    garment is drawn in the item's colour on a soft tinted 4:5 background.
+    """
+    attrs = item.get_attributes() if hasattr(item, "get_attributes") else {}
+    bg, fg = _cloth_tint(attrs.get("color"))
+    shape = garment_shape(attrs.get("clothing_type"), attrs.get("style"), attrs.get("gender"))
+    body = GARMENT_SHAPES[shape]()
+    return (
+        f'<svg viewBox="0 0 460 500" width="{width}" height="{height}" '
+        f'xmlns="http://www.w3.org/2000/svg" role="img" aria-label="{shape}" '
+        f'style="width:100%;height:100%;display:block">'
+        f'<rect width="460" height="500" fill="{bg}"/>'
+        f'<g transform="translate(0,0)" style="color:{fg}">{body}</g>'
+        f'</svg>'
+    )
+
+
+TAB_TILE_SHAPES = {"men": "suit", "women": "dress", "children": "frock"}
+
+
+def tab_tile_svg(tab_key, width=72, height=72) -> str:
+    """Return a clean, original garment drawing for a clothes tab tile."""
+    shape = TAB_TILE_SHAPES.get(tab_key, "dress")
+    body = GARMENT_SHAPES[shape]()
+    return (
+        f'<svg viewBox="0 0 460 500" width="{width}" height="{height}" '
+        f'xmlns="http://www.w3.org/2000/svg" aria-hidden="true" '
+        f'style="width:{width}px;height:{height}px;display:block">'
+        f'<g style="color:#E11D48">{body}</g>'
+        f'</svg>'
+    )
+
+
 def write_illustration(key: str) -> str:
     os.makedirs(ILLUSTRATION_DIR, exist_ok=True)
     cat = KEY_CATEGORY.get(key, "clothes")

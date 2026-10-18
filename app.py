@@ -53,7 +53,9 @@ def create_app(test_config=None):
     from translations import t, SUPPORTED_LANGUAGES
     from utils.trending import get_book_genre_info, is_book_trending
     from utils.logo import shop_logo_url, shop_initials, item_image_static_path
-    from utils.illustrations import item_picture, ensure_illustrations
+    from utils.illustrations import (
+        item_picture, ensure_illustrations, clothes_tinted_svg, tab_tile_svg,
+    )
     from utils.booking import effective_price
     from utils.filters import rating_summary
     from flask import url_for
@@ -76,6 +78,8 @@ def create_app(test_config=None):
     app.jinja_env.globals["item_picture"] = item_picture
     app.jinja_env.globals["effective_price"] = effective_price
     app.jinja_env.globals["rating_summary"] = rating_summary
+    app.jinja_env.globals["clothes_tinted_svg"] = clothes_tinted_svg
+    app.jinja_env.globals["tab_tile_svg"] = tab_tile_svg
 
     @app.context_processor
     def inject_global_data():
