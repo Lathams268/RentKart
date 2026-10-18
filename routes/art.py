@@ -13,6 +13,7 @@ import hashlib
 from flask import Blueprint, make_response, request
 
 from models import Item
+from utils.art_covers import make_cover_svg
 from utils.art_clothes import make_clothes_art
 from utils.art_events import make_event_art
 from utils.art_misc import make_misc_art
@@ -84,4 +85,19 @@ def item_art(item_id):
                       or attrs.get("item_type") or attrs.get("tool_type") or "")
         svg = make_misc_art(category=cat, type_value=type_value,
                             subcat_key=subcat_key, slug=slug)
+    return _svg_response(svg)
+
+
+@art_bp.route("/cover/<int:item_id>.svg")
+def cover_art(item_id):
+    """Generated book cover - cached, never stored as one file per book."""
+    item = Item.query.get_or_404(item_id)
+    attrs = item.get_attributes()
+    svg = make_cover_svg(
+        title=item.title or "",
+        author=attrs.get("author", ""),
+        genre=attrs.get("genre", ""),
+        language=attrs.get("language", ""),
+        slug=item_slug(item),
+    )
     return _svg_response(svg)
