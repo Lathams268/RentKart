@@ -3,7 +3,7 @@ import os, uuid
 from datetime import date, datetime
 from flask import (
     Blueprint, render_template, request, redirect, url_for, flash,
-    current_app, abort, jsonify,
+    current_app, abort, jsonify, make_response,
 )
 from flask_login import login_required, current_user
 from models import db, Item, Booking, ReturnRecord, Review, Payment, Address
@@ -381,6 +381,15 @@ def pay(booking_id):
                               start=booking.start_date.isoformat(),
                               end=booking.end_date.isoformat(),
                               delivery=booking.delivery_method or "pickup")
+    # UPI QR (Stage 4): real id from config, otherwise a clearly fake demo id.
+    real_upi = current_app.config.get("UPI_ID", "")
+    upi_show = real_upi or "demo@rentkart"
+    upi_payee = current_app.config.get("UPI_PAYEE_NAME", "RentKart")
+    from utils.upi import build_upi_link
+    upi_link = build_upi_link(upi_show, upi_payee, booking.total_payable,
+                              booking.order_id or f"#{booking.id}")
+    qr_url = url_for("bookings.upi_qr", booking_id=booking.id)
+    upi_demo = (not real_upi) or provider == "mock"
     rzp_order_id = None
     if provider == "razorpay":
         from utils.gateway import create_order
@@ -398,7 +407,37 @@ def pay(booking_id):
                            rzp_order_id=rzp_order_id,
                            per_day=per_day, deposit_original=deposit_original,
                            trust_discount=trust_discount, addr=_address_lines(booking),
-                           change_addr_url=change_addr_url)
+                           change_addr_url=change_addr_url,
+                           upi_show=upi_show, upi_link=upi_link, qr_url=qr_url,
+                           upi_demo=upi_demo, amount_str=f"{booking.total_payable:.2f}")
+
+
+# ---------- UPI QR image (Stage 4) ----------
+@bookings_bp.route("/bookings/<int:booking_id>/upi-qr.png")
+@login_required
+def upi_qr(booking_id):
+    """Render the UPI QR PNG for the renter while the booking is pending payment.
+
+    Read-only: requesting the QR NEVER marks the payment as paid.
+    """
+    booking = Booking.query.get_or_404(booking_id)
+    if booking.renter_id != current_user.id:
+        abort(403)
+    if booking.status != "pending_payment":
+        abort(404)
+    upi_id = current_app.config.get("UPI_ID", "") or "demo@rentkart"
+    payee = current_app.config.get("UPI_PAYEE_NAME", "RentKart")
+    from utils.upi import build_upi_link
+    link = build_upi_link(upi_id, payee, booking.total_payable,
+                          booking.order_id or f"#{booking.id}")
+    import io
+    import qrcode
+    buf = io.BytesIO()
+    qrcode.make(link).save(buf, format="PNG")
+    resp = make_response(buf.getvalue(), 200)
+    resp.headers["Content-Type"] = "image/png"
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
 
 
 # ---------- Confirmation & Receipt (Stage 4) ----------
