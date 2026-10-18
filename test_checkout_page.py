@@ -5,7 +5,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 import unittest, tempfile, shutil
 from datetime import date, timedelta
 from app import create_app
-from models import db, User, Item, Booking
+from models import db, User, Item, Booking, Address
 from utils.booking import calculate_price
 
 
@@ -53,6 +53,14 @@ class CheckoutPage(unittest.TestCase):
         s = date.today() + timedelta(days=2)
         return s, s + timedelta(days=4)
 
+    def _addr(self, user):
+        """Stage 2: checkout now requires a saved address, so create one."""
+        a = Address(user_id=user.id, label="Home", full_name=user.name, phone=user.phone,
+                    house_no="1", street="Street", city="City", state="Karnataka",
+                    pincode="560001", is_default=True)
+        db.session.add(a); db.session.commit()
+        return a
+
     def test_01_summary_shows_all_lines_and_total(self):
         owner = self._mk("9000001001", "Owner")
         renter = self._mk("9000001002", "Renter")
@@ -92,11 +100,12 @@ class CheckoutPage(unittest.TestCase):
         renter = self._mk("9000001032", "Renter")
         item = self._item(owner, price=150.0, deposit=300.0)
         self._login(renter.phone)
+        addr = self._addr(renter)
         s, e = self._dates()
         p = calculate_price(item, s, e, user=renter, delivery_method="pickup")
         resp = self.client.post(f"/items/{item.id}/checkout", data={
             "start_date": s.isoformat(), "end_date": e.isoformat(),
-            "delivery": "pickup", "agree": "1",
+            "delivery": "pickup", "agree": "1", "address_id": addr.id,
             "total_payable": "1", "deposit": "1", "platform_fee": "0",
         }, follow_redirects=True)
         self.assertEqual(resp.status_code, 200)
@@ -110,9 +119,10 @@ class CheckoutPage(unittest.TestCase):
         renter = self._mk("9000001042", "Renter")
         item = self._item(owner)
         self._login(renter.phone)
+        addr = self._addr(renter)
         s, e = self._dates()
         data = {"start_date": s.isoformat(), "end_date": e.isoformat(),
-                "delivery": "pickup", "agree": "1"}
+                "delivery": "pickup", "agree": "1", "address_id": addr.id}
         self.client.post(f"/items/{item.id}/checkout", data=data, follow_redirects=True)
         self.client.post(f"/items/{item.id}/checkout", data=data, follow_redirects=True)
         pending = Booking.query.filter_by(renter_id=renter.id, item_id=item.id,

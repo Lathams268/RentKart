@@ -3,9 +3,16 @@
 All money is calculated here (server-side only) using Decimal, rounded half-up.
 """
 from datetime import date, timedelta
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 
 from utils.money import q2
+
+
+def _whole(value) -> Decimal:
+    """Round half-up to a whole rupee (delivery charge / late fee per day)."""
+    return Decimal(str(value if value is not None else 0)).quantize(
+        Decimal("1"), rounding="ROUND_HALF_UP"
+    )
 
 
 def _cfg(key, default=None):
@@ -50,12 +57,12 @@ def calculate_price(item, start: date, end: date, user=None,
     deposit = q2(deposit_original * multiplier)
     trust_discount = q2(deposit_original - deposit)
 
-    # Delivery charge: 0 for pickup; only if the item offers delivery
+    # Delivery charge: 0 for pickup; only if the item offers delivery (whole rupees)
     if dm == "delivery" and getattr(item, "delivery_available", False):
-        delivery_charge = q2(item.delivery_charge or 0)
+        delivery_charge = _whole(item.delivery_charge or 0)
     else:
         dm = "pickup"
-        delivery_charge = q2(0)
+        delivery_charge = Decimal("0")
 
     # Platform fee charged to the renter (% of rent, clamped between min and max)
     percent = Decimal(str(_cfg("RENTER_FEE_PERCENT", 0) or 0))
@@ -73,7 +80,7 @@ def calculate_price(item, start: date, end: date, user=None,
 
     # Transparency only – NOT added to the total
     possible_later_charges = []
-    late_fee = q2(getattr(item, "late_fee_per_day", 0) or 0)
+    late_fee = _whole(getattr(item, "late_fee_per_day", 0) or 0)
     if late_fee > 0:
         possible_later_charges.append({
             "type": "late_fee", "label": "Late fee per day",

@@ -65,6 +65,8 @@ def add_item():
             delivery_charge = float(delivery_charge_raw)
         except ValueError:
             delivery_charge = 0.0
+        # Whole-rupee rounding on save (delivery charge + late fee per day)
+        delivery_charge = float(round(delivery_charge))
 
         purchase_price = None
         if purchase_price_raw:
@@ -118,7 +120,7 @@ def add_item():
             description=description,
             price_per_day=price_per_day,
             deposit=float(deposit or 0),
-            late_fee_per_day=float(late_fee or 0),
+            late_fee_per_day=float(round(float(late_fee or 0))),
             lat=lat if lat else current_user.lat,
             lng=lng if lng else current_user.lng,
             image=image_filename,

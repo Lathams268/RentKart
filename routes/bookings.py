@@ -6,11 +6,12 @@ from flask import (
     current_app, abort, jsonify,
 )
 from flask_login import login_required, current_user
-from models import db, Item, Booking, ReturnRecord, Review, Payment
+from models import db, Item, Booking, ReturnRecord, Review, Payment, Address
 from utils.booking import (
     calculate_price, booking_snapshot, is_available,
     generate_order_id, payment_expiry,
 )
+from utils.address import snapshot_fields
 from utils.trust import get_user_trust
 from utils.settlement import calculate_settlement
 from utils.money import inr
@@ -139,9 +140,16 @@ def checkout(item_id):
         return redirect(url_for("items.item_detail", item_id=item.id))
 
     pricing = calculate_price(item, start, end, user=current_user, delivery_method=dm)
+    addrs = Address.query.filter_by(user_id=current_user.id).all()
+    default_addr = next((a for a in addrs if a.is_default), (addrs[0] if addrs else None))
+    checkout_next = url_for("bookings.checkout", item_id=item.id,
+                            start=start.isoformat(), end=end.isoformat(), delivery=dm)
     return render_template(
         "checkout.html", item=item, pricing=pricing, start=start, end=end,
         delivery_method=dm, today=date.today().isoformat(),
+        addresses=addrs, selected_addr=default_addr,
+        states=current_app.config["INDIAN_STATES"], labels=Address.LABELS,
+        checkout_next=checkout_next, addr_errors={}, addr_form={},
     )
 
 
@@ -180,16 +188,32 @@ def checkout_submit(item_id):
         flash("Item is not available for the selected dates.", "error")
         return redirect(url_for("items.item_detail", item_id=item.id))
 
+    # An address is required and must belong to this user (server-side check).
+    addr_id = request.form.get("address_id", type=int)
+    addr = Address.query.get(addr_id) if addr_id else None
+    if not addr or addr.user_id != current_user.id:
+        flash("Please choose a valid delivery address to continue.", "error")
+        return redirect(url_for("bookings.checkout", item_id=item.id,
+                                start=start.isoformat(), end=end.isoformat(), delivery=dm))
+
+    # Amounts are always recalculated here; any total sent by the browser is ignored.
+    pricing = calculate_price(item, start, end, user=current_user, delivery_method=dm)
+    snap = snapshot_fields(addr)
+
     # Reuse an existing pending booking for the same user/item/dates (no duplicates).
     existing = Booking.query.filter_by(
         item_id=item.id, renter_id=current_user.id,
         start_date=start, end_date=end, status="pending_payment",
     ).first()
     if existing:
+        # "Change address" keeps the dates but updates the snapshot to the new address.
+        if existing.address_id != addr.id:
+            existing.address_id = addr.id
+            for key, val in snap.items():
+                setattr(existing, key, val)
+            db.session.commit()
         return redirect(url_for("bookings.pay", booking_id=existing.id))
 
-    # Amounts are always recalculated here; any total sent by the browser is ignored.
-    pricing = calculate_price(item, start, end, user=current_user, delivery_method=dm)
     from utils.plans import commission_for
     booking = Booking(
         item_id=item.id,
@@ -200,7 +224,9 @@ def checkout_submit(item_id):
         order_id=generate_order_id(),
         payment_expires_at=payment_expiry(),
         payment_status="pending",
+        address_id=addr.id,
         **booking_snapshot(pricing),
+        **snap,
         status="pending_payment",
     )
     db.session.add(booking)
