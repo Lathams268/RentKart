@@ -737,6 +737,11 @@ def _stock_photo(category: str, subcat_key: str = "") -> str:
 # ---------------------------------------------------------------------------
 ART_ROUTES = {
     "clothes": "/art/clothes/{id}.svg",
+    "farm_tools": "/art/item/{id}.svg",
+    "event_items": "/art/item/{id}.svg",
+    "electronics": "/art/item/{id}.svg",
+    "security": "/art/item/{id}.svg",
+    "furniture": "/art/item/{id}.svg",
 }
 
 
