@@ -730,6 +730,24 @@ def _stock_photo(category: str, subcat_key: str = "") -> str:
     return ""
 
 
+# ---------------------------------------------------------------------------
+# Generated ART (routes/art.py) - cached per-item SVG routes that replace the
+# old flat drawings in the rendered picture. kind/path keep the drawing as a
+# stable underlying fallback; only the served src/url becomes the art.
+# ---------------------------------------------------------------------------
+ART_ROUTES = {
+    "clothes": "/art/clothes/{id}.svg",
+}
+
+
+def art_route_for(category, item_id):
+    """Cached art route for this item, or '' when the category has no art."""
+    tmpl = ART_ROUTES.get(category)
+    if not tmpl or not item_id:
+        return ""
+    return tmpl.format(id=item_id)
+
+
 def allowed_stock_pictures(category=None, attrs=None) -> list:
     """Allowed gallery files from illustrations + demo_photos/stock/<category>/."""
     ensure_illustrations()
@@ -827,6 +845,12 @@ def item_picture(item) -> dict:
                 kind, rel, fit = "initials", "", "cover"
 
     src = _static_url(rel) if rel else ""
+    # ART: only when no real photo (uploaded/demo/stock) was found does the
+    # generated art route replace the flat drawing in the served src/url.
+    if kind in ("illustration", "category", "initials"):
+        art_src = art_route_for(category, getattr(item, "id", None))
+        if art_src:
+            src = art_src
     initials = ""
     if kind == "initials":
         owner = getattr(item, "owner", None)

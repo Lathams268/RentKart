@@ -41,6 +41,7 @@ def create_app(test_config=None):
     from routes.addresses import addresses_bp
     from routes.trustshield import ts_bp
     from routes.bulk import bulk_bp
+    from routes.art import art_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(items_bp)
@@ -53,6 +54,7 @@ def create_app(test_config=None):
     app.register_blueprint(addresses_bp)
     app.register_blueprint(ts_bp)
     app.register_blueprint(bulk_bp)
+    app.register_blueprint(art_bp)
 
     from translations import t, SUPPORTED_LANGUAGES
     from utils.trending import get_book_genre_info, is_book_trending
