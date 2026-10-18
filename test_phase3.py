@@ -149,11 +149,15 @@ class RentKartPhase3(unittest.TestCase):
         db.session.refresh(b1)
         self.assertEqual(b1.status, "approved")
 
-        # Owner attempts to approve overlapping request 2 -> should be rejected
+        # Owner attempts to approve overlapping request 2 -> cannot be approved.
+        # Stage 4: a failed approval now rejects the booking and runs the refund
+        # flow, so b2 no longer stays 'requested' (this assertion was updated to
+        # match the new required behaviour; no money was captured here so nothing
+        # is actually refunded).
         resp2 = self.client.post(f"/bookings/{b2.id}/approve", follow_redirects=True)
         self.assertIn(b"overlaps these dates", resp2.data)
         db.session.refresh(b2)
-        self.assertEqual(b2.status, "requested")
+        self.assertEqual(b2.status, "rejected")
 
     # --- 4. handover changes status to picked_up ---
     def test_04_handover_changes_status_to_picked_up(self):

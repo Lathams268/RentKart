@@ -13,8 +13,40 @@ from utils.booking import (
 )
 from utils.trust import get_user_trust
 from utils.settlement import calculate_settlement
+from utils.money import inr
 
 bookings_bp = Blueprint("bookings", __name__)
+
+# Display labels (Stage 4): payment method + booking payment status badge.
+METHOD_LABELS = {
+    "upi": "UPI", "gpay": "Google Pay", "phonepe": "PhonePe",
+    "debit_card": "Debit Card", "credit_card": "Credit Card",
+    "cash": "Cash on pickup",
+}
+PAYMENT_BADGE = {
+    "paid":        ("Paid", "bg-green-100 text-green-800"),
+    "paid_demo":   ("Paid", "bg-green-100 text-green-800"),
+    "pay_on_pickup": ("Pay on pickup", "bg-blue-100 text-blue-800"),
+    "refunded":    ("Refunded", "bg-gray-200 text-gray-700"),
+    "pending":     ("Pending", "bg-yellow-100 text-yellow-800"),
+}
+
+
+def _refund(booking):
+    """Refund the full amount actually captured. Cash-on-pickup / unpaid -> nothing.
+
+    Sets the paid Payment row to 'refunded' and the booking payment_status to
+    'refunded'. The caller commits. Returns a human-readable message to flash.
+    """
+    if booking.payment_status == "pay_on_pickup":
+        return "Cash on pickup - nothing was charged, so nothing to refund."
+    paid = Payment.query.filter_by(booking_id=booking.id, status="paid").first()
+    if not paid:
+        return "No payment was captured, so nothing to refund."
+    amount = float(paid.amount)
+    paid.status = "refunded"
+    booking.payment_status = "refunded"
+    return f"Refund of {inr(amount)} initiated to the original payment method."
 
 ALLOWED_IMG = {"png", "jpg", "jpeg"}
 
@@ -271,14 +303,46 @@ def pay(booking_id):
                            attempt_no=next_attempt)
 
 
-# ---------- Confirmation stub (fleshed out in Stage 4) ----------
+# ---------- Confirmation & Receipt (Stage 4) ----------
+def _receipt_context(booking):
+    """Shared display context for confirmation + receipt. Amounts come ONLY from
+    the booking snapshot, never recalculated here."""
+    late_fee = booking.item.late_fee_per_day or 0
+    return_time = current_app.config.get("RETURN_BY_TIME", "6:00 PM")
+    policy_tpl = current_app.config.get(
+        "RETURN_POLICY_TEXT",
+        "Return by {time}. Late fee {late_fee} per day.")
+    return_policy = policy_tpl.format(time=return_time, late_fee=inr(late_fee))
+    return dict(
+        method_label=METHOD_LABELS.get(booking.payment_method, booking.payment_method or "\u2014"),
+        badge=PAYMENT_BADGE.get(booking.payment_status,
+                                (booking.payment_status, "bg-gray-100 text-gray-600")),
+        return_time=return_time,
+        return_policy=return_policy,
+        late_fee=late_fee,
+        damage_levels=current_app.config["DAMAGE_LEVELS"],
+    )
+
+
 @bookings_bp.route("/bookings/<int:booking_id>/confirmation")
 @login_required
 def confirmation(booking_id):
     booking = Booking.query.get_or_404(booking_id)
     if booking.renter_id != current_user.id and booking.item.owner_id != current_user.id:
         abort(403)
-    return render_template("booking_detail.html", booking=booking, renter_trust=get_user_trust(booking.renter))
+    ctx = _receipt_context(booking)
+    return render_template("confirmation.html", booking=booking,
+                           renter_trust=get_user_trust(booking.renter), **ctx)
+
+
+@bookings_bp.route("/bookings/<int:booking_id>/receipt")
+@login_required
+def receipt(booking_id):
+    booking = Booking.query.get_or_404(booking_id)
+    if booking.renter_id != current_user.id and booking.item.owner_id != current_user.id:
+        abort(403)
+    ctx = _receipt_context(booking)
+    return render_template("receipt.html", booking=booking, today=date.today(), **ctx)
 
 
 # ---------- Payment ----------
@@ -336,9 +400,11 @@ def cancel(booking_id):
     if booking.status not in ("pending_payment", "requested", "approved"):
         flash("Cannot cancel at this stage.", "error")
         return redirect(url_for("bookings.booking_detail", booking_id=booking.id))
+    was_captured = booking.payment_status in ("paid", "paid_demo", "pay_on_pickup")
     booking.status = "cancelled"
+    refund_msg = _refund(booking) if was_captured else None
     db.session.commit()
-    flash("Booking cancelled.", "success")
+    flash("Booking cancelled." + (f" {refund_msg}" if refund_msg else ""), "success")
     return redirect(url_for("bookings.booking_detail", booking_id=booking.id))
 
 
@@ -362,7 +428,11 @@ def approve(booking_id):
         Booking.end_date >= booking.start_date,
     ).first()
     if overlap:
-        flash("Another booking overlaps these dates. Cannot approve.", "error")
+        # Approval fails because the dates are no longer free: refund the captured payment.
+        booking.status = "rejected"
+        refund_msg = _refund(booking)
+        db.session.commit()
+        flash(f"Another booking overlaps these dates. Cannot approve. {refund_msg}", "error")
         return redirect(url_for("bookings.booking_detail", booking_id=booking.id))
 
     booking.status = "approved"
@@ -382,8 +452,9 @@ def reject(booking_id):
         flash("Can only reject a requested booking.", "error")
         return redirect(url_for("bookings.booking_detail", booking_id=booking.id))
     booking.status = "rejected"
+    refund_msg = _refund(booking)
     db.session.commit()
-    flash("Booking rejected.", "success")
+    flash(f"Booking rejected. {refund_msg}", "success")
     return redirect(url_for("bookings.booking_detail", booking_id=booking.id))
 
 

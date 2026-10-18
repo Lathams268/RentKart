@@ -3,6 +3,7 @@
 
 {% block content %}
 {% set status_colors = {
+  'pending_payment': 'bg-orange-100 text-orange-800',
   'requested': 'bg-yellow-100 text-yellow-800',
   'approved': 'bg-green-100 text-green-800',
   'picked_up': 'bg-blue-100 text-blue-800',
@@ -18,6 +19,11 @@
       {{ booking.status | upper }}
     </span>
   </div>
+
+  {% if booking.order_id %}
+    <div class="text-sm flex justify-between"><span class="text-gray-500">Order ID</span>
+      <span class="font-mono font-bold">{{ booking.order_id }}</span></div>
+  {% endif %}
 
   <!-- Item info -->
   <div class="border-t pt-3 text-sm space-y-1">
@@ -42,6 +48,9 @@
     <div class="flex justify-between"><span class="text-gray-500">Payment</span>
       <span>{{ booking.payment_method or '—' }} · {{ booking.payment_status }}</span>
     </div>
+    {% if booking.payment_status in ('paid', 'paid_demo', 'pay_on_pickup', 'refunded') %}
+      <a href="{{ url_for('bookings.receipt', booking_id=booking.id) }}" class="text-primary font-bold hover:underline">🧾 View receipt</a>
+    {% endif %}
   </div>
 
   <!-- Renter info & Trust Badge -->
@@ -136,6 +145,14 @@
 
   <!-- Action buttons -->
   <div class="border-t pt-3 flex flex-wrap gap-2">
+    {% if current_user.id == booking.renter_id and booking.status == 'pending_payment' %}
+      <a href="{{ url_for('bookings.pay', booking_id=booking.id) }}"
+         class="bg-accent text-white rounded-xl px-4 py-2 text-sm font-bold hover:bg-orange-600 min-h-[44px]">💳 Pay now</a>
+      <form method="post" action="{{ url_for('bookings.cancel', booking_id=booking.id) }}">
+        <button class="bg-red-500 text-white rounded-xl px-4 py-2 text-sm font-bold hover:bg-red-600 min-h-[44px]">Cancel</button>
+      </form>
+    {% endif %}
+
     {% if current_user.id == booking.renter_id and booking.status in ('requested', 'approved') %}
       <form method="post" action="{{ url_for('bookings.cancel', booking_id=booking.id) }}">
         <button class="bg-red-500 text-white rounded-xl px-4 py-2 text-sm font-bold hover:bg-red-600">Cancel</button>

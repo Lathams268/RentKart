@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% from "_macros.html" import item_image, shop_badge %}
+{% block title %}Booking Confirmed – RentKart{% endblock %}
+
+{% block content %}
+{% set show_phone = booking.status in ('approved', 'picked_up', 'returned') %}
+<div class="max-w-md mx-auto mt-4 space-y-4">
+
+  <!-- Success header -->
+  <div class="bg-green-600 text-white rounded-2xl p-5 text-center shadow">
+    <div class="text-4xl mb-1">✓</div>
+    <h1 class="text-xl font-bold">Booking Confirmed</h1>
+    <p class="text-green-50 text-sm mt-1">Thank you! Your rental request is in.</p>
+  </div>
+
+  <!-- Status badges -->
+  <div class="card space-y-2 text-sm">
+    <div class="flex justify-between items-center">
+      <span class="text-gray-500">Order ID</span>
+      <span class="font-mono font-bold">{{ booking.order_id or ('#' ~ booking.id) }}</span>
+    </div>
+    <div class="flex justify-between items-center">
+      <span class="text-gray-500">Payment</span>
+      <span class="rounded-full px-3 py-1 text-xs font-bold {{ badge[1] }}">{{ badge[0] }}</span>
+    </div>
+    <div class="flex justify-between items-center">
+      <span class="text-gray-500">Method</span>
+      <span class="font-semibold">{{ method_label }}</span>
+    </div>
+    <div class="flex justify-between items-center">
+      <span class="text-gray-500">Booking status</span>
+      <span class="font-semibold">
+        {% if booking.status == 'requested' %}Waiting for owner approval
+        {% elif booking.status == 'approved' %}Approved
+        {% else %}{{ booking.status | capitalize }}{% endif %}
+      </span>
+    </div>
+    <div class="flex justify-between items-center">
+      <span class="text-gray-500">Total payable</span>
+      <span class="font-extrabold text-base">{{ booking.total_payable | inr }}</span>
+    </div>
+  </div>
+
+  <!-- Item + shop -->
+  <div class="card space-y-3">
+    <div class="grid grid-cols-3 gap-3">
+      <div class="col-span-1">{{ item_image(booking.item, height_class="h-24") }}</div>
+      <div class="col-span-2">
+        <h2 class="font-bold text-gray-800 leading-tight">{{ booking.item.title }}</h2>
+        {{ shop_badge(booking.item) }}
+        <div class="text-xs text-gray-500 mt-1">{{ booking.item.owner.shop_name or booking.item.owner.name }}</div>
+        <div class="text-xs text-gray-500">{{ booking.item.owner.shop_address or booking.item.owner.village_or_city }}</div>
+      </div>
+    </div>
+    <div class="grid grid-cols-2 gap-2 text-sm border-t pt-2">
+      <div class="flex justify-between"><span class="text-gray-500">Start</span><span class="font-semibold">{{ booking.start_date }}</span></div>
+      <div class="flex justify-between"><span class="text-gray-500">Return by</span><span class="font-semibold">{{ booking.end_date }}</span></div>
+    </div>
+    {% if show_phone %}
+      <div class="text-sm border-t pt-2">
+        {% if current_user.id == booking.renter_id %}
+          <span class="text-gray-500">Owner phone:</span> <strong>{{ booking.item.owner.phone }}</strong>
+        {% else %}
+          <span class="text-gray-500">Renter phone:</span> <strong>{{ booking.renter.phone }}</strong>
+        {% endif %}
+      </div>
+    {% else %}
+      <p class="text-xs text-gray-400">The shop phone appears here once the owner approves.</p>
+    {% endif %}
+  </div>
+
+  <!-- Return instructions -->
+  <div class="card bg-orange-50 border border-orange-200 text-sm space-y-2">
+    <h3 class="font-bold text-accent">Return instructions</h3>
+    <p class="text-orange-900">{{ return_policy }}</p>
+    <ul class="list-disc pl-5 text-orange-900 space-y-0.5">
+      <li>Return date &amp; time: <strong>{{ booking.end_date }}, {{ return_time }}</strong></li>
+      <li>Return location: {{ booking.item.owner.shop_address or booking.item.owner.village_or_city }}</li>
+      {% if late_fee %}<li>Late fee: {{ late_fee | inr }} per day</li>{% endif %}
+      {% for lvl, info in damage_levels.items() %}
+        {% if info.percent %}<li>{{ info.label }}: {{ info.percent }}% of deposit</li>{% endif %}
+      {% endfor %}
+    </ul>
+    <p class="text-green-700 font-semibold">The security deposit ({{ booking.deposit | inr }}) is refunded after inspection.</p>
+    {% if booking.item.owner.phone %}
+      <p class="text-xs text-gray-500">Shop contact: {{ booking.item.owner.phone }}</p>
+    {% endif %}
+  </div>
+
+  <!-- Action buttons -->
+  <div class="flex flex-wrap gap-2">
+    <a href="{{ url_for('bookings.receipt', booking_id=booking.id) }}"
+       class="flex-1 text-center bg-gray-800 text-white rounded-2xl px-4 py-3 font-bold hover:bg-black min-h-[44px]">View receipt</a>
+    <a href="{{ url_for('bookings.booking_detail', booking_id=booking.id) }}"
+       class="flex-1 text-center border rounded-2xl px-4 py-3 font-bold min-h-[44px]">View booking</a>
+    <a href="{{ url_for('main.browse') }}"
+       class="w-full text-center bg-primary text-white rounded-2xl px-4 py-3 font-bold hover:bg-green-700 min-h-[44px]">Back to browse</a>
+  </div>
+</div>
+{% endblock %}

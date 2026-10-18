@@ -3,6 +3,7 @@
 
 {% block content %}
 {% set status_colors = {
+  'pending_payment': 'bg-orange-100 text-orange-800',
   'requested': 'bg-yellow-100 text-yellow-800',
   'approved': 'bg-green-100 text-green-800',
   'picked_up': 'bg-blue-100 text-blue-800',
@@ -10,7 +11,7 @@
   'rejected': 'bg-red-100 text-red-700',
   'cancelled': 'bg-red-100 text-red-700',
 } %}
-{% set order = ['picked_up', 'approved', 'requested', 'returned', 'rejected', 'cancelled'] %}
+{% set order = ['pending_payment', 'picked_up', 'approved', 'requested', 'returned', 'rejected', 'cancelled'] %}
 
 <h1 class="text-2xl font-bold mb-4">📋 My Bookings</h1>
 
@@ -32,14 +33,32 @@
 
           <div class="flex justify-between items-center text-xs text-gray-500">
             <span>{{ b.start_date }} → {{ b.end_date }} ({{ b.days }} days)</span>
-            {% if status == 'picked_up' and today > b.end_date %}
-              {% set late_days = (today - b.end_date).days %}
-              {% set late_pen = late_days * (b.item.late_fee_per_day or 0) %}
+            {% if b.order_id %}<span class="font-mono">{{ b.order_id }}</span>{% endif %}
+          </div>
+
+          {% if status == 'picked_up' and today > b.end_date %}
+            {% set late_days = (today - b.end_date).days %}
+            {% set late_pen = late_days * (b.item.late_fee_per_day or 0) %}
+            <div class="text-xs">
               <span class="bg-red-100 text-red-700 font-extrabold text-[11px] px-2 py-0.5 rounded-full border border-red-300">
                 ⚠️ OVERDUE {{ late_days }}d (+{{ late_pen | inr }})
               </span>
-            {% endif %}
-          </div>
+            </div>
+          {% endif %}
+
+          {% if status == 'pending_payment' %}
+            <div class="border-t pt-2 flex justify-between items-center text-xs">
+              <a href="{{ url_for('bookings.pay', booking_id=b.id) }}"
+                 class="bg-accent text-white px-3 py-1.5 rounded-lg font-bold hover:bg-orange-600 min-h-[44px] flex items-center">💳 Pay now</a>
+              <a href="{{ url_for('bookings.booking_detail', booking_id=b.id) }}" class="text-primary font-bold hover:underline">Details</a>
+            </div>
+          {% endif %}
+
+          {% if b.payment_status in ('paid', 'paid_demo', 'pay_on_pickup', 'refunded') %}
+            <div class="border-t pt-2 text-xs">
+              <a href="{{ url_for('bookings.receipt', booking_id=b.id) }}" class="text-primary font-bold hover:underline">🧾 View receipt</a>
+            </div>
+          {% endif %}
 
           {% if status == 'returned' %}
             <div class="border-t pt-2 flex justify-between items-center text-xs">
