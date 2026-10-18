@@ -146,9 +146,32 @@ class Booking(db.Model):
 
     return_record    = db.relationship("ReturnRecord", backref="booking", uselist=False, lazy=True)
     review           = db.relationship("Review", backref="booking", uselist=False, lazy=True)
+    payments         = db.relationship("Payment", backref="booking", lazy=True,
+                                       order_by="Payment.attempt_no")
 
     def __repr__(self):
         return f"<Booking {self.id} {self.status}>"
+
+
+class Payment(db.Model):
+    """A gateway payment attempt for a booking. Card details are NEVER stored."""
+    STATUSES = ("created", "paid", "failed", "refunded")
+
+    id                 = db.Column(db.Integer, primary_key=True)
+    booking_id         = db.Column(db.Integer, db.ForeignKey("booking.id"), nullable=False)
+    order_id           = db.Column(db.String(40), nullable=True)
+    attempt_no         = db.Column(db.Integer, nullable=False, default=1)
+    method             = db.Column(db.String(20), nullable=True)
+    amount             = db.Column(db.Float, nullable=False, default=0)
+    status             = db.Column(db.String(20), nullable=False, default="created")
+    provider           = db.Column(db.String(20), nullable=False, default="mock")
+    provider_payment_id = db.Column(db.String(120), nullable=True)
+    failure_reason     = db.Column(db.Text, nullable=True)
+    created_at         = db.Column(db.DateTime, default=datetime.utcnow)
+    paid_at            = db.Column(db.DateTime, nullable=True)
+
+    def __repr__(self):
+        return f"<Payment booking={self.booking_id} attempt={self.attempt_no} status={self.status}>"
 
 
 class ReturnRecord(db.Model):

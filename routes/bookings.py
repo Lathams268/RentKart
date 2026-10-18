@@ -6,7 +6,7 @@ from flask import (
     current_app, abort, jsonify,
 )
 from flask_login import login_required, current_user
-from models import db, Item, Booking, ReturnRecord, Review
+from models import db, Item, Booking, ReturnRecord, Review, Payment
 from utils.booking import (
     calculate_price, booking_snapshot, is_available,
     generate_order_id, payment_expiry,
@@ -176,12 +176,109 @@ def checkout_submit(item_id):
     return redirect(url_for("bookings.pay", booking_id=booking.id))
 
 
-# ---------- Placeholder pay route (fully implemented in Stage 3) ----------
+# ---------- Pay (Stage 3): mock gateway with retry, no card data stored ----------
+PAY_TILES = [
+    ("upi", "UPI", "\U0001F537"),
+    ("gpay", "Google Pay", "\U0001F7E2"),
+    ("phonepe", "PhonePe", "\U0001F7E3"),
+    ("debit_card", "Debit card", "\U0001F4B3"),
+    ("credit_card", "Credit card", "\U0001F4B5"),
+]
+
+
 @bookings_bp.route("/bookings/<int:booking_id>/pay", methods=["GET", "POST"])
 @login_required
 def pay(booking_id):
     booking = Booking.query.get_or_404(booking_id)
-    return render_template("payment.html", booking=booking)
+    if booking.renter_id != current_user.id:
+        abort(403)
+
+    now = datetime.utcnow()
+    # Expired pending bookings are cancelled automatically when visited.
+    if booking.status == "pending_payment" and booking.payment_expires_at \
+            and booking.payment_expires_at <= now:
+        booking.status = "cancelled"
+        db.session.commit()
+        flash("Payment time expired, please start again.", "error")
+        return redirect(url_for("bookings.booking_detail", booking_id=booking.id))
+
+    # Only a pending_payment booking can be paid (idempotent: paid booking can't be paid again).
+    if booking.status != "pending_payment":
+        flash("This booking is not awaiting payment.", "error")
+        return redirect(url_for("bookings.booking_detail", booking_id=booking.id))
+
+    provider = current_app.config.get("PAYMENT_MODE", "mock")
+    mock = provider == "mock"
+    cash_ok = bool(getattr(booking.item, "cod_available", True)) and booking.delivery_method == "pickup"
+    next_attempt = (max([p.attempt_no for p in booking.payments], default=0) + 1)
+    last_failure = None
+    for p in sorted(booking.payments, key=lambda x: x.attempt_no, reverse=True):
+        if p.status == "failed":
+            last_failure = p.failure_reason
+            break
+
+    if request.method == "POST":
+        method = (request.form.get("method") or "").strip()
+        allowed = {t[0] for t in PAY_TILES}
+        if cash_ok:
+            allowed.add("cash")
+        if method not in allowed:
+            flash("Choose a valid payment method.", "error")
+            return redirect(url_for("bookings.pay", booking_id=booking.id))
+
+        amount = float(booking.total_payable)  # server snapshot, never from the browser
+        if mock:
+            outcome = request.form.get("outcome", "success")
+        else:
+            outcome = request.form.get("outcome", "success")
+
+        if outcome == "success":
+            # Re-check availability before marking paid (a pending booking did not block dates).
+            if not is_available(booking.item, booking.start_date, booking.end_date):
+                flash("Sorry, these dates are no longer available.", "error")
+                return redirect(url_for("items.item_detail", item_id=booking.item_id))
+            pay_row = Payment(
+                booking_id=booking.id, order_id=booking.order_id, attempt_no=next_attempt,
+                method=method, amount=amount, status="paid", provider=provider,
+                provider_payment_id=f"mock_{uuid.uuid4().hex[:16]}", paid_at=datetime.utcnow(),
+            )
+            db.session.add(pay_row)
+            booking.payment_method = method
+            booking.payment_status = "pay_on_pickup" if method == "cash" else "paid"
+            booking.status = "requested"
+            booking.payment_expires_at = None
+            db.session.commit()
+            flash("Payment successful.", "success")
+            return redirect(url_for("bookings.confirmation", booking_id=booking.id))
+
+        # Failure flow (mock only): keep the booking pending_payment and allow a retry.
+        if outcome == "timeout":
+            reason = "Payment failed: the payment timed out. No money was taken."
+        else:
+            reason = "Payment failed: bank declined. No money was taken."
+        pay_row = Payment(
+            booking_id=booking.id, order_id=booking.order_id, attempt_no=next_attempt,
+            method=method, amount=amount, status="failed", provider=provider,
+            failure_reason=reason,
+        )
+        db.session.add(pay_row)
+        db.session.commit()
+        flash(reason, "error")
+        return redirect(url_for("bookings.pay", booking_id=booking.id))
+
+    return render_template("pay.html", booking=booking, tiles=PAY_TILES, cash_ok=cash_ok,
+                           provider=provider, mock=mock, last_failure=last_failure,
+                           attempt_no=next_attempt)
+
+
+# ---------- Confirmation stub (fleshed out in Stage 4) ----------
+@bookings_bp.route("/bookings/<int:booking_id>/confirmation")
+@login_required
+def confirmation(booking_id):
+    booking = Booking.query.get_or_404(booking_id)
+    if booking.renter_id != current_user.id and booking.item.owner_id != current_user.id:
+        abort(403)
+    return render_template("booking_detail.html", booking=booking, renter_trust=get_user_trust(booking.renter))
 
 
 # ---------- Payment ----------
@@ -236,7 +333,7 @@ def cancel(booking_id):
     booking = Booking.query.get_or_404(booking_id)
     if booking.renter_id != current_user.id:
         abort(403)
-    if booking.status not in ("requested", "approved"):
+    if booking.status not in ("pending_payment", "requested", "approved"):
         flash("Cannot cancel at this stage.", "error")
         return redirect(url_for("bookings.booking_detail", booking_id=booking.id))
     booking.status = "cancelled"
