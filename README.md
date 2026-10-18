@@ -81,3 +81,51 @@ All demo accounts log in via phone number with the universal demo OTP: **`1234`*
 | **Suresh Kumar** | `9876543212` | Owner (Pro) | Electronics & power tools (Whitefield) |
 | **Priya Sharma** | `9876543213` | Owner (Business) | High-end cameras, sherwanis & tents (Indiranagar) |
 | **Admin User** | `9999999999` | Platform Admin | Admin moderation & platform analytics |
+
+## 🛡️ RentKart TrustShield (AI-assisted damage protection)
+
+TrustShield adds a verified photo/video condition record to every rental so damage
+is never wrongly attributed to the wrong customer. It is fully **additive** — old
+bookings keep the original one-click handover/return flow.
+
+**How it works**
+1. **Before handover** the owner uploads clear photos by angle (front, back, left,
+   right, top, close-up, accessories, serial), optional videos, a category checklist
+   and any existing damage. The booking moves to `awaiting_customer_confirmation`.
+2. **The renter reviews** the condition gallery and must actively confirm before the
+   item is marked picked up (or report a mismatch / cancel with the existing refund).
+3. **On return** the owner uploads a matching set. Pillow pairs the photos by angle,
+   normalises them and flags changed regions as *suggestions only* — with a
+   side-by-side overlay. Regions that overlap a known unrepaired damage are never
+   attributed to this renter.
+4. **Human verification** turns a suggestion into a proposed penalty from
+   `TS_DAMAGE_RULES` (whole-rupee range; amounts above the range need a quote and
+   admin approval; capped at `DAMAGE_CAP_PERCENT_OF_DEPOSIT`). Nothing is ever
+   charged from the automatic comparison alone.
+5. **The renter reviews** the evidence and may accept, partially accept, or dispute.
+   Finalisation happens **only** when the renter accepts all items or an admin
+   resolves a dispute; a passed deadline goes to admin review and charges nothing.
+
+**Where it appears** — the renter dashboard shows four cards per TrustShield booking
+(Original condition, Return condition, Damage report, Deposit refund status) plus a
+pending-actions box; the owner dashboard lists pending handovers, returns awaiting
+review and open disputes; `/items/<id>/condition-history` shows every rental with
+both galleries and the full item damage history with a *Mark as repaired* action. It
+works for every category (clothing, electronics, books, furniture and more) via
+`config.py`.
+
+**New page / command**
+```bash
+del rentkart.db
+python seed.py     # also seeds TrustShield demo data (idempotent)
+python app.py
+```
+
+**New environment variables** (all optional)
+- `TRUSTSHIELD_ENABLED` – `True` (default) gives new bookings `trustshield=True`.
+- `VISION_API_KEY` – if unset (default) no external AI is ever called; comparison is
+  Pillow-only. The key is never logged.
+
+Evidence is stored **privately** under `instance/evidence` with random UUID names,
+EXIF/GPS stripped and photos resized, and is served only through `GET /evidence/<id>`
+to the renter, the item owner and admins (403 otherwise).

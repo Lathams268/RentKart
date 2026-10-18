@@ -1320,6 +1320,8 @@ def seed():
     if not is_test_phase2:
         _report_no_photo_slugs()
 
+    import seed_trustshield; seed_trustshield.run()
+
 if __name__ == "__main__":
     application = create_app()
     with application.app_context():

@@ -21,6 +21,8 @@
   </span>
 </div>
 
+{% include "trustshield/_owner_actions.html" %}
+
 <!-- Plan Expiry Warning Banner (<= 5 days) -->
 {% if show_expiry_warning %}
   <div class="bg-amber-50 border-l-4 border-amber-500 text-amber-900 p-3.5 rounded-xl mb-4 flex items-center justify-between flex-wrap gap-2 shadow-sm">
@@ -357,11 +359,16 @@
         <span class="font-bold text-sm">{{ b.item.title }}</span>
         <span class="text-xs text-gray-500">{{ b.renter.name }} · {{ b.start_date }} → {{ b.end_date }}</span>
       </div>
+      {% if not b.trustshield %}
       <form method="post" action="{{ url_for('bookings.handover', booking_id=b.id) }}"
             enctype="multipart/form-data" class="flex flex-wrap gap-2 items-end">
         <input type="text" name="handover_note" placeholder="Note (optional)" class="border rounded-lg px-2 py-1 text-xs flex-1">
         <button class="bg-blue-600 text-white rounded-lg px-3 py-1 text-xs font-bold">Mark Handed Over</button>
       </form>
+      {% else %}
+      <a href="{{ url_for('trustshield.handover_report', booking_id=b.id) }}"
+         class="inline-flex items-center bg-blue-600 text-white rounded-lg px-3 py-1.5 text-xs font-bold min-h-[44px]">🛡️ Upload condition &amp; await confirmation</a>
+      {% endif %}
     </div>
   {% endfor %}
 </section>
@@ -387,10 +394,17 @@
               ⚠️ OVERDUE {{ late_days }}d (+{{ late_pen | inr }})
             </span>
           {% endif %}
+          {% if not b.trustshield %}
           <a href="{{ url_for('bookings.return_item', booking_id=b.id) }}"
              class="bg-primary text-white text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-green-700 shadow">
             Mark Returned
           </a>
+          {% else %}
+          <a href="{{ url_for('trustshield.return_report', booking_id=b.id) }}"
+             class="bg-primary text-white text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-green-700 shadow min-h-[44px] flex items-center">
+            🛡️ Return report
+          </a>
+          {% endif %}
           <a href="{{ url_for('bookings.booking_detail', booking_id=b.id) }}" class="text-xs text-primary underline">Details</a>
         </div>
       </div>

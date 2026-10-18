@@ -26,6 +26,9 @@
       by <a href="{{ url_for('shop.shop_page', slug='shravani') if attrs.get('brand')|lower == 'shravani' else (url_for('shop.shop_page', slug=item.owner.shop_slug) if item.owner and item.owner.shop_slug else url_for('shop.shop_page', slug='shravani')) }}" class="underline hover:text-rose-950 font-bold">{{ attrs.get('brand') }}</a>
     </div>
   {% endif %}
+
+  {% include "trustshield/_item_badges.html" %}
+
   <div class="flex flex-wrap items-center gap-2 text-sm">
     <span class="bg-green-100 text-primary font-bold rounded-full px-3 py-1">{{ effective_price(item) | inr }} / {{ t('per day') }}</span>
     {% if (item.discount_percent or 0) > 0 %}

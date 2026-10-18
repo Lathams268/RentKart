@@ -848,3 +848,134 @@ def admin_dispute_detail(dispute_id):
                            galleries=_galleries(_latest_report(booking.id, "handover"),
                                                 _latest_report(booking.id, "return")),
                            existing_damages=_existing_damages(booking.item_id))
+
+
+# --------------------------------------------------------------------------
+# STAGE 5 - Dashboard partials data, item badges, condition history
+# --------------------------------------------------------------------------
+@ts_bp.app_template_global()
+def ts_booking_context(booking):
+    """Return the four-card context for a TrustShield booking (or None)."""
+    if booking is None or not getattr(booking, "trustshield", False):
+        return None
+    handover = _latest_report(booking.id, "handover")
+    ret = _latest_report(booking.id, "return")
+    case = _active_case(booking.id)
+    rec = booking.return_record
+    from utils.ts_penalty import deposit_status_text
+    proposed = int(round(float(case.proposed_total or 0))) if case else 0
+    verified = int(round(float(case.verified_total or 0))) if (case and case.finalized) else 0
+    pending = None
+    if booking.status == "awaiting_customer_confirmation":
+        pending = {"label": "Confirm item condition before you accept delivery",
+                   "url": url_for("trustshield.condition_view", booking_id=booking.id)}
+    elif case is not None and case.status == "awaiting_customer" and not case.finalized:
+        pending = {"label": "Review the damage report & proposed penalty",
+                   "url": url_for("trustshield.damage_report", booking_id=booking.id)}
+    cards = {
+        "original": {"done": handover is not None,
+                     "url": url_for("trustshield.condition_view", booking_id=booking.id) if handover else None},
+        "return": {"done": ret is not None,
+                   "url": url_for("trustshield.review", booking_id=booking.id) if ret else None},
+        "damage": {"has_case": case is not None, "proposed": proposed, "verified": verified,
+                   "url": url_for("trustshield.damage_report", booking_id=booking.id) if case else None},
+        "deposit": {"text": deposit_status_text(booking, case=case, settlement=rec)},
+    }
+    return {"booking": booking, "handover": handover, "return": ret, "case": case,
+            "record": rec, "cards": cards, "pending": pending}
+
+
+@ts_bp.app_template_global()
+def ts_renter_pending():
+    """TrustShield bookings of the current renter that need an action."""
+    if not current_user.is_authenticated:
+        return []
+    bookings = Booking.query.filter_by(renter_id=current_user.id)\
+        .filter(Booking.trustshield.is_(True)).order_by(Booking.id.desc()).all()
+    out = []
+    for b in bookings:
+        ctx = ts_booking_context(b)
+        if ctx and ctx["pending"]:
+            out.append(ctx)
+    return out
+
+
+@ts_bp.app_template_global()
+def ts_owner_pending():
+    """Pending TrustShield actions for the current owner (or disputes for admin)."""
+    empty = {"handovers": [], "reviews": [], "disputes": [], "to_return": []}
+    if not current_user.is_authenticated:
+        return empty
+    disputes_q = Dispute.query.filter_by(status="open")
+    if current_user.is_admin:
+        return {"handovers": [], "reviews": [], "to_return": [],
+                "disputes": disputes_q.order_by(Dispute.id.desc()).all()}
+    bookings = Booking.query.join(Item, Booking.item_id == Item.id).filter(
+        Item.owner_id == current_user.id, Booking.trustshield.is_(True)).all()
+    handovers, reviews, to_return = [], [], []
+    for b in bookings:
+        if b.status == "approved":
+            h = _latest_report(b.id, "handover")
+            if h is None or h.status == "mismatch":
+                handovers.append(b)
+        elif b.status == "picked_up":
+            r = _latest_report(b.id, "return")
+            if r is None:
+                to_return.append(b)
+            elif b.return_record is None:
+                reviews.append(b)
+    disputes = disputes_q.join(DamageCase, Dispute.case_id == DamageCase.id)\
+        .join(Item, DamageCase.item_id == Item.id)\
+        .filter(Item.owner_id == current_user.id).order_by(Dispute.id.desc()).all()
+    return {"handovers": handovers, "reviews": reviews, "to_return": to_return,
+            "disputes": disputes}
+
+
+@ts_bp.app_template_global()
+def ts_item_badges(item):
+    if item is None:
+        return {"available": False, "known_issues": []}
+    rep = ConditionReport.query.filter_by(item_id=item.id).first()
+    return {"available": rep is not None, "known_issues": _existing_damages(item.id)}
+
+
+@ts_bp.app_template_global()
+def ts_report_photos(report_id, kind="photo"):
+    if not report_id:
+        return []
+    return EvidenceFile.query.filter_by(report_id=report_id, kind=kind)\
+        .order_by(EvidenceFile.id).all()
+
+
+@ts_bp.app_template_global()
+def ts_category_label(category):
+    """Human label for any category (incl. TrustShield-only 'furniture')."""
+    import config as _c
+    return _c.TS_CATEGORY_LABELS.get(category) or (category or "").replace("_", " ").title()
+
+
+@ts_bp.route("/items/<int:item_id>/condition-history")
+@login_required
+def condition_history(item_id):
+    item = Item.query.get_or_404(item_id)
+    if item.owner_id != current_user.id and not current_user.is_admin:
+        abort(403)
+    bookings = Booking.query.filter_by(item_id=item.id).order_by(Booking.id.desc()).all()
+    timeline = [{"booking": b, "ctx": ts_booking_context(b)} for b in bookings]
+    records = DamageRecord.query.filter_by(item_id=item.id).order_by(DamageRecord.id).all()
+    return render_template("trustshield/condition_history.html", item=item,
+                           timeline=timeline, records=records)
+
+
+@ts_bp.route("/ts/damage/<int:record_id>/repair", methods=["POST"])
+@login_required
+def mark_repaired(record_id):
+    dr = DamageRecord.query.get_or_404(record_id)
+    item = Item.query.get(dr.item_id)
+    if item is None or (item.owner_id != current_user.id and not current_user.is_admin):
+        abort(403)
+    dr.status = "repaired"
+    dr.repaired_at = datetime.utcnow()
+    db.session.commit()
+    flash("Damage marked as repaired. It will not be attributed to future renters.", "success")
+    return redirect(url_for("trustshield.condition_history", item_id=dr.item_id))

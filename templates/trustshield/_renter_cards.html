@@ -1,0 +1,38 @@
+{# TrustShield four cards, included per booking in the renter dashboard. #}
+{% set ctx = ts_booking_context(b) %}
+{% if ctx %}
+<div class="mt-2 pt-2 border-t space-y-2">
+  <div class="grid grid-cols-2 gap-2">
+    <div class="bg-gray-50 rounded-xl p-2 border">
+      <p class="text-[11px] font-bold text-gray-500 uppercase">Original condition</p>
+      {% if ctx.cards.original.done %}
+        <a href="{{ ctx.cards.original.url }}" class="text-xs text-primary font-bold underline">View photos</a>
+      {% else %}<span class="text-xs text-gray-400">Not uploaded yet</span>{% endif %}
+    </div>
+    <div class="bg-gray-50 rounded-xl p-2 border">
+      <p class="text-[11px] font-bold text-gray-500 uppercase">Return condition</p>
+      {% if ctx.cards.return.done %}
+        <a href="{{ ctx.cards.return.url }}" class="text-xs text-primary font-bold underline">View comparison</a>
+      {% else %}<span class="text-xs text-gray-400">Not returned yet</span>{% endif %}
+    </div>
+    <div class="bg-gray-50 rounded-xl p-2 border">
+      <p class="text-[11px] font-bold text-gray-500 uppercase">Damage report</p>
+      {% if ctx.cards.damage.has_case %}
+        <p class="text-xs">Proposed <strong>Rs {{ ctx.cards.damage.proposed }}</strong></p>
+        {% if ctx.cards.damage.verified %}<p class="text-xs text-red-700">Verified Rs {{ ctx.cards.damage.verified }}</p>{% endif %}
+        <a href="{{ ctx.cards.damage.url }}" class="text-xs text-primary font-bold underline">Review evidence</a>
+      {% else %}<span class="text-xs text-gray-400">No damage claimed</span>{% endif %}
+    </div>
+    <div class="bg-gray-50 rounded-xl p-2 border">
+      <p class="text-[11px] font-bold text-gray-500 uppercase">Deposit refund</p>
+      <p class="text-xs font-semibold text-gray-700">{{ ctx.cards.deposit.text }}</p>
+    </div>
+  </div>
+  {% if ctx.pending %}
+    <a href="{{ ctx.pending.url }}"
+       class="block bg-accent text-white rounded-xl px-3 py-2 text-xs font-bold min-h-[44px] text-center">
+      ⏳ {{ ctx.pending.label }}
+    </a>
+  {% endif %}
+</div>
+{% endif %}
