@@ -180,7 +180,7 @@
       </form>
     {% endif %}
 
-    {% if current_user.id == booking.item.owner_id and booking.status == 'approved' %}
+    {% if not booking.trustshield and current_user.id == booking.item.owner_id and booking.status == 'approved' %}
       <form method="post" action="{{ url_for('bookings.handover', booking_id=booking.id) }}"
             enctype="multipart/form-data" class="w-full space-y-2">
         <input type="text" name="handover_note" placeholder="Handover note (optional)"
@@ -193,12 +193,14 @@
       </form>
     {% endif %}
 
-    {% if current_user.id == booking.item.owner_id and booking.status == 'picked_up' %}
+    {% if not booking.trustshield and current_user.id == booking.item.owner_id and booking.status == 'picked_up' %}
       <a href="{{ url_for('bookings.return_item', booking_id=booking.id) }}"
          class="bg-primary text-white rounded-xl px-4 py-2 text-sm font-bold hover:bg-green-700 shadow">
         📦 Mark Item Returned & Assess Condition
       </a>
     {% endif %}
+
+    {% include "trustshield/_booking_actions.html" %}
   </div>
 </div>
 {% endblock %}

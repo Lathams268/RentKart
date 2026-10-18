@@ -77,3 +77,211 @@ def serve_evidence(evidence_id):
     return send_file(path, mimetype=mimetype, as_attachment=False,
                      download_name=ev.stored_name, conditional=True,
                      max_age=0)
+
+
+# --------------------------------------------------------------------------
+# Shared config / lookup helpers
+# --------------------------------------------------------------------------
+def _ts_cfg(key, default=None):
+    val = current_app.config.get(key, None)
+    if val is not None:
+        return val
+    import config as _c
+    return getattr(_c, key, default)
+
+
+def _checklist_for(category):
+    import config as _c
+    return _c.CONDITION_CHECKLISTS.get(category) or _c.CONDITION_CHECKLISTS["default"]
+
+
+def _rules_for(category):
+    import config as _c
+    return _c.TS_DAMAGE_RULES.get(category) or _c.TS_DAMAGE_RULES["default"]
+
+
+def _angles():
+    return _ts_cfg("PHOTO_ANGLES", ["front", "back", "left", "right"])
+
+
+def _latest_report(booking_id, phase):
+    return (ConditionReport.query.filter_by(booking_id=booking_id, phase=phase)
+            .order_by(ConditionReport.id.desc()).first())
+
+
+def _existing_damages(item_id):
+    return DamageRecord.query.filter_by(item_id=item_id, status="existing")\
+        .filter(DamageRecord.repaired_at.is_(None)).order_by(DamageRecord.id).all()
+
+
+# --------------------------------------------------------------------------
+# STAGE 2 - Handover condition report (owner) + customer confirmation (renter)
+# --------------------------------------------------------------------------
+@ts_bp.route("/ts/bookings/<int:booking_id>/handover", methods=["GET", "POST"])
+@login_required
+def handover_report(booking_id):
+    """Owner uploads the pre-delivery condition report for a TrustShield booking."""
+    booking = Booking.query.get_or_404(booking_id)
+    if booking.item.owner_id != current_user.id and not current_user.is_admin:
+        abort(403)
+    if not booking.trustshield:
+        flash("This booking is not on TrustShield.", "error")
+        return redirect(url_for("bookings.booking_detail", booking_id=booking.id))
+    if booking.status not in ("approved", "awaiting_customer_confirmation"):
+        flash("A handover report can be made for an approved booking.", "error")
+        return redirect(url_for("bookings.booking_detail", booking_id=booking.id))
+
+    category = booking.item.category
+    submitted = booking.status == "awaiting_customer_confirmation"
+    min_photos = int(_ts_cfg("MIN_PHOTOS_HANDOVER", 4))
+
+    if request.method == "POST":
+        photos_raw = request.files.getlist("photo")
+        angles_raw = request.form.getlist("angle")
+        videos_raw = request.files.getlist("video")
+        vangles_raw = request.form.getlist("video_angle")
+        # Pair each angle label with its file (DOM order), keeping only real files.
+        photo_pairs = [(angles_raw[i] if i < len(angles_raw) and angles_raw[i] else "unlabeled", f)
+                       for i, f in enumerate(photos_raw) if f and f.filename]
+        video_pairs = [(vangles_raw[i] if i < len(vangles_raw) and vangles_raw[i] else "unlabeled", f)
+                       for i, f in enumerate(videos_raw) if f and f.filename]
+
+        if len(photo_pairs) < min_photos:
+            flash(f"Please upload at least {min_photos} clear condition photos.", "error")
+            return redirect(url_for("trustshield.handover_report", booking_id=booking.id))
+
+        report = ConditionReport(booking_id=booking.id, item_id=booking.item_id,
+                                 phase="handover", status="submitted",
+                                 created_by=current_user.id,
+                                 note=(request.form.get("note", "").strip() or None))
+        db.session.add(report)
+        db.session.flush()  # get report.id
+
+        from utils.ts_evidence import save_image, save_video
+        max_p = int(_ts_cfg("MAX_PHOTO_MB", 6))
+        max_v = int(_ts_cfg("MAX_VIDEO_MB", 40))
+        covered = []
+        try:
+            for angle, f in photo_pairs:
+                name, size = save_image(current_app, f, max_mb=max_p, kind="photo")
+                db.session.add(EvidenceFile(report_id=report.id, booking_id=booking.id,
+                                           item_id=booking.item_id, kind="photo", angle=angle,
+                                           stored_name=name, size_bytes=size,
+                                           original_name=f.filename, mime="image/jpeg",
+                                           exif_stripped=True, uploaded_by=current_user.id))
+                covered.append(angle)
+            for angle, f in video_pairs:
+                name, size = save_video(current_app, f, max_mb=max_v, kind="video")
+                db.session.add(EvidenceFile(report_id=report.id, booking_id=booking.id,
+                                           item_id=booking.item_id, kind="video", angle=angle,
+                                           stored_name=name, size_bytes=size,
+                                           original_name=f.filename, uploaded_by=current_user.id))
+        except ValueError as e:
+            db.session.rollback()
+            flash(str(e), "error")
+            return redirect(url_for("trustshield.handover_report", booking_id=booking.id))
+
+        # Checklist
+        selected = set(request.form.getlist("check"))
+        report.set_checklist([{"item": lbl, "ok": lbl in selected}
+                              for lbl in _checklist_for(category)])
+        report.set_accessories([a.strip() for a in request.form.getlist("accessory") if a.strip()])
+        report.set_angles(covered)
+
+        # New existing-damage rows added by the owner
+        d_types = request.form.getlist("d_type")
+        d_areas = request.form.getlist("d_area")
+        d_angles = request.form.getlist("d_angle")
+        d_descs = request.form.getlist("d_desc")
+        d_photos = request.files.getlist("d_photo")
+        for i in range(len(d_types)):
+            if not (d_types[i] or "").strip():
+                continue
+            dr = DamageRecord(item_id=booking.item_id, booking_id=booking.id,
+                              damage_type=d_types[i].strip(),
+                              area=(d_areas[i].strip() if i < len(d_areas) else None),
+                              angle=(d_angles[i].strip() if i < len(d_angles) else None),
+                              description=(d_descs[i].strip() if i < len(d_descs) else None),
+                              status="existing", source_phase="handover",
+                              reported_by=current_user.id)
+            db.session.add(dr)
+            db.session.flush()
+            if i < len(d_photos) and d_photos[i] and d_photos[i].filename:
+                try:
+                    name, size = save_image(current_app, d_photos[i], max_mb=max_p, kind="damage")
+                    db.session.add(EvidenceFile(damage_record_id=dr.id, booking_id=booking.id,
+                                                item_id=booking.item_id, kind="photo",
+                                                angle=dr.angle, stored_name=name, size_bytes=size,
+                                                original_name=d_photos[i].filename, exif_stripped=True,
+                                                uploaded_by=current_user.id))
+                except ValueError:
+                    pass
+
+        booking.status = "awaiting_customer_confirmation"
+        db.session.commit()
+        flash("Condition report uploaded. Waiting for the customer to confirm.", "success")
+        return redirect(url_for("bookings.booking_detail", booking_id=booking.id))
+
+    return render_template("trustshield/handover.html", booking=booking,
+                           angles=_angles(), checklist=_checklist_for(category),
+                           existing_damages=_existing_damages(booking.item_id),
+                           min_photos=min_photos, submitted=submitted)
+
+
+@ts_bp.route("/ts/bookings/<int:booking_id>/condition", methods=["GET", "POST"])
+@login_required
+def condition_view(booking_id):
+    """Renter reviews the handover condition and confirms / reports mismatch / cancels."""
+    booking = Booking.query.get_or_404(booking_id)
+    if booking.renter_id != current_user.id and not current_user.is_admin:
+        abort(403)
+    report = _latest_report(booking.id, "handover")
+    if report is None:
+        flash("No condition report is available yet.", "error")
+        return redirect(url_for("bookings.booking_detail", booking_id=booking.id))
+
+    photos = EvidenceFile.query.filter_by(report_id=report.id, kind="photo")\
+        .order_by(EvidenceFile.id).all()
+    videos = EvidenceFile.query.filter_by(report_id=report.id, kind="video")\
+        .order_by(EvidenceFile.id).all()
+
+    if request.method == "POST":
+        action = request.form.get("action", "")
+        if action == "confirm":
+            if not request.form.get("confirm_accept"):
+                flash("Please tick the box to confirm the condition.", "error")
+                return redirect(url_for("trustshield.condition_view", booking_id=booking.id))
+            # Same side effects as the old handover, reused (never edited here).
+            booking.status = "picked_up"
+            if booking.payment_status == "pay_on_pickup":
+                booking.payment_status = "paid_demo"
+            report.status = "confirmed"
+            report.confirmed_by = current_user.id
+            report.confirmed_at = datetime.utcnow()
+            db.session.commit()
+            flash("Condition confirmed. Enjoy your rental!", "success")
+            return redirect(url_for("bookings.booking_detail", booking_id=booking.id))
+
+        if action == "mismatch":
+            reason = request.form.get("mismatch_reason", "").strip() or "Customer reported a mismatch."
+            report.status = "mismatch"
+            report.mismatch_reason = reason
+            booking.status = "approved"   # back to owner to resubmit
+            db.session.commit()
+            flash("Mismatch reported. The owner has been asked to re-upload the condition.", "success")
+            return redirect(url_for("bookings.booking_detail", booking_id=booking.id))
+
+        if action == "cancel":
+            from routes.bookings import _refund
+            booking.status = "cancelled"
+            msg = _refund(booking)
+            db.session.commit()
+            flash("Booking cancelled. " + (msg or ""), "success")
+            return redirect(url_for("bookings.booking_detail", booking_id=booking.id))
+
+        flash("Unknown action.", "error")
+        return redirect(url_for("trustshield.condition_view", booking_id=booking.id))
+
+    return render_template("trustshield/condition.html", booking=booking, report=report,
+                           photos=list(photos), videos=list(videos),
+                           existing_damages=_existing_damages(booking.item_id))
