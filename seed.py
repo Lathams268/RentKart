@@ -348,6 +348,55 @@ NEW_CLOTHES = [
     },
 ]
 
+# ---------- Clothes marketplace seed (Stage 3) ----------
+# Ensures every tab (Men / Women / Children) has at least 10 items. All items
+# use the fictional "Shravani" brand, whole-rupee prices, a discount on about
+# a third, mixed availability and delivery / pickup settings. Re-runnable by
+# title (update in place, never duplicate). No real brand names.
+MARKET_CLOTHES = [
+    # --- Women (12) ---
+    {"owner_idx": 1, "title": "Chaniya Choli Set", "desc": "Red mirror-work chaniya choli for Navratri nights.", "price": 350, "discount": 0, "avail": True, "gender": "Women", "ctype": "Lehenga", "style": "Traditional", "color": "Red", "size": "M", "occasion": "Festival", "fabric": "Cotton", "delivery": True, "cod": True},
+    {"owner_idx": 3, "title": "Embellished Sharara Set", "desc": "Pink georgette sharara with gota work dupatta.", "price": 400, "discount": 10, "avail": True, "gender": "Women", "ctype": "Salwar Suit", "style": "Traditional", "color": "Pink", "size": "S", "occasion": "Wedding", "fabric": "Georgette", "delivery": True, "cod": True},
+    {"owner_idx": 1, "title": "Kanjivaram Silk Saree", "desc": "Gold zari border kanjivaram for grand occasions.", "price": 600, "discount": 0, "avail": True, "gender": "Women", "ctype": "Saree", "style": "Traditional", "color": "Gold", "size": "Free Size", "occasion": "Wedding", "fabric": "Silk", "delivery": False, "cod": True},
+    {"owner_idx": 3, "title": "Bridal Red Lehenga", "desc": "Heavy brocade bridal lehenga with dupatta and blouse.", "price": 2500, "discount": 20, "avail": False, "gender": "Women", "ctype": "Lehenga", "style": "Traditional", "color": "Red", "size": "L", "occasion": "Wedding", "fabric": "Brocade", "delivery": True, "cod": False},
+    {"owner_idx": 2, "title": "Sequin Party Gown", "desc": "Black net floor gown with all-over sequins for parties.", "price": 700, "discount": 0, "avail": True, "gender": "Women", "ctype": "Gown", "style": "Western", "color": "Black", "size": "M", "occasion": "Party", "fabric": "Net", "delivery": True, "cod": True},
+    {"owner_idx": 1, "title": "Everyday Cotton Kurti", "desc": "Breathable blue cotton kurti for daily wear.", "price": 150, "discount": 5, "avail": True, "gender": "Women", "ctype": "Kurti", "style": "Fusion / Indo-Western", "color": "Blue", "size": "S", "occasion": "Daily wear", "fabric": "Cotton", "delivery": True, "cod": True},
+    {"owner_idx": 3, "title": "Pastel Co-ord Set", "desc": "Cream chiffon co-ord set, top and wide-leg trousers.", "price": 450, "discount": 0, "avail": True, "gender": "Women", "ctype": "Co-ord Set", "style": "Modern", "color": "Cream", "size": "M", "occasion": "Party", "fabric": "Chiffon", "delivery": True, "cod": True},
+    {"owner_idx": 2, "title": "Royal Anarkali Suit", "desc": "Purple georgette anarkali with thread work and lining.", "price": 550, "discount": 10, "avail": True, "gender": "Women", "ctype": "Anarkali", "style": "Traditional", "color": "Purple", "size": "L", "occasion": "Engagement", "fabric": "Georgette", "delivery": False, "cod": True},
+    {"owner_idx": 1, "title": "Casual Shirt Top", "desc": "White cotton shirt top that layers with anything.", "price": 200, "discount": 0, "avail": True, "gender": "Women", "ctype": "Top", "style": "Western", "color": "White", "size": "S", "occasion": "Daily wear", "fabric": "Cotton", "delivery": True, "cod": True},
+    {"owner_idx": 3, "title": "Printed Palazzo Set", "desc": "Green rayon printed kurta with matching palazzo.", "price": 380, "discount": 20, "avail": False, "gender": "Women", "ctype": "Palazzo Set", "style": "Modern", "color": "Green", "size": "M", "occasion": "Daily wear", "fabric": "Rayon", "delivery": True, "cod": True},
+    {"owner_idx": 2, "title": "Banarasi Silk Saree", "desc": "Maroon banarasi saree with traditional motifs.", "price": 800, "discount": 0, "avail": True, "gender": "Women", "ctype": "Saree", "style": "Traditional", "color": "Maroon", "size": "Free Size", "occasion": "Festival", "fabric": "Silk", "delivery": True, "cod": True},
+    {"owner_idx": 1, "title": "Festive Crop Top Lehenga", "desc": "Orange organza crop-top lehenga for sangeet nights.", "price": 500, "discount": 5, "avail": True, "gender": "Women", "ctype": "Lehenga", "style": "Fusion / Indo-Western", "color": "Orange", "size": "S", "occasion": "Sangeet", "fabric": "Organza", "delivery": True, "cod": True},
+
+    # --- Men (12) ---
+    {"owner_idx": 1, "title": "Groom Gold Sherwani", "desc": "Gold brocade sherwani with buttons and matching scarf.", "price": 900, "discount": 10, "avail": True, "gender": "Men", "ctype": "Sherwani", "style": "Traditional", "color": "Gold", "size": "L", "occasion": "Wedding", "fabric": "Brocade", "delivery": True, "cod": True},
+    {"owner_idx": 3, "title": "Ivory Kurta Pajama", "desc": "Cream cotton silk kurta pajama for festive mornings.", "price": 400, "discount": 0, "avail": True, "gender": "Men", "ctype": "Kurta Pajama", "style": "Traditional", "color": "Cream", "size": "M", "occasion": "Festival", "fabric": "Cotton Silk", "delivery": True, "cod": True},
+    {"owner_idx": 2, "title": "Charcoal Suit and Blazer", "desc": "Charcoal three-piece suit with satin lapel blazer.", "price": 750, "discount": 20, "avail": False, "gender": "Men", "ctype": "Suit / Blazer", "style": "Western", "color": "Black", "size": "L", "occasion": "Reception", "fabric": "Wool Blend", "delivery": True, "cod": False},
+    {"owner_idx": 3, "title": "Midnight Tuxedo", "desc": "Navy tuxedo with bow-tie fit for a black-tie party.", "price": 1200, "discount": 0, "avail": True, "gender": "Men", "ctype": "Tuxedo", "style": "Western", "color": "Navy", "size": "XL", "occasion": "Party", "fabric": "Poly Viscose", "delivery": False, "cod": True},
+    {"owner_idx": 1, "title": "Traditional Dhoti Kurta", "desc": "White cotton dhoti kurta set with gold border.", "price": 350, "discount": 5, "avail": True, "gender": "Men", "ctype": "Dhoti", "style": "Traditional", "color": "White", "size": "Free Size", "occasion": "Wedding", "fabric": "Cotton", "delivery": True, "cod": True},
+    {"owner_idx": 2, "title": "Nehru Jacket Set", "desc": "Blue Nehru jacket over matching kurta pajama.", "price": 600, "discount": 0, "avail": False, "gender": "Men", "ctype": "Jacket", "style": "Fusion / Indo-Western", "color": "Blue", "size": "M", "occasion": "Engagement", "fabric": "Silk Blend", "delivery": True, "cod": True},
+    {"owner_idx": 3, "title": "Formal Shirt Trouser Set", "desc": "Crisp white formal shirt with black trousers.", "price": 250, "discount": 10, "avail": True, "gender": "Men", "ctype": "Shirt", "style": "Western", "color": "White", "size": "M", "occasion": "Daily wear", "fabric": "Cotton", "delivery": True, "cod": True},
+    {"owner_idx": 1, "title": "Wedding Turban Set", "desc": "Maroon safa turban with kalgi and matching angavastram.", "price": 300, "discount": 0, "avail": True, "gender": "Men", "ctype": "Angavastram", "style": "Traditional", "color": "Maroon", "size": "Free Size", "occasion": "Wedding", "fabric": "Silk", "delivery": False, "cod": True},
+    {"owner_idx": 2, "title": "Indo Western Sherwani", "desc": "Green indo-western sherwani with asymmetric drape.", "price": 1500, "discount": 20, "avail": True, "gender": "Men", "ctype": "Sherwani", "style": "Fusion / Indo-Western", "color": "Green", "size": "L", "occasion": "Reception", "fabric": "Brocade", "delivery": True, "cod": True},
+    {"owner_idx": 3, "title": "Royal Blue Bandhgala", "desc": "Royal blue bandhgala suit with mandarin collar.", "price": 1000, "discount": 0, "avail": True, "gender": "Men", "ctype": "Sherwani", "style": "Traditional", "color": "Blue", "size": "L", "occasion": "Wedding", "fabric": "Silk Blend", "delivery": True, "cod": True},
+    {"owner_idx": 1, "title": "Pathani Suit", "desc": "Cream pathani suit, relaxed kurta with pajama and jacket.", "price": 450, "discount": 5, "avail": True, "gender": "Men", "ctype": "Kurta Pajama", "style": "Traditional", "color": "Cream", "size": "XL", "occasion": "Festival", "fabric": "Cotton", "delivery": True, "cod": True},
+    {"owner_idx": 2, "title": "Wedding Achkan", "desc": "Pink achkan with churidar and dupatta for the groom.", "price": 850, "discount": 0, "avail": True, "gender": "Men", "ctype": "Sherwani", "style": "Traditional", "color": "Pink", "size": "M", "occasion": "Wedding", "fabric": "Silk", "delivery": True, "cod": True},
+
+    # --- Children extras (2, on top of the 10 NEW_CLOTHES kids items) ---
+    {"owner_idx": 1, "title": "Little Girls Lehenga", "desc": "Pink kids lehenga choli with soft net skirt.", "price": 300, "discount": 10, "avail": True, "gender": "Girls", "ctype": "Lehenga", "style": "Traditional", "color": "Pink", "size": "6-8Y", "occasion": "Festival", "fabric": "Net", "age": "6–8", "delivery": True, "cod": True},
+    {"owner_idx": 3, "title": "Baby Boys Kurta Set", "desc": "Yellow baby boys kurta pajama set for functions.", "price": 220, "discount": 0, "avail": True, "gender": "Boys", "ctype": "Kurta Set", "style": "Traditional", "color": "Yellow", "size": "1-2Y", "occasion": "Festival", "fabric": "Cotton Silk", "age": "0–2", "delivery": True, "cod": True},
+
+    # --- Unisex (1) - shows in Men and Women tabs ---
+    {"owner_idx": 2, "title": "Unisex Ethnic Kurta", "desc": "Maroon unisex cotton ethnic kurta, adjustable fit.", "price": 280, "discount": 5, "avail": True, "gender": "Unisex", "ctype": "Kurta Pajama", "style": "Traditional", "color": "Maroon", "size": "M", "occasion": "Daily wear", "fabric": "Cotton", "delivery": True, "cod": True},
+]
+
+# A few marketplace items are deliberately left without reviews so the card
+# shows the "New" badge instead of a rating.
+NO_REVIEW_TITLES = {
+    "Chaniya Choli Set", "Groom Gold Sherwani", "Little Girls Lehenga",
+    "Formal Shirt Trouser Set",
+}
+
 NEW_BOOKS = [
     # Spiritual / God and Devotional (3)
     {
@@ -688,6 +737,92 @@ COLORS = {
     "electronics": (100, 80, 180),
     "event_items": (240, 160, 40),
 }
+
+
+def _has_review(item) -> bool:
+    """True if any booking on this item already carries a review."""
+    return any(b.review is not None for b in item.bookings)
+
+
+def _ensure_market_clothes(users):
+    """Idempotently upsert the clothes marketplace items (update by title)."""
+    for data in MARKET_CLOTHES:
+        owner = users[data["owner_idx"]]
+        attrs = {
+            "brand": "Shravani", "style": data.get("style", "Traditional"),
+            "clothing_type": data["ctype"], "color": data["color"],
+            "size": data.get("size", "Free Size"),
+            "occasion": data.get("occasion", "Wedding"),
+            "fabric": data.get("fabric", "Silk"),
+            "gender": data["gender"], "age_group": data.get("age", "18+"),
+        }
+        price = float(int(data["price"]))
+        disc = int(data.get("discount", 0) or 0)
+        it = Item.query.filter_by(title=data["title"]).first()
+        if it is None:
+            it = Item(
+                owner_id=owner.id, category="clothes", title=data["title"],
+                description=data["desc"], price_per_day=price, deposit=1500.0,
+                late_fee_per_day=50.0, lat=owner.lat, lng=owner.lng,
+                image=_real_photo_name(data["title"]) or None,
+                discount_percent=disc, delivery_available=data.get("delivery", True),
+                delivery_charge=(100.0 if data.get("delivery") else 0.0),
+                cod_available=data.get("cod", True), is_available=data.get("avail", True),
+            )
+            it.set_attributes(attrs)
+            db.session.add(it)
+        else:
+            it.owner_id = owner.id
+            it.category = "clothes"
+            it.price_per_day = price
+            it.discount_percent = disc
+            it.delivery_available = data.get("delivery", True)
+            it.delivery_charge = (100.0 if data.get("delivery") else 0.0)
+            it.cod_available = data.get("cod", True)
+            it.is_available = data.get("avail", True)
+            cur = it.get_attributes(); cur.update(attrs); it.set_attributes(cur)
+    db.session.commit()
+
+
+def _ensure_clothes_reviews(users):
+    """Give most marketplace items 4.0-5.0 ratings via returned bookings."""
+    renters = [u for u in users[:4]]
+    for idx, data in enumerate(MARKET_CLOTHES):
+        it = Item.query.filter_by(title=data["title"]).first()
+        if it is None or data["title"] in NO_REVIEW_TITLES or _has_review(it):
+            continue
+        n = 1 if idx % 3 == 0 else 2
+        for k in range(n):
+            renter = renters[(idx + k) % len(renters)]
+            if renter.id == it.owner_id:
+                renter = renters[(idx + k + 1) % len(renters)]
+            s = date.today() - timedelta(days=20 + k * 5)
+            rating = 5 if (idx + k) % 2 == 0 else 4
+            b = Booking(
+                item_id=it.id, renter_id=renter.id, start_date=s,
+                end_date=s + timedelta(days=2), days=3,
+                total_rent=round(it.price_per_day * 3, 2), deposit=it.deposit or 0.0,
+                total_payable=round(it.price_per_day * 3, 2), status="returned",
+                payment_method="upi", payment_status="paid_demo", commission_percent=5.0,
+            )
+            db.session.add(b)
+            db.session.flush()
+            db.session.add(Review(booking_id=b.id, reviewer_id=renter.id,
+                                  owner_id=it.owner_id, rating=rating,
+                                  comment="Nice item, well maintained."))
+    db.session.commit()
+
+
+def _report_no_photo_slugs():
+    """Print item slugs that still rely on a drawing (no real photo)."""
+    from utils.illustrations import item_picture, item_slug
+    missing = []
+    for it in Item.query.all():
+        if item_picture(it).get("kind") not in ("photo", "demo", "stock"):
+            missing.append(item_slug(it))
+    if missing:
+        print(f"{len(missing)} items still have no real photo (using a drawing):")
+        print(", ".join(sorted(set(missing))))
 
 
 def seed():
@@ -1066,6 +1201,13 @@ def seed():
             it.owner_id = shravani_owner.id
     db.session.commit()
 
+    # 6b. Clothes marketplace (Stage 3): ensure >=10 items per tab, discounts,
+    # availability mix and ratings. Skipped for the test_phase2 (4-user, 15-item)
+    # fixture so its exact counts stay unchanged.
+    if not is_test_phase2 and len(users) >= 4:
+        _ensure_market_clothes(users)
+        _ensure_clothes_reviews(users)
+
     # 7. Recent bookings for trending books (6 recent bookings across 3 books)
     if not is_test_phase2 and len(users) >= 4:
         bg = Item.query.filter_by(title="Bhagavad Gita As It Is").first()
@@ -1173,6 +1315,10 @@ def seed():
         if _is_placeholder_name(it.image):
             it.image = _real_photo_name(it.title) or None
     db.session.commit()
+
+    # Report marketplace items that still rely on a generated drawing.
+    if not is_test_phase2:
+        _report_no_photo_slugs()
 
 if __name__ == "__main__":
     application = create_app()
