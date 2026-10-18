@@ -3,6 +3,7 @@ import os
 import shutil
 import tempfile
 import unittest
+from unittest.mock import patch
 from flask import url_for
 from app import create_app
 import config
@@ -34,8 +35,9 @@ class TestRentKartUpgrades(unittest.TestCase):
 
     def test_01_otp_demo_mode_and_login_elements(self):
         """Fix 1: OTP mode config, stub, and UI elements."""
-        self.assertEqual(config.OTP_MODE, "demo")
-        self.assertTrue(send_sms_otp("9999999999", "1234"))
+        self.assertEqual(self.app.config["OTP_MODE"], "demo")
+        with patch.dict(os.environ, {"OTP_MODE": "demo"}):
+            self.assertTrue(send_sms_otp("9999999999", "1234"))
 
         # Phone step
         resp = self.client.get("/login")

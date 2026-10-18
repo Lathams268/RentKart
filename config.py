@@ -970,3 +970,56 @@ TS_DISPUTE_REASONS = [
     "damage_preexisting", "not_my_damage", "amount_too_high", "wrong_item",
     "already_reported", "other",
 ]
+
+# ================= BULK LISTING (additive feature) =================
+# Security / size limits
+BULK_MAX_FILE_MB   = 5      # max uploaded workbook/CSV size in MB
+BULK_MAX_ROWS      = 2000   # max data rows accepted in one file
+BULK_PREVIEW_ROWS  = 50     # rows shown on the preview table
+BULK_IMPORT_CHUNK  = 200    # rows committed per chunk inside the import txn
+
+# Whole-rupee sane limits for imported prices (validated per row)
+BULK_PRICE_MIN     = 1
+BULK_PRICE_MAX     = 100000
+BULK_DEPOSIT_MAX   = 1000000
+BULK_LATE_FEE_MAX  = 100000
+BULK_DISCOUNT_MIN  = 0
+BULK_DISCOUNT_MAX  = 90
+
+# Template columns that are NOT category fields (fixed order).
+# The builder emits: base columns, then every category field, then extras.
+BULK_BASE_COLUMNS = [
+    "title", "description", "price_per_day", "deposit",
+    "late_fee_per_day", "discount_percent",
+]
+BULK_EXTRA_COLUMNS = ["shelf_code", "photo_file", "quantity_note"]
+
+# Columns that always make up a pricing rule's "match" target options.
+BULK_PRICE_COLUMNS = {"price_per_day", "deposit", "late_fee_per_day"}
+
+# Photo batch limits (Stage 3)
+BULK_PHOTO_MAX_FILE_MB   = 6
+BULK_PHOTO_MAX_PER_BATCH = 200
+BULK_PHOTO_MAX_PX        = 1200
+BULK_PHOTO_EXTENSIONS    = {"jpg", "jpeg", "png", "webp"}
+
+# Bulk edit pagination (Stage 3)
+BULK_EDIT_PER_PAGE = 25
+
+# Booking statuses that PREVENT undoing an imported item (has live/past booking).
+BULK_UNDO_BLOCKING_STATUSES = [
+    "requested", "approved", "picked_up", "returned", "completed",
+]
+
+# Example first data row used in the downloadable templates, per category.
+BULK_TEMPLATE_EXAMPLES = {
+    "books": {
+        "title": "example: Chandrabati (change me)",
+        "description": "Example row - delete before upload",
+        "price_per_day": "20", "deposit": "200", "late_fee_per_day": "10",
+        "discount_percent": "0", "genre": "Fiction / Novel", "author": "Example Author",
+        "edition": "1st", "language": "English", "condition": "Good",
+        "religion_or_tradition": "Not applicable", "age_group": "18+",
+        "shelf_code": "B-01", "photo_file": "", "quantity_note": "1 copy",
+    },
+}

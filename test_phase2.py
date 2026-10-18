@@ -18,6 +18,7 @@ class RentKartPhase2(unittest.TestCase):
             "SQLALCHEMY_DATABASE_URI": "sqlite:///" + os.path.join(self.tmp, "test.db"),
             "UPLOAD_FOLDER": os.path.join(self.tmp, "uploads"),
             "SERVER_NAME": "localhost",
+            "OTP_MODE": "demo",
         })
         self.client = self.app.test_client()
         self.ctx = self.app.app_context()

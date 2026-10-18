@@ -2,7 +2,7 @@
 import sys, os
 sys.path.insert(0, os.path.dirname(__file__))
 
-import unittest, tempfile, shutil
+import unittest, tempfile, shutil, time
 from datetime import date, timedelta
 from urllib.parse import urlparse
 from app import create_app
@@ -20,6 +20,7 @@ class RentKartFixesTest(unittest.TestCase):
             "UPLOAD_FOLDER": os.path.join(self.tmp, "uploads"),
             "WTF_CSRF_ENABLED": False,
             "SERVER_NAME": "localhost",
+            "OTP_MODE": "demo",
         })
         self.client = self.app.test_client()
         self.ctx = self.app.app_context()
@@ -93,8 +94,11 @@ class RentKartFixesTest(unittest.TestCase):
             self.assertIsNone(sess.get("login_phone"))
             self.assertNotEqual(sess.get("login_step"), "otp")
 
-        # 2. Resend keeps the phone
+        # 2. Resend keeps the phone. The app enforces a 30s resend cooldown, so
+        #    backdate the last-send stamp to exercise the real resend path.
         self.client.post("/login", data={"phone": phone_num}, follow_redirects=True)
+        with self.client.session_transaction() as sess:
+            sess["otp_last_sent"] = time.time() - 60
         res_resend = self.client.post("/resend-otp", follow_redirects=True)
         self.assertEqual(res_resend.status_code, 200)
         self.assertIn("OTP resent", res_resend.get_data(as_text=True))

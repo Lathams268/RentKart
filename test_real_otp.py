@@ -29,6 +29,14 @@ def _payload(mock_post):
 class TestRealOtpSms(unittest.TestCase):
     def setUp(self):
         reset_rate_limits()
+        # Force sms mode + a dummy key in the ENVIRONMENT: utils.otp reads
+        # os.environ before app.config, so a shell OTP_MODE=demo would otherwise
+        # leak in and stop requests.post from ever being called.
+        self._env_saved = {}
+        for _k in ("OTP_MODE", "SMS_API_KEY"):
+            self._env_saved[_k] = os.environ.get(_k)
+        os.environ["OTP_MODE"] = "sms"
+        os.environ["SMS_API_KEY"] = "test-sms-key"
         self.tmp = tempfile.mkdtemp()
         self.app = create_app({
             "TESTING": True,
@@ -58,6 +66,11 @@ class TestRealOtpSms(unittest.TestCase):
         db.drop_all()
         self.ctx.pop()
         reset_rate_limits()
+        for _k, _v in self._env_saved.items():
+            if _v is None:
+                os.environ.pop(_k, None)
+            else:
+                os.environ[_k] = _v
 
     def test_normalize_and_hash(self):
         self.assertEqual(normalize_phone("+91 98765 43210"), "9876543210")
@@ -159,6 +172,11 @@ class TestRealOtpSms(unittest.TestCase):
 class TestDemoOtpStillWorks(unittest.TestCase):
     def setUp(self):
         reset_rate_limits()
+        # Pin demo mode in the environment so a shell OTP_MODE=sms cannot leak in.
+        self._env_saved = {}
+        for _k in ("OTP_MODE",):
+            self._env_saved[_k] = os.environ.get(_k)
+        os.environ["OTP_MODE"] = "demo"
         self.tmp = tempfile.mkdtemp()
         self.app = create_app({
             "TESTING": True,
@@ -180,6 +198,11 @@ class TestDemoOtpStillWorks(unittest.TestCase):
         db.session.remove()
         db.drop_all()
         self.ctx.pop()
+        for _k, _v in self._env_saved.items():
+            if _v is None:
+                os.environ.pop(_k, None)
+            else:
+                os.environ[_k] = _v
 
     @patch("requests.post")
     def test_demo_mode_still_works(self, mock_post):

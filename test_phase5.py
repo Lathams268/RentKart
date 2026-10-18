@@ -18,6 +18,7 @@ class RentKartPhase5(unittest.TestCase):
             "UPLOAD_FOLDER": os.path.join(self.tmp, "uploads"),
             "WTF_CSRF_ENABLED": False,
             "SERVER_NAME": "localhost",
+            "OTP_MODE": "demo",
         })
         self.client = self.app.test_client()
         self.ctx = self.app.app_context()

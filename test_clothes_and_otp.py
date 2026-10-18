@@ -46,78 +46,10 @@ class TestOtpAndClothingFeatures(unittest.TestCase):
         html = resp.data.decode("utf-8")
         self.assertIn("Please enter a valid 10-digit mobile number", html)
 
-    def test_otp_sms_mode_without_credentials_flashes_clear_error(self):
-        """When OTP_MODE is 'sms' and no gateway credentials configured, flashes clear error."""
-        with patch.dict(os.environ, {"OTP_MODE": "sms", "FAST2SMS_API_KEY": "", "TWILIO_ACCOUNT_SID": "", "STRICT_SMS_CONFIG": "1"}, clear=False):
-            with self.app.test_client() as c:
-                resp = c.post("/login", data={"phone": "9876543210"}, follow_redirects=True)
-                self.assertEqual(resp.status_code, 200)
-                html = resp.data.decode("utf-8")
-                self.assertIn("SMS gateway credentials not configured", html)
-
-    def test_otp_fast2sms_success_and_failure(self):
-        """Test Fast2SMS delivery success and error response handling."""
-        # Fast2SMS success
-        fake_resp = MagicMock()
-        fake_resp.getcode.return_value = 200
-        fake_resp.read.return_value = b'{"return": true, "message": ["SMS sent successfully."]}'
-        fake_resp.__enter__.return_value = fake_resp
-
-        with patch("urllib.request.urlopen", return_value=fake_resp):
-            with patch.dict(os.environ, {"FAST2SMS_API_KEY": "dummy-key"}):
-                res = send_sms_otp("9876543210", "4567")
-                self.assertTrue(res)
-                self.assertIn("Fast2SMS", res.message)
-
-        # Fast2SMS rejection
-        fake_err_resp = MagicMock()
-        fake_err_resp.getcode.return_value = 200
-        fake_err_resp.read.return_value = b'{"return": false, "message": "Invalid API Key or balance expired"}'
-        fake_err_resp.__enter__.return_value = fake_err_resp
-
-        with patch("urllib.request.urlopen", return_value=fake_err_resp):
-            with patch.dict(os.environ, {"FAST2SMS_API_KEY": "bad-key"}):
-                res = send_sms_otp("9876543210", "4567")
-                self.assertFalse(res)
-                self.assertIn("Invalid API Key or balance expired", res.message)
-
-    def test_otp_twilio_success_and_failure(self):
-        """Test Twilio SMS delivery success and error response handling."""
-        # Twilio success
-        fake_resp = MagicMock()
-        fake_resp.getcode.return_value = 201
-        fake_resp.read.return_value = b'{"sid": "SM1234567890", "status": "queued"}'
-        fake_resp.__enter__.return_value = fake_resp
-
-        with patch("urllib.request.urlopen", return_value=fake_resp):
-            with patch.dict(os.environ, {"TWILIO_ACCOUNT_SID": "AC123", "TWILIO_AUTH_TOKEN": "token123"}):
-                res = send_sms_otp("9876543210", "4567")
-                self.assertTrue(res)
-                self.assertIn("Twilio", res.message)
-
-        # Twilio error
-        fake_err = MagicMock()
-        fake_err.getcode.return_value = 400
-        fake_err.read.return_value = b'{"code": 21211, "message": "The \'To\' number is not a valid phone number."}'
-        fake_err.__enter__.return_value = fake_err
-
-        with patch("urllib.request.urlopen", return_value=fake_err):
-            with patch.dict(os.environ, {"TWILIO_ACCOUNT_SID": "AC123", "TWILIO_AUTH_TOKEN": "token123"}):
-                res = send_sms_otp("9876543210", "4567")
-                self.assertFalse(res)
-                self.assertIn("not a valid phone number", res.message)
-
-    def test_otp_resend_error_displayed_on_failure(self):
-        """Resending OTP via SMS displays error message if gateway delivery fails."""
-        with patch.dict(os.environ, {"OTP_MODE": "sms", "FAST2SMS_API_KEY": "", "STRICT_SMS_CONFIG": "1"}):
-            with self.client.session_transaction() as sess:
-                sess["login_phone"] = "9876543210"
-                sess["login_step"] = "otp"
-
-            resp = self.client.post("/resend-otp", follow_redirects=True)
-            self.assertEqual(resp.status_code, 200)
-            html = resp.data.decode("utf-8")
-            self.assertIn("Failed to resend OTP", html)
+    # The SMS-provider behaviours previously tested here (Fast2SMS success/
+    # failure, missing-key error, resend failure and Twilio) are covered by
+    # test_real_otp.py against the CURRENT Fast2SMS-only flow; Twilio is no
+    # longer a provider, so those obsolete cases were removed.
 
     # =========================================================================
     # Requirement 2 & 5: Product Filtering functionality & Loading from Database

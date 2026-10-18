@@ -572,3 +572,34 @@ def _ts_new_booking_default(mapper, connection, target):
         target.trustshield = _ts_enabled_flag()
     except Exception:
         target.trustshield = False
+
+
+class PricingRule(db.Model):
+    """Bulk-listing shop pricing rule (additive feature, Stage 1).
+
+    A rule sets default price_per_day / deposit / late_fee_per_day for a
+    category. When match_field/match_value are empty the rule is the category
+    DEFAULT; otherwise it is a SPECIFIC rule (e.g. category=books,
+    match_field=genre, match_value="Comedy / Humor").
+    """
+    id               = db.Column(db.Integer, primary_key=True)
+    owner_id         = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    category         = db.Column(db.String(50), nullable=False)
+    match_field      = db.Column(db.String(60), nullable=True)   # None => default rule
+    match_value      = db.Column(db.String(120), nullable=True)
+    price_per_day    = db.Column(db.Float, nullable=True, default=0)
+    deposit          = db.Column(db.Float, nullable=True, default=0)
+    late_fee_per_day = db.Column(db.Float, nullable=True, default=0)
+    created_at       = db.Column(db.DateTime, default=datetime.utcnow)
+
+    owner = db.relationship("User", backref=db.backref("pricing_rules", lazy=True))
+
+    @property
+    def is_default(self) -> bool:
+        """True when this rule is the fallback for the whole category."""
+        return not self.match_field or not self.match_value
+
+    def __repr__(self):
+        tgt = f"{self.match_field}={self.match_value}" if not self.is_default else "default"
+        return f"<PricingRule {self.category} {tgt}>"
+

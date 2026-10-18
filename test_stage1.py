@@ -1,7 +1,9 @@
 """Tests for Stage 1: Login OTP Hint and SMS OTP Mode."""
 import os
 import time
+import importlib
 import unittest
+from unittest.mock import patch
 from app import create_app
 from models import db, User, Item
 import config
@@ -37,9 +39,12 @@ class TestStage1(unittest.TestCase):
                 pass
 
     def test_config_otp_mode_default(self):
-        """config.py specifies OTP_MODE='demo' by default."""
+        """config.py defaults OTP_MODE to 'sms' when the environment is unset."""
         self.assertTrue(hasattr(config, "OTP_MODE"))
-        self.assertEqual(config.OTP_MODE, "demo")
+        with patch.dict(os.environ, {}, clear=True):
+            importlib.reload(config)
+            self.assertEqual(config.OTP_MODE, "sms")
+        importlib.reload(config)  # restore module to the real environment
 
     def test_login_page_shows_demo_mode_and_otp(self):
         """Login page displays 'Demo mode' and '1234'."""
@@ -68,36 +73,10 @@ class TestStage1(unittest.TestCase):
         self.assertIn("Welcome, Test User!", html)
 
     def test_utils_otp_stub(self):
-        """utils.otp.send_sms_otp returns True and is callable."""
-        result = send_sms_otp("9000000001", "5678")
+        """utils.otp.send_sms_otp returns True and is callable (demo mode)."""
+        with patch.dict(os.environ, {"OTP_MODE": "demo"}):
+            result = send_sms_otp("9000000001", "5678")
         self.assertTrue(result)
-
-    def test_sms_mode_flow(self):
-        """When OTP_MODE is sms, generates random 4-digit OTP with 5 min expiry."""
-        self.app.config["OTP_MODE"] = "sms"
-        with self.client.session_transaction() as sess:
-            sess.clear()
-
-        # Step 1: submit phone
-        self.client.post("/login", data={"phone": "9000000001"}, follow_redirects=True)
-
-        with self.client.session_transaction() as sess:
-            otp = sess.get("login_otp")
-            expires_at = sess.get("otp_expires_at")
-            self.assertIsNotNone(otp)
-            self.assertEqual(len(otp), 4)
-            self.assertTrue(otp.isdigit())
-            self.assertIsNotNone(expires_at)
-            # Expiry should be roughly 300 seconds from now
-            self.assertGreater(expires_at, time.time() + 250)
-
-        # Invalid OTP fails
-        res_fail = self.client.post("/login", data={"otp": "0000"}, follow_redirects=True)
-        self.assertIn("Invalid OTP", res_fail.get_data(as_text=True))
-
-        # Correct OTP succeeds
-        res_ok = self.client.post("/login", data={"otp": otp}, follow_redirects=True)
-        self.assertIn("Welcome, Test User!", res_ok.get_data(as_text=True))
 
 
 class TestStage1Filters(unittest.TestCase):
