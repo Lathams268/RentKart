@@ -1,64 +1,20 @@
 {# templates/_macros.html – Reusable item image & shop badge macros #}
 
-{% macro _theme_style(owner, cat) %}
-  {% set theme = ((owner.shop_theme_color if owner else '') or '')|lower %}
-  {% if 'gold' in theme and 'black' in theme %}background: linear-gradient(135deg, #111111, #DAA520);
-  {% elif 'maroon' in theme or 'gold' in theme %}background: linear-gradient(135deg, #800020, #DAA520);
-  {% elif 'navy' in theme %}background: linear-gradient(135deg, #1E3A8A, #3B82F6);
-  {% elif 'blue' in theme %}background: linear-gradient(135deg, #1E3A8A, #3B82F6);
-  {% elif 'green' in theme %}background: linear-gradient(135deg, #065F46, #10B981);
-  {% elif 'purple' in theme %}background: linear-gradient(135deg, #581C87, #8B5CF6);
-  {% elif 'orange' in theme %}background: linear-gradient(135deg, #C2410C, #F97316);
-  {% elif 'teal' in theme %}background: linear-gradient(135deg, #0F766E, #5EEAD4);
-  {% elif 'red' in theme %}background: linear-gradient(135deg, #991B1B, #EF4444);
-  {% elif cat == 'clothes' %}background: linear-gradient(135deg, #800020, #DAA520);
-  {% elif cat == 'books' %}background: linear-gradient(135deg, #0F2350, #14919B);
-  {% elif cat == 'farm_tools' %}background: linear-gradient(135deg, #1E6423, #784B1E);
-  {% elif cat == 'electronics' %}background: linear-gradient(135deg, #370F55, #1E50B4);
-  {% elif cat == 'event_items' %}background: linear-gradient(135deg, #E65014, #DC286E);
-  {% elif cat == 'security' %}background: linear-gradient(135deg, #1F2937, #F97316);
-  {% else %}background: linear-gradient(135deg, #166534, #F97316);
-  {% endif %}
-{% endmacro %}
-
-{% macro category_icon(cat) %}{% if cat == 'clothes' %}👗{% elif cat == 'books' %}📚{% elif cat == 'farm_tools' %}🚜{% elif cat == 'electronics' %}📷{% elif cat == 'event_items' %}🎪{% elif cat == 'security' %}🛡️{% else %}📦{% endif %}{% endmacro %}
-
-{% macro shop_logo_img(owner, size_class="w-6 h-6", extra_class="") %}
-  {% set logo_url = shop_logo_url(owner) if owner else None %}
-  {% if logo_url %}
-    <img src="{{ logo_url }}" alt="{{ owner.shop_name or owner.name or 'Shop' }}"
-         class="{{ size_class }} rounded-full object-cover shrink-0 border border-white/70 {{ extra_class }}">
-  {% elif owner %}
-    <span class="{{ size_class }} rounded-full shrink-0 inline-flex items-center justify-center bg-primary text-white text-[10px] font-bold {{ extra_class }}">{{ shop_initials(owner) }}</span>
-  {% endif %}
-{% endmacro %}
-
 {% macro item_image(item, height_class="h-40", extra_class="", is_detail=false) %}
+  {% set pic = item_picture(item) %}
   {% set cat = item.category %}
-  {% set cat_icon = category_icon(cat) %}
-  {% set photo = item_image_url(item) if item else None %}
-  {% set logo_url = shop_logo_url(item.owner) if item.owner else None %}
-  <div class="relative w-full aspect-[4/3] overflow-hidden rounded-xl {{ extra_class }} {{ height_class }} bg-white">
-    {% if photo %}
-      <img src="{{ photo }}" alt="{{ item.title }}"
-           class="absolute inset-0 w-full h-full object-contain p-3 bg-white">
-    {% elif logo_url %}
-      <div class="absolute inset-0" style="{{ _theme_style(item.owner, cat)|trim }}"></div>
-      <div class="absolute inset-0 flex items-center justify-center p-4">
-        <img src="{{ logo_url }}" alt="{{ item.owner.shop_name or 'Shop' }}"
-             class="max-h-[58%] max-w-[70%] object-contain drop-shadow">
-      </div>
-    {% elif item.owner and (item.owner.shop_name or item.owner.name) %}
-      <div class="absolute inset-0" style="{{ _theme_style(item.owner, cat)|trim }}"></div>
-      <div class="absolute inset-0 flex items-center justify-center">
-        <div class="w-16 h-16 rounded-full bg-white/25 border-2 border-white/80 flex items-center justify-center text-xl font-black text-white">
-          {{ shop_initials(item.owner) }}
-        </div>
-      </div>
+  <div class="relative w-full overflow-hidden rounded-xl bg-white {{ extra_class }}" style="aspect-ratio: 4 / 3;">
+    {% if pic.src and pic.kind != 'initials' %}
+      <img src="{{ pic.src }}" alt="{{ item.title }}"
+           class="absolute inset-0 w-full h-full {{ 'object-contain p-3 bg-white' if pic.fit == 'contain' else 'object-cover' }}">
+    {% elif pic.kind == 'logo' and pic.src %}
+      <img src="{{ pic.src }}" alt="{{ item.title }}"
+           class="absolute inset-0 w-full h-full object-contain p-6 bg-white">
     {% else %}
-      <div class="absolute inset-0" style="{{ _theme_style(item.owner if item.owner else none, cat)|trim }}"></div>
-      <div class="absolute inset-0 flex items-center justify-center">
-        <span class="text-4xl leading-none" aria-hidden="true">{{ cat_icon }}</span>
+      <div class="absolute inset-0 flex items-center justify-center bg-gradient-to-b from-primary/80 to-accent/70">
+        <div class="w-16 h-16 rounded-full bg-white/25 border-2 border-white/80 flex items-center justify-center text-xl font-black text-white">
+          {{ pic.initials or 'RK' }}
+        </div>
       </div>
     {% endif %}
     <div class="absolute left-0 right-0 bottom-0 bg-black/60 px-2 py-1.5 z-10">
@@ -73,7 +29,12 @@
   {% set brand = attrs.get('brand') %}
   {% if item.owner and item.owner.shop_name %}
     <div class="text-xs text-gray-700 font-semibold mb-1 flex items-center gap-1.5 min-h-[24px]">
-      {{ shop_logo_img(item.owner, size_class="w-6 h-6") }}
+      {% set logo_url = shop_logo_url(item.owner) %}
+      {% if logo_url %}
+        <img src="{{ logo_url }}" alt="" class="w-6 h-6 rounded-full object-cover shrink-0 border border-white/70">
+      {% else %}
+        <span class="w-6 h-6 rounded-full shrink-0 inline-flex items-center justify-center bg-primary text-white text-[10px] font-bold">{{ shop_initials(item.owner) }}</span>
+      {% endif %}
       <span>by
         {% if item.owner.shop_slug %}
           <a href="{{ url_for('shop.shop_page', slug=item.owner.shop_slug) }}"

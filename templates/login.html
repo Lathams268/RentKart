@@ -80,8 +80,8 @@
 
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Enter OTP</label>
-          <input type="text" name="otp" id="otp-input" required maxlength="4" placeholder="{{ demo_otp if otp_mode == 'demo' else '4-digit OTP' }}" autocomplete="off"
-                 autofocus inputmode="numeric" pattern="[0-9]*" oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 4)"
+          <input type="text" name="otp" id="otp-input" required maxlength="{{ otp_length or 4 }}" placeholder="{{ demo_otp if otp_mode == 'demo' else '4-digit OTP' }}" autocomplete="off"
+                 autofocus inputmode="numeric" pattern="[0-9]*" oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, {{ otp_length or 4 }})"
                  class="w-full border rounded-xl px-4 py-3 text-lg text-center tracking-widest focus:ring-primary focus:border-primary">
         </div>
 
@@ -110,9 +110,9 @@
           {% if next_url %}
             <input type="hidden" name="next" value="{{ next_url }}">
           {% endif %}
-          <button type="submit" id="resendBtn" disabled
-                  class="font-bold text-gray-400 cursor-not-allowed hover:text-primary transition py-1.5 px-2 rounded-lg">
-            Resend in 30s
+          <button type="submit" id="resendBtn" {% if resend_wait %}disabled{% endif %}
+                  class="font-bold {% if resend_wait %}text-gray-400 cursor-not-allowed{% else %}text-primary cursor-pointer hover:underline{% endif %} hover:text-primary transition py-1.5 px-2 rounded-lg">
+            {% if resend_wait %}Resend in {{ resend_wait }}s{% else %}Resend OTP{% endif %}
           </button>
         </form>
       </div>
@@ -123,6 +123,7 @@
 
 {% block scripts %}
 <script>
+  {% if otp_mode == 'demo' %}
   function fillOtp() {
     var el = document.getElementById('otp-input') || document.querySelector('input[name="otp"]');
     if (el) {
@@ -130,6 +131,7 @@
       el.focus();
     }
   }
+  {% endif %}
 
   // Auto-focus OTP input if present
   var el = document.getElementById('otp-input') || document.querySelector('input[name="otp"]');
@@ -166,19 +168,26 @@
   // Resend OTP 30s countdown
   const resendBtn = document.getElementById('resendBtn');
   if (resendBtn) {
-    let timeLeft = 30;
-    const timer = setInterval(function() {
-      timeLeft--;
-      if (timeLeft <= 0) {
-        clearInterval(timer);
-        resendBtn.disabled = false;
-        resendBtn.innerText = 'Resend OTP';
-        resendBtn.classList.remove('text-gray-400', 'cursor-not-allowed');
-        resendBtn.classList.add('text-primary', 'hover:underline', 'cursor-pointer');
-      } else {
-        resendBtn.innerText = `Resend in ${timeLeft}s`;
-      }
-    }, 1000);
+    let timeLeft = {{ resend_wait if resend_wait is defined else 30 }};
+    function enableResend() {
+      resendBtn.disabled = false;
+      resendBtn.innerText = 'Resend OTP';
+      resendBtn.classList.remove('text-gray-400', 'cursor-not-allowed');
+      resendBtn.classList.add('text-primary', 'hover:underline', 'cursor-pointer');
+    }
+    if (timeLeft <= 0) {
+      enableResend();
+    } else {
+      const timer = setInterval(function() {
+        timeLeft--;
+        if (timeLeft <= 0) {
+          clearInterval(timer);
+          enableResend();
+        } else {
+          resendBtn.innerText = `Resend in ${timeLeft}s`;
+        }
+      }, 1000);
+    }
   }
 </script>
 {% endblock %}

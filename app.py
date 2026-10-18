@@ -51,16 +51,16 @@ def create_app(test_config=None):
     from translations import t, SUPPORTED_LANGUAGES
     from utils.trending import get_book_genre_info, is_book_trending
     from utils.logo import shop_logo_url, shop_initials, item_image_static_path
+    from utils.illustrations import item_picture, ensure_illustrations
     from flask import url_for
 
+    illus_dir = os.path.join(app.root_path, "static", "illustrations")
+    if not os.path.isdir(illus_dir) or not os.listdir(illus_dir):
+        ensure_illustrations()
+
     def item_image_url(item):
-        path = item_image_static_path(item)
-        if not path:
-            return None
-        try:
-            return url_for("static", filename=path)
-        except Exception:
-            return f"/static/{path}"
+        pic = item_picture(item)
+        return pic.get("src") or None
 
     app.jinja_env.globals["t"] = t
     app.jinja_env.globals["SUPPORTED_LANGUAGES"] = SUPPORTED_LANGUAGES
@@ -69,6 +69,7 @@ def create_app(test_config=None):
     app.jinja_env.globals["shop_logo_url"] = shop_logo_url
     app.jinja_env.globals["shop_initials"] = shop_initials
     app.jinja_env.globals["item_image_url"] = item_image_url
+    app.jinja_env.globals["item_picture"] = item_picture
 
     @app.context_processor
     def inject_global_data():

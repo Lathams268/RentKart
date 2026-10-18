@@ -6,6 +6,7 @@ from config import get_field_options
 from models import Item
 from utils.geo import attach_distances
 from utils.trust import get_user_trust
+from utils.illustrations import item_picture
 
 main_bp = Blueprint("main", __name__)
 
@@ -424,7 +425,7 @@ def browse():
 
     # Dedicated clothes section handling (Boys vs Girls vs Adult Collections)
     has_specific_clothes_filters = bool(
-        search or request.args.get("sort") or min_price is not None or max_price is not None
+        search or min_price is not None or max_price is not None
         or max_dist is not None or attr_filters or (sel_brand and sel_brand.lower() != "all")
         or clothing_section
     )
@@ -479,7 +480,7 @@ def browse():
                 "lng": item.lng,
                 "village_or_city": item.owner.village_or_city if item.owner else "",
                 "url": url_for("items.item_detail", item_id=item.id),
-                "image_url": url_for("static", filename="uploads/" + item.image) if item.image else None,
+                "image_url": item_picture(item).get("src"),
             })
     map_items_json = json.dumps(map_items)
 

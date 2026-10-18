@@ -3,13 +3,28 @@ import os
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv(os.path.join(BASE_DIR, ".env"))
+except ImportError:
+    pass
+
 SECRET_KEY = os.environ.get("SECRET_KEY", "rentkart-dev-secret-key-change-me")
 SQLALCHEMY_DATABASE_URI = "sqlite:///" + os.path.join(BASE_DIR, "rentkart.db")
 SQLALCHEMY_TRACK_MODIFICATIONS = False
 UPLOAD_FOLDER = os.path.join(BASE_DIR, "static", "uploads")
 MAX_CONTENT_LENGTH = 5 * 1024 * 1024  # 5 MB
-OTP_MODE = os.environ.get("OTP_MODE", "demo")
+OTP_MODE = os.environ.get("OTP_MODE", "sms")
 DEMO_OTP = os.environ.get("DEMO_OTP", "1234")
+SMS_API_KEY = os.environ.get("SMS_API_KEY", "")
+SMS_PROVIDER = os.environ.get("SMS_PROVIDER", "fast2sms")
+FAST2SMS_ROUTE = os.environ.get("FAST2SMS_ROUTE", "otp")
+OTP_LENGTH = int(os.environ.get("OTP_LENGTH", "4"))
+OTP_EXPIRY_MINUTES = int(os.environ.get("OTP_EXPIRY_MINUTES", "5"))
+OTP_MAX_ATTEMPTS = int(os.environ.get("OTP_MAX_ATTEMPTS", "5"))
+OTP_RESEND_SECONDS = int(os.environ.get("OTP_RESEND_SECONDS", "30"))
+OTP_MAX_SENDS = int(os.environ.get("OTP_MAX_SENDS", "3"))
+OTP_SEND_WINDOW_MINUTES = int(os.environ.get("OTP_SEND_WINDOW_MINUTES", "10"))
 FAST2SMS_API_KEY = os.environ.get("FAST2SMS_API_KEY", "")
 TWILIO_ACCOUNT_SID = os.environ.get("TWILIO_ACCOUNT_SID", "")
 TWILIO_AUTH_TOKEN = os.environ.get("TWILIO_AUTH_TOKEN", "")
@@ -315,6 +330,99 @@ CATEGORIES = {
         ],
     },
 }
+
+
+def _sub(key, label, icon, field, value):
+    return {"key": key, "label": label, "icon": icon, "field": field, "value": value}
+
+
+CATEGORIES["clothes"]["subcategories"] = [
+    _sub("lehenga", "Lehenga", "👗", "clothing_type", "Lehenga"),
+    _sub("saree", "Saree", "🥻", "clothing_type", "Saree"),
+    _sub("sherwani", "Sherwani", "🧥", "clothing_type", "Sherwani"),
+    _sub("kurta", "Kurta", "👕", "clothing_type", "Kurta Pajama"),
+    _sub("kurta_set", "Kurta Set", "👕", "clothing_type", "Kurta Set"),
+    _sub("kids_wear", "Kids Wear", "🧒", "style", "Kids"),
+    _sub("western", "Western", "👗", "style", "Western"),
+    _sub("gown", "Gown", "👗", "clothing_type", "Gown"),
+    _sub("blazer", "Blazer", "🤵", "clothing_type", "Suit / Blazer"),
+    _sub("frock", "Frock", "👗", "clothing_type", "Frock"),
+    _sub("anarkali", "Anarkali", "👗", "clothing_type", "Anarkali"),
+]
+CATEGORIES["books"]["subcategories"] = [
+    _sub("comedy", "Comedy", "😄", "genre", "Comedy / Humor"),
+    _sub("spiritual", "Spiritual", "🪔", "genre", "Spiritual / God and Devotional (Bhagavad Gita, Ramayana, Bible, Quran, etc.)"),
+    _sub("motivation", "Motivation", "🌟", "genre", "Inspirational / Motivation"),
+    _sub("self_help", "Self-Help", "📗", "genre", "Self-Help"),
+    _sub("fiction", "Fiction", "📖", "genre", "Fiction / Novel"),
+    _sub("biography", "Biography", "👤", "genre", "Biography"),
+    _sub("mythology", "Mythology", "🛕", "genre", "Mythology"),
+    _sub("children_books", "Children", "🧒", "genre", "Children"),
+    _sub("education", "Education", "✏️", "genre", "Education / Exam Prep"),
+    _sub("business_books", "Business", "💼", "genre", "Business / Finance"),
+    _sub("health", "Health", "🧘", "genre", "Health / Fitness"),
+    _sub("poetry", "Poetry", "✒️", "genre", "Poetry"),
+    _sub("other_books", "Other", "📚", "genre", "Other"),
+]
+CATEGORIES["farm_tools"]["subcategories"] = [
+    _sub("tractor", "Tractors", "🚜", "tool_group", "Tractors"),
+    _sub("attachments", "Attachments", "⚙️", "tool_group", "Tractor Attachments"),
+    _sub("water_tank", "Water and Irrigation", "💧", "tool_group", "Water and Irrigation"),
+    _sub("sprayer", "Sprayer", "🚿", "tool_group", "Spraying and Pest Control"),
+    _sub("harvesting", "Harvesting", "🌾", "tool_group", "Harvesting"),
+    _sub("hand_tools", "Hand Tools", "🔨", "tool_group", "Hand Tools"),
+    _sub("power_tools", "Power Tools", "🔌", "tool_group", "Power Tools"),
+    _sub("soil", "Soil Prep", "🌱", "tool_group", "Soil and Land Preparation"),
+    _sub("transport", "Transport", "🛒", "tool_group", "Transport and Storage"),
+]
+CATEGORIES["electronics"]["subcategories"] = [
+    _sub("camera", "Camera", "📷", "device_type", "Camera"),
+    _sub("laptop", "Laptop", "💻", "device_type", "Laptop"),
+    _sub("projector", "Projector", "📽️", "device_type", "Projector"),
+    _sub("speaker", "Speaker", "🔊", "device_type", "Speaker / Sound System"),
+    _sub("microphone", "Microphone", "🎙️", "device_type", "Microphone"),
+    _sub("drone", "Drone", "🛸", "device_type", "Drone"),
+    _sub("lights", "Lights", "💡", "device_type", "Lights"),
+    _sub("generator", "Power / Inverter", "⚡", "device_type", "Power Bank / Inverter"),
+    _sub("console", "Gaming", "🎮", "device_type", "Gaming Console"),
+    _sub("screen", "Screen", "📺", "device_type", "LED Screen / TV"),
+]
+CATEGORIES["event_items"]["subcategories"] = [
+    _sub("decoration", "Decoration", "🎈", "event_group", "Decoration"),
+    _sub("chairs", "Furniture and Seating", "🪑", "event_group", "Furniture and Seating"),
+    _sub("tent", "Tents and Pandals", "⛺", "event_group", "Tents and Pandals"),
+    _sub("stage_lighting", "Lighting and Sound", "💡", "event_group", "Lighting and Sound"),
+    _sub("catering", "Catering", "🍽️", "event_group", "Catering Equipment"),
+    _sub("stage", "Stage and Backdrops", "🎭", "event_group", "Stage and Backdrops"),
+    _sub("festival_items", "Festival Items", "🪔", "event_group", "Festival Items"),
+    _sub("photobooth", "Photo Booth", "📸", "event_group", "Photo Booth and Props"),
+]
+
+
+def illustration_keys():
+    """Category keys plus every sub-category key."""
+    keys = list(CATEGORIES.keys())
+    for cat in CATEGORIES.values():
+        for sc in cat.get("subcategories", []):
+            if sc["key"] not in keys:
+                keys.append(sc["key"])
+    return keys
+
+
+def match_subcategory(category_key, attrs) -> dict:
+    """Return the first matching sub-category dict for item attributes."""
+    cat = CATEGORIES.get(category_key) or {}
+    attrs = attrs or {}
+    for sc in cat.get("subcategories", []):
+        field, value = sc.get("field"), sc.get("value")
+        got = attrs.get(field)
+        if got is None or value is None:
+            continue
+        if str(got).strip().lower() == str(value).strip().lower():
+            return sc
+        if str(value).strip().lower() in str(got).strip().lower():
+            return sc
+    return None
 
 
 def get_field_options(category_key: str, field_name: str, parent_value: str = None) -> list:

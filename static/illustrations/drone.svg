@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#EEE8FA"/>
+      <stop offset="100%" stop-color="#370F55" stop-opacity="0.35"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="600" fill="url(#bg)"/>
+  
+    <rect x="300" y="270" width="200" height="60" rx="16" fill="#0F172A"/>
+    <circle cx="220" cy="220" r="40" fill="#64748B"/>
+    <circle cx="580" cy="220" r="40" fill="#64748B"/>
+    <circle cx="220" cy="380" r="40" fill="#64748B"/>
+    <circle cx="580" cy="380" r="40" fill="#64748B"/>
+    <line x1="300" y1="290" x2="220" y2="220" stroke="#0F172A" stroke-width="12"/>
+    <line x1="500" y1="290" x2="580" y2="220" stroke="#0F172A" stroke-width="12"/>
+    <line x1="300" y1="310" x2="220" y2="380" stroke="#0F172A" stroke-width="12"/>
+    <line x1="500" y1="310" x2="580" y2="380" stroke="#0F172A" stroke-width="12"/>
+    <circle cx="400" cy="300" r="18" fill="#38BDF8"/>
+    
+</svg>

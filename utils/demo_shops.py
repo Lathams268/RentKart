@@ -524,7 +524,7 @@ SHOPS = [
         "items": [
             _item("Gold Stage Chairs", "event_items", 1200, 3500, 220, "Set of gold luxury chairs",
                   {"event_group": "Furniture and Seating", "item_type": "Stage Chairs", "style": "Traditional", "festival_or_event": "Wedding", "quantity": "20", "color_theme": "Gold"}),
-            _item("Black Gold Backdrop", "event_items": 1600, 4000, 280, "Luxury backdrop wall",
+            _item("Black Gold Backdrop", "event_items", 1600, 4000, 280, "Luxury backdrop wall",
                   {"event_group": "Stage and Backdrops", "item_type": "Backdrop", "style": "Modern", "festival_or_event": "Reception", "quantity": "1", "color_theme": "Black and gold"}),
             _item("Chandelier Set", "event_items", 900, 2500, 180, "Event chandeliers",
                   {"event_group": "Lighting and Sound", "item_type": "Chandelier", "style": "Traditional", "festival_or_event": "Wedding", "quantity": "4", "color_theme": "Gold"}),

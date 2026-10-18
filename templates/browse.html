@@ -262,10 +262,11 @@
 
 <!-- Card Macro for consistent rendering -->
 {% macro render_item_card(item, is_trending_card=false) %}
-  <div class="card hover:shadow-lg transition block relative h-full flex flex-col justify-between">
+  {% set attrs = item.get_attributes() if item.get_attributes else {} %}
+  <div class="card hover:shadow-lg transition relative h-full flex flex-col justify-between">
     <div>
       <div class="relative">
-        {% if item.owner.current_plan() == 'business' %}
+        {% if item.owner and item.owner.current_plan() == 'business' %}
           <span class="absolute top-2 right-2 bg-gradient-to-r from-amber-500 to-yellow-500 text-white text-[10px] font-extrabold px-2 py-0.5 rounded-full shadow z-10 flex items-center gap-0.5">
             ⭐ Featured
           </span>
@@ -275,21 +276,19 @@
             🔥 Trending
           </span>
         {% endif %}
-        <!-- Image with fixed height and object-cover -->
         <a href="{{ url_for('items.item_detail', item_id=item.id) }}" class="block">
           {{ item_image(item, height_class="h-40") }}
         </a>
       </div>
 
-      <!-- Category / Genre badge & rating -->
-      <div class="flex items-center justify-between text-xs mb-1 gap-1 flex-wrap">
+      <div class="flex items-center justify-between text-xs mb-1 gap-1 flex-wrap mt-2">
         {% if item.category == 'books' %}
           <div class="flex items-center gap-1 flex-wrap">
             {% set g_info = get_book_genre_info(item) %}
             <span class="inline-flex items-center gap-0.5 text-[11px] font-semibold px-2 py-0.5 rounded-full {{ g_info.color }}">
               {{ g_info.emoji }} {{ g_info.short_label }}
             </span>
-            {% set b_lang = item.get_attributes().get('language') %}
+            {% set b_lang = attrs.get('language') %}
             {% if b_lang %}
               <span class="inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-800 border border-blue-200">
                 🌐 {{ b_lang }}
@@ -297,32 +296,31 @@
             {% endif %}
           </div>
         {% elif item.category == 'clothes' %}
-          {% set c_attrs = item.get_attributes() %}
           <div class="flex items-center gap-1 flex-wrap">
-            {% if c_attrs.get('gender') %}
-              <span class="inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded-full {{ 'bg-blue-100 text-blue-800 border border-blue-200' if c_attrs.get('gender') == 'Boys' else ('bg-pink-100 text-pink-800 border border-pink-200' if c_attrs.get('gender') == 'Girls' else 'bg-purple-100 text-purple-800 border border-purple-200') }}">
-                {{ '👦 ' if c_attrs.get('gender') == 'Boys' else ('👧 ' if c_attrs.get('gender') == 'Girls' else '👗 ') }}{{ c_attrs.get('gender') }}
+            {% if attrs.get('gender') %}
+              <span class="inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded-full {{ 'bg-blue-100 text-blue-800 border border-blue-200' if attrs.get('gender') == 'Boys' else ('bg-pink-100 text-pink-800 border border-pink-200' if attrs.get('gender') == 'Girls' else ('bg-indigo-100 text-indigo-800 border border-indigo-200' if attrs.get('gender') == 'Men' else 'bg-purple-100 text-purple-800 border border-purple-200')) }}">
+                {{ attrs.get('gender') }}
               </span>
             {% endif %}
-            {% if c_attrs.get('age_group') %}
+            {% if attrs.get('age_group') %}
               <span class="inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200">
-                🎂 {{ c_attrs.get('age_group') }} yrs
+                🎂 {{ attrs.get('age_group') }} yrs
               </span>
             {% endif %}
-            {% if c_attrs.get('size') %}
-              <span class="inline-flex items-center text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-700">
-                Size: {{ c_attrs.get('size') }}
+            {% if attrs.get('occasion') %}
+              <span class="inline-flex items-center text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-rose-50 text-rose-800 border border-rose-200">
+                {{ attrs.get('occasion') }}
               </span>
             {% endif %}
-            {% if c_attrs.get('clothing_type') %}
+            {% if attrs.get('clothing_type') %}
               <span class="inline-flex items-center text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
-                {{ c_attrs.get('clothing_type') }}
+                {{ attrs.get('clothing_type') }}
               </span>
             {% endif %}
           </div>
         {% else %}
           {% set cat = categories.get(item.category, {}) %}
-          <span class="text-gray-400 text-xs truncate">{{ cat.get('icon','') }} {{ t(cat.get('label','')) }}</span>
+          <span class="text-gray-500 text-xs truncate">{{ cat.get('icon','') }} {{ t(cat.get('label','')) }}</span>
         {% endif %}
 
         {% if item.review_stats.count > 0 %}
@@ -330,31 +328,40 @@
         {% endif %}
       </div>
 
-      <!-- Title -->
-      <a href="{{ url_for('items.item_detail', item_id=item.id) }}" class="block font-bold text-gray-800 text-sm line-clamp-1 mb-0.5 hover:text-primary transition" title="{{ item.title }}">
+      <a href="{{ url_for('items.item_detail', item_id=item.id) }}" class="block font-bold text-gray-800 text-sm line-clamp-2 mb-0.5 hover:text-primary transition" title="{{ item.title }}">
         {{ item.title }}
       </a>
-
-      <!-- Shop / Brand badge -->
+      {% if item.category == 'books' and attrs.get('author') %}
+        <p class="text-xs text-gray-500 mb-1 line-clamp-1">by {{ attrs.get('author') }}</p>
+      {% elif item.category == 'electronics' and attrs.get('brand') %}
+        <p class="text-xs text-gray-500 mb-1 line-clamp-1">{{ attrs.get('brand') }}{% if attrs.get('model') %} · {{ attrs.get('model') }}{% endif %}</p>
+      {% elif item.category == 'farm_tools' and (attrs.get('tool_type') or attrs.get('tool_group') or attrs.get('power')) %}
+        <p class="text-xs text-gray-500 mb-1 line-clamp-1">{{ attrs.get('tool_type') or attrs.get('tool_group') or attrs.get('power') }}</p>
+      {% elif item.category == 'event_items' and (attrs.get('item_type') or attrs.get('type')) %}
+        <p class="text-xs text-gray-500 mb-1 line-clamp-1">{{ attrs.get('item_type') or attrs.get('type') }}</p>
+      {% endif %}
       {{ shop_badge(item) }}
     </div>
 
     <div>
-      <!-- Price & deposit -->
-      <div class="flex gap-1.5 mt-1 text-xs flex-wrap">
+      <div class="flex gap-1.5 mt-1 text-xs flex-wrap items-center">
         <span class="bg-green-100 text-primary font-bold rounded-full px-2 py-0.5">₹{{ item.price_per_day }} / {{ t('per day') }}</span>
-        {% if item.deposit %}
-          <span class="bg-orange-100 text-accent font-bold rounded-full px-2 py-0.5">{{ t('Deposit') }}: ₹{{ item.deposit }}</span>
+        {% if item.is_available %}
+          <span class="bg-emerald-50 text-emerald-700 font-semibold rounded-full px-2 py-0.5">Available</span>
+        {% else %}
+          <span class="bg-gray-100 text-gray-500 font-semibold rounded-full px-2 py-0.5">Unavailable</span>
         {% endif %}
       </div>
-
-      <!-- Distance & owner -->
       <div class="flex justify-between items-center mt-2 text-xs text-gray-500 pt-1 border-t border-gray-100">
-        <span class="truncate max-w-[120px]">{{ item.owner.village_or_city }}</span>
+        <span class="truncate max-w-[120px]">📍 {{ item.owner.village_or_city if item.owner else '' }}</span>
         {% if item.distance_km is not none %}
           <span class="bg-blue-100 text-blue-700 font-semibold rounded-full px-2 py-0.5 shrink-0">{{ item.distance_km }} {{ t('km away') }}</span>
         {% endif %}
       </div>
+      <a href="{{ url_for('items.item_detail', item_id=item.id) }}"
+         class="mt-3 inline-flex items-center justify-center w-full min-h-[44px] bg-accent hover:bg-orange-600 text-white text-sm font-bold rounded-xl shadow-sm transition">
+        Rent Now →
+      </a>
     </div>
   </div>
 {% endmacro %}
@@ -374,6 +381,7 @@
 
 <!-- Items Content: Book Rows, Category Rows, or Results Grid -->
 {% if show_book_rows %}
+{# Book genre rows stay; a matching-item grid is also shown below. #}
   <!-- Book Rows View (/browse?category=books with no genre/search filter) -->
   <div class="space-y-6 mb-8">
     <!-- 1. Trending Books Row -->
@@ -423,7 +431,8 @@
     {% endfor %}
   </div>
 
-{% elif show_clothes_sections %}
+{% endif %}
+{% if show_clothes_sections %}
   <!-- Organized Clothes Sections (Boys vs Girls vs Adult Collections) -->
   <div class="space-y-6 mb-8">
     <!-- 1. Boys Collection -->
@@ -518,7 +527,8 @@
     </div>
   </div>
 
-{% elif show_category_rows %}
+{% endif %}
+{% if show_category_rows %}
   <!-- Main /browse Category Rows View (No filters/sorting active) -->
   <div class="space-y-6 mb-8">
     {% for row in category_rows if row['items'] %}
@@ -545,15 +555,25 @@
     {% endfor %}
   </div>
 
-{% elif items %}
-  <!-- Normal Results Grid -->
+{% elif items and not show_clothes_sections %}
+  <!-- Results grid for the selected category (or All) -->
+  <div class="flex items-center justify-between mb-3 px-1">
+    <h2 class="text-base sm:text-lg font-extrabold text-gray-900">
+      {% if sel_category and categories.get(sel_category) %}
+        {{ categories[sel_category].icon }} {{ t(categories[sel_category].label) }}
+      {% else %}
+        All rentals
+      {% endif %}
+    </h2>
+    <span class="text-xs text-gray-500 font-medium">{{ items | length }} item{{ 's' if items|length != 1 else '' }}</span>
+  </div>
   <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
     {% for item in items %}
       {{ render_item_card(item) }}
     {% endfor %}
   </div>
 
-{% else %}
+{% elif not show_book_rows and not show_clothes_sections %}
   <!-- Helpful Empty State with Removable Chips, Suggestion & You Might Like -->
   <div class="card my-6 py-8 px-4 text-center">
     <div class="text-4xl mb-3">🔭</div>

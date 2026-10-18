@@ -1,8 +1,17 @@
-"""Auth routes – mock-OTP login/logout with resend, attempts limit, and next URL support."""
-import os
+"""Auth routes – SMS/demo OTP login with hashed codes, rate limits, and next URL support."""
+import time
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session, current_app
 from flask_login import login_user, logout_user, login_required, current_user
 from models import db, User
+from utils.otp import (
+    generate_otp,
+    hash_otp,
+    normalize_phone,
+    otp_matches,
+    rate_limited,
+    record_send,
+    send_sms_otp,
+)
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -29,13 +38,64 @@ def mask_phone(phone: str) -> str:
     return f"+91 XXXXXX{digits}"
 
 
+def _otp_mode():
+    return str(current_app.config.get("OTP_MODE") or "sms").lower()
+
+
+def _cfg_int(key, default):
+    try:
+        return int(current_app.config.get(key, default))
+    except (TypeError, ValueError):
+        return int(default)
+
+
+def _login_redirect(next_url=None):
+    next_url = _clean_next(next_url) or _clean_next(session.get("login_next"))
+    if next_url:
+        return redirect(url_for("auth.login", next=next_url))
+    return redirect(url_for("auth.login"))
+
+
+def _client_ip():
+    return (request.headers.get("X-Forwarded-For") or request.remote_addr or "").split(",")[0].strip()
+
+
+def _issue_otp(phone: str):
+    """Create a new OTP, send it in sms mode, store only hash + expiry. Never keep plaintext."""
+    mode = _otp_mode()
+    demo_otp = str(current_app.config.get("DEMO_OTP", "1234"))
+    expiry_min = _cfg_int("OTP_EXPIRY_MINUTES", 5)
+    if mode == "sms":
+        api_key = current_app.config.get("SMS_API_KEY") or ""
+        if not api_key:
+            return False, "SMS service is not configured"
+        if rate_limited(phone, _client_ip()):
+            return False, "Too many OTP requests. Please wait and try again."
+        otp_code = generate_otp(_cfg_int("OTP_LENGTH", 4))
+        ok, message = send_sms_otp(phone, otp_code)
+        if not ok:
+            return False, message
+        record_send(phone, _client_ip())
+        session["otp_hash"] = hash_otp(otp_code)
+        session["otp_expires_at"] = time.time() + expiry_min * 60
+        session["otp_last_sent"] = time.time()
+        session["otp_attempts"] = 0
+        session.pop("login_otp", None)
+        return True, "OTP sent."
+    session["otp_hash"] = hash_otp(demo_otp)
+    session["otp_expires_at"] = time.time() + expiry_min * 60
+    session["otp_last_sent"] = time.time()
+    session["otp_attempts"] = 0
+    session.pop("login_otp", None)
+    return True, "OTP sent."
+
+
 @auth_bp.route("/login", methods=["GET", "POST"])
 def login():
     """Two-step flow: 1) enter phone → 2) enter OTP."""
     if current_user.is_authenticated:
         return redirect(url_for("main.index"))
 
-    # Resolve safe next redirect
     raw_next = request.args.get("next") or request.form.get("next")
     next_url = _clean_next(raw_next)
     if next_url:
@@ -45,64 +105,61 @@ def login():
 
     step = session.get("login_step", "phone")
     phone = session.get("login_phone", "")
-
-    otp_mode = os.environ.get("OTP_MODE") or current_app.config.get("OTP_MODE", "demo")
+    otp_mode = _otp_mode()
     demo_otp = str(current_app.config.get("DEMO_OTP", "1234"))
+    max_attempts = _cfg_int("OTP_MAX_ATTEMPTS", 5)
 
     if request.method == "POST":
-        # --- Step 1: collect phone ---
         if "phone" in request.form and step == "phone":
-            phone = request.form["phone"].strip()
-            digits = "".join(c for c in phone if c.isdigit())
-            if not phone:
+            raw_phone = request.form["phone"].strip()
+            if not raw_phone:
                 flash("Phone number is required.", "error")
-                return redirect(url_for("auth.login", next=next_url) if next_url else url_for("auth.login"))
-            if len(digits) < 10:
-                flash("Please enter a valid 10-digit mobile number.", "error")
-                return redirect(url_for("auth.login", next=next_url) if next_url else url_for("auth.login"))
+                return _login_redirect(next_url)
+            normalized = normalize_phone(raw_phone)
+            if not normalized:
+                digits = "".join(c for c in raw_phone if c.isdigit())
+                if len(digits) < 10:
+                    flash("Please enter a valid 10-digit mobile number.", "error")
+                else:
+                    flash("Please enter a valid 10-digit Indian mobile number.", "error")
+                return _login_redirect(next_url)
 
-            if otp_mode == "sms":
-                import random, time
-                from utils.otp import send_sms_otp
-                otp_code = f"{random.randint(1000, 9999)}"
-                sms_res = send_sms_otp(phone, otp_code)
-                if not sms_res:
-                    err_msg = getattr(sms_res, "message", "SMS gateway failed to deliver OTP.")
-                    flash(f"Failed to send OTP: {err_msg}", "error")
-                    return redirect(url_for("auth.login", next=next_url) if next_url else url_for("auth.login"))
-                session["login_phone"] = phone
-                session["login_step"] = "otp"
-                session["otp_attempts"] = 0
-                session["login_otp"] = otp_code
-                session["otp_expires_at"] = time.time() + 300  # 5 minutes
-            else:
-                session["login_phone"] = phone
-                session["login_step"] = "otp"
-                session["otp_attempts"] = 0
-                session["login_otp"] = demo_otp
+            ok, message = _issue_otp(normalized)
+            if not ok:
+                flash(message, "error")
+                return _login_redirect(next_url)
 
-            return redirect(url_for("auth.login", next=next_url) if next_url else url_for("auth.login"))
+            session["login_phone"] = normalized
+            session["login_step"] = "otp"
+            return _login_redirect(next_url)
 
-        # --- Step 2: verify OTP and log in ---
         if "otp" in request.form and step == "otp":
             otp = request.form["otp"].strip()
+            if time.time() > float(session.get("otp_expires_at") or 0):
+                flash("OTP has expired. Please request a new one.", "error")
+                return _login_redirect(next_url)
 
-            if otp_mode == "sms" and "otp_expires_at" in session:
-                import time
-                if time.time() > session.get("otp_expires_at", 0):
-                    flash("OTP has expired. Please request a new one.", "error")
-                    return redirect(url_for("auth.login", next=next_url) if next_url else url_for("auth.login"))
+            attempts = int(session.get("otp_attempts") or 0)
+            if attempts >= max_attempts:
+                flash("Too many incorrect attempts. Please request a new OTP.", "error")
+                return _login_redirect(next_url)
 
-            expected_otp = session.get("login_otp", demo_otp) if otp_mode == "sms" else demo_otp
-            if otp != expected_otp:
-                attempts = session.get("otp_attempts", 0) + 1
+            digest = session.get("otp_hash")
+            if otp_mode != "sms":
+                if not digest:
+                    digest = hash_otp(demo_otp)
+            if not otp_matches(otp, digest):
+                attempts += 1
                 session["otp_attempts"] = attempts
-                flash("Invalid OTP. Wrong OTP, try again", "error")
-                return redirect(url_for("auth.login", next=next_url) if next_url else url_for("auth.login"))
+                left = max(0, max_attempts - attempts)
+                if left <= 0:
+                    flash("Too many incorrect attempts. Please request a new OTP.", "error")
+                else:
+                    flash(f"Invalid OTP. Wrong OTP, try again ({left} tries left)", "error")
+                return _login_redirect(next_url)
 
             user = User.query.filter_by(phone=phone).first()
             if user:
-                # Existing user – update optional location fields
                 lat = request.form.get("lat", type=float)
                 lng = request.form.get("lng", type=float)
                 if lat is not None:
@@ -112,12 +169,11 @@ def login():
                 db.session.commit()
                 login_user(user)
             else:
-                # New user – name & village required
                 name = request.form.get("name", "").strip()
                 village = request.form.get("village_or_city", "").strip()
                 if not name or not village:
                     flash("Name and Village/City are required for new users.", "error")
-                    return redirect(url_for("auth.login", next=next_url) if next_url else url_for("auth.login"))
+                    return _login_redirect(next_url)
                 user = User(
                     name=name,
                     phone=phone,
@@ -129,28 +185,26 @@ def login():
                 db.session.commit()
                 login_user(user)
 
-            # Clean up pending login data
             target_url = _clean_next(session.pop("login_next", None)) or _clean_next(request.form.get("next"))
-            session.pop("login_step", None)
-            session.pop("login_phone", None)
-            session.pop("otp_attempts", None)
-            session.pop("login_otp", None)
-            session.pop("otp_expires_at", None)
+            for key in ("login_step", "login_phone", "otp_attempts", "login_otp", "otp_hash",
+                        "otp_expires_at", "otp_last_sent"):
+                session.pop(key, None)
 
             flash(f"Welcome, {user.name}!", "success")
             if target_url:
                 return redirect(target_url)
             return redirect(url_for("main.index"))
 
-    # Determine if this phone is already registered
     existing_user = None
     if phone:
         existing_user = User.query.filter_by(phone=phone).first()
 
     rendered_phone = phone if step == "otp" else ""
     masked_phone = mask_phone(rendered_phone) if rendered_phone else ""
-    otp_mode = current_app.config.get("OTP_MODE", "demo")
-    demo_otp = str(current_app.config.get("DEMO_OTP", "1234"))
+    last_sent = float(session.get("otp_last_sent") or 0)
+    resend_wait = 0
+    if step == "otp" and last_sent:
+        resend_wait = max(0, int(_cfg_int("OTP_RESEND_SECONDS", 30) - (time.time() - last_sent)))
 
     return render_template(
         "login.html",
@@ -160,7 +214,9 @@ def login():
         existing_user=existing_user,
         next_url=next_url,
         otp_mode=otp_mode,
-        demo_otp=demo_otp,
+        demo_otp=demo_otp if otp_mode == "demo" else "",
+        otp_length=_cfg_int("OTP_LENGTH", 4),
+        resend_wait=resend_wait,
     )
 
 
@@ -168,9 +224,9 @@ def login():
 @auth_bp.route("/change-number", methods=["GET", "POST"])
 def change_number():
     """Clear pending phone and return to step 1."""
-    session.pop("login_phone", None)
-    session.pop("login_step", None)
-    session.pop("otp_attempts", None)
+    for key in ("login_phone", "login_step", "otp_attempts", "login_otp", "otp_hash",
+                "otp_expires_at", "otp_last_sent"):
+        session.pop(key, None)
     next_url = _clean_next(request.args.get("next") or request.form.get("next") or session.get("login_next"))
     if next_url:
         return redirect(url_for("auth.login", next=next_url))
@@ -180,49 +236,38 @@ def change_number():
 @auth_bp.route("/resend-otp", methods=["POST"])
 @auth_bp.route("/login/resend-otp", methods=["POST"])
 def resend_otp():
-    """Resend demo/SMS OTP, keep the same phone, and flash status."""
+    """Resend OTP; server-enforced wait; new OTP invalidates the old hash."""
     phone = session.get("login_phone")
+    next_url = _clean_next(request.args.get("next") or request.form.get("next") or session.get("login_next"))
     if not phone:
         flash("Please enter your phone number first.", "error")
-        return redirect(url_for("auth.login"))
+        return _login_redirect(next_url)
 
+    wait = _cfg_int("OTP_RESEND_SECONDS", 30)
+    last_sent = float(session.get("otp_last_sent") or 0)
+    elapsed = time.time() - last_sent if last_sent else wait
+    if elapsed < wait:
+        left = int(wait - elapsed) + 1
+        flash(f"Please wait {left}s before requesting a new OTP.", "error")
+        session["login_step"] = "otp"
+        return _login_redirect(next_url)
+
+    ok, message = _issue_otp(phone)
     session["login_step"] = "otp"
-    session["otp_attempts"] = 0
-
-    otp_mode = os.environ.get("OTP_MODE") or current_app.config.get("OTP_MODE", "demo")
-    demo_otp = str(current_app.config.get("DEMO_OTP", "1234"))
-    if otp_mode == "sms":
-        import random, time
-        from utils.otp import send_sms_otp
-        otp_code = f"{random.randint(1000, 9999)}"
-        sms_res = send_sms_otp(phone, otp_code)
-        if not sms_res:
-            err_msg = getattr(sms_res, "message", "SMS gateway failed to deliver OTP.")
-            flash(f"Failed to resend OTP: {err_msg}", "error")
-            next_url = _clean_next(request.args.get("next") or request.form.get("next") or session.get("login_next"))
-            if next_url:
-                return redirect(url_for("auth.login", next=next_url))
-            return redirect(url_for("auth.login"))
-        session["login_otp"] = otp_code
-        session["otp_expires_at"] = time.time() + 300
-    else:
-        session["login_otp"] = demo_otp
+    if not ok:
+        flash(message, "error")
+        return _login_redirect(next_url)
 
     flash("OTP resent", "success")
-
-    next_url = _clean_next(request.args.get("next") or request.form.get("next") or session.get("login_next"))
-    if next_url:
-        return redirect(url_for("auth.login", next=next_url))
-    return redirect(url_for("auth.login"))
+    return _login_redirect(next_url)
 
 
 @auth_bp.route("/logout")
 @login_required
 def logout():
     logout_user()
-    session.pop("login_step", None)
-    session.pop("login_phone", None)
-    session.pop("otp_attempts", None)
-    session.pop("login_next", None)
+    for key in ("login_step", "login_phone", "otp_attempts", "login_next", "login_otp",
+                "otp_hash", "otp_expires_at", "otp_last_sent"):
+        session.pop(key, None)
     flash("Logged out.", "success")
     return redirect(url_for("main.index"))
