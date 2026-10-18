@@ -51,24 +51,39 @@ class RentKartBrowseRowsTest(unittest.TestCase):
         self.assertIn("w-[260px]", html)
 
     def test_02_browse_category_clothes_shows_grid(self):
-        """2. /browse?category=clothes shows only clothes in the normal grid."""
+        """2. /browse?category=clothes shows the clothes marketplace page.
+
+        Updated for the clothes redesign: the page is now the mobile marketplace
+        layout (Men / Women / Children tabs + 2-column card grid) instead of the
+        old single-column grid of every clothes item, so the default (Women) tab
+        only carries women items and a men item needs ?tab=men.
+        """
         run_seed()
         resp = self.client.get("/browse?category=clothes")
         self.assertEqual(resp.status_code, 200)
         html = resp.data.decode("utf-8")
 
-        # Clothes items appear
+        # Tab tiles for all three sections
+        for label in ("Men", "Women", "Children"):
+            self.assertIn(label, html)
+
+        # Women clothes items appear on the default tab
         self.assertIn("Silk Lehenga", html)
-        self.assertIn("Designer Sherwani", html)
         self.assertIn("Pattu Saree", html)
+
+        # Men items live on their own tab now, not on the default one
+        self.assertNotIn("Designer Sherwani", html)
+        men_html = self.client.get("/browse?category=clothes&tab=men").data.decode("utf-8")
+        self.assertIn("Designer Sherwani", men_html)
 
         # Non-clothes items do not appear
         self.assertNotIn("Tractor Rotavator", html)
         self.assertNotIn("Canon DSLR Camera", html)
         self.assertNotIn("Shamiyana Tent", html)
 
-        # Uses grid layout
-        self.assertIn("grid grid-cols-1", html)
+        # Uses the multi-column card grid (2 columns on mobile)
+        self.assertIn("grid-cols-2", html)
+        self.assertIn("md:grid-cols-3", html)
 
     def test_03_search_text_works_and_shows_grid(self):
         """3. search text still works and shows the grid."""

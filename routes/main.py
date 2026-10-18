@@ -120,11 +120,10 @@ def item_matches_brand(item, target_brand):
 
 
 @main_bp.route("/browse")
-@main_bp.route("/clothes")
 def browse():
     """Browse items with filters, sorting, and distance badges.
 
-    /browse?category=clothes and the /clothes alias render the dedicated
+    /browse?category=clothes (and the /clothes alias) render the dedicated
     mobile clothes marketplace page (Men / Women / Children tabs + card grid).
     """
     categories = current_app.config["CATEGORIES"]
@@ -490,7 +489,16 @@ def browse():
         from utils.booking import is_available as _is_available
         from utils.filters import cloth_tab_filter as _cloth_tab_filter
         today = _date.today()
-        tab_items = _cloth_tab_filter(items, tab)
+        # Apply tab filter only when the tab was explicitly requested, or
+        # when no restrictive attribute filters are active (so filters like
+        # attr_clothing_type=Kurta+Set still surface kids items across tabs).
+        explicit_tab = request.args.get("tab") is not None
+        has_narrowing = bool(attr_filters or sel_brand or clothing_section
+                           or min_price is not None or max_price is not None or search)
+        if explicit_tab or not has_narrowing:
+            tab_items = _cloth_tab_filter(items, tab)
+        else:
+            tab_items = items
         for it in tab_items:
             it.cloth_available = bool(it.is_available) and _is_available(it, today, today)
         # Available items first inside the default sort (stable for cheapest/newest)
@@ -737,6 +745,15 @@ def browse():
         adult_clothes_items=adult_clothes_items,
         age_groups=["0–2", "3–5", "6–8", "9–12", "13–17", "18+"],
     )
+
+
+@main_bp.route("/clothes")
+def clothes():
+    """Alias for the clothes marketplace page: /browse?category=clothes.
+
+    Kept as its own endpoint so url_for('main.browse') keeps building /browse.
+    """
+    return browse()
 
 
 # ---------- Phase 7: Price Hint API & Language Toggle ----------

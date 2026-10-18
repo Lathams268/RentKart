@@ -123,15 +123,25 @@ class TestOtpAndClothingFeatures(unittest.TestCase):
     # Requirement 2 & 5: Product Filtering functionality & Loading from Database
     # =========================================================================
     def test_clothes_browse_loads_products_from_database(self):
-        """Browsing clothes category successfully queries and displays items from database."""
+        """Browsing clothes category shows the marketplace page with tab tiles.
+
+        Updated: the old browse.html 'Boys Collection'/'Girls Collection' sections
+        were replaced by the Men/Women/Children tab marketplace layout.
+        """
         resp = self.client.get("/browse?category=clothes")
         self.assertEqual(resp.status_code, 200)
         html = resp.data.decode("utf-8")
-        self.assertIn("Boys Collection", html)
-        self.assertIn("Girls Collection", html)
+        # Tab labels (new layout)
+        self.assertIn("Men", html)
+        self.assertIn("Women", html)
+        self.assertIn("Children", html)
+        # Default tab (Women) item appears
         self.assertIn("Silk Lehenga", html)
-        self.assertIn("Boys Royal Kurta Pajama Set", html)
-        self.assertIn("Baby Girls Silk Pattu Pavadai", html)
+        # Children tab items accessible via tab param
+        resp2 = self.client.get("/browse?category=clothes&tab=children")
+        html2 = resp2.data.decode("utf-8")
+        self.assertIn("Boys Royal Kurta Pajama Set", html2)
+        self.assertIn("Baby Girls Silk Pattu Pavadai", html2)
 
     # =========================================================================
     # Requirement 3: Separate categories for Boys and Girls
