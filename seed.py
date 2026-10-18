@@ -7,8 +7,10 @@ import os, sys, json
 sys.path.insert(0, os.path.dirname(__file__))
 
 from app import create_app
-from app import create_app
 from models import db, User, Item, Booking, ReturnRecord, Review, Subscription, Feedback
+from utils.demo_shops import SHOPS, LEGACY_USERS, ensure_shop_logo, item_slug
+from utils.logo import slugify_name
+from datetime import date, timedelta
 
 # ---------- Placeholder image generator ----------
 def _make_item_placeholder(upload_dir, filename, category="other", title="", attrs=None, force=False):

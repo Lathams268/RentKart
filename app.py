@@ -50,10 +50,25 @@ def create_app(test_config=None):
 
     from translations import t, SUPPORTED_LANGUAGES
     from utils.trending import get_book_genre_info, is_book_trending
+    from utils.logo import shop_logo_url, shop_initials, item_image_static_path
+    from flask import url_for
+
+    def item_image_url(item):
+        path = item_image_static_path(item)
+        if not path:
+            return None
+        try:
+            return url_for("static", filename=path)
+        except Exception:
+            return f"/static/{path}"
+
     app.jinja_env.globals["t"] = t
     app.jinja_env.globals["SUPPORTED_LANGUAGES"] = SUPPORTED_LANGUAGES
     app.jinja_env.globals["get_book_genre_info"] = get_book_genre_info
     app.jinja_env.globals["is_book_trending"] = is_book_trending
+    app.jinja_env.globals["shop_logo_url"] = shop_logo_url
+    app.jinja_env.globals["shop_initials"] = shop_initials
+    app.jinja_env.globals["item_image_url"] = item_image_url
 
     @app.context_processor
     def inject_global_data():
@@ -107,6 +122,14 @@ def create_app(test_config=None):
                         conn.execute(text("ALTER TABLE user ADD COLUMN shop_logo VARCHAR(300)"))
                     if "shop_theme_color" not in u_cols:
                         conn.execute(text("ALTER TABLE user ADD COLUMN shop_theme_color VARCHAR(50)"))
+                    if "shop_address" not in u_cols:
+                        conn.execute(text("ALTER TABLE user ADD COLUMN shop_address VARCHAR(300)"))
+                    if "shop_hours" not in u_cols:
+                        conn.execute(text("ALTER TABLE user ADD COLUMN shop_hours VARCHAR(120)"))
+                    if "shop_phone" not in u_cols:
+                        conn.execute(text("ALTER TABLE user ADD COLUMN shop_phone VARCHAR(20)"))
+                    if "shop_category_tags" not in u_cols:
+                        conn.execute(text("ALTER TABLE user ADD COLUMN shop_category_tags VARCHAR(300)"))
                 if "item" in table_names:
                     i_cols = [c["name"] for c in inspector.get_columns("item")]
                     if "purchase_price" not in i_cols:
