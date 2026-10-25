@@ -1,0 +1,18 @@
+Flask>=3.0
+Flask-SQLAlchemy>=3.1
+Flask-Login>=0.6
+Pillow>=10.0
+qrcode>=7.0
+gunicorn>=21.0
+requests>=2.31
+python-dotenv>=1.0
+openpyxl>=3.1
+# Auth: bcrypt password hashes (Werkzeug scrypt is the fallback) and E.164 phone
+# validation. The app still boots without them, but production should install both.
+bcrypt>=4.0
+phonenumbers>=8.13
+# Deployment: PostgreSQL driver for Render's DATABASE_URL (local development
+# keeps using SQLite) and the Cloudinary SDK behind CLOUDINARY_URL uploads.
+psycopg2-binary>=2.9.9
+cloudinary>=1.41.0
+

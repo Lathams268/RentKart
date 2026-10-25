@@ -1,0 +1,15 @@
+{% set ad = sponsored_banner() %}
+{% if ad %}
+  <div class="relative my-4 rounded-2xl overflow-hidden border border-gray-200 bg-white shadow-sm">
+    <span class="absolute top-2 left-2 z-10 bg-black/60 text-white text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded">
+      Sponsored
+    </span>
+    <a href="{{ url_for('revenue.ad_click', ad_id=ad.id) }}" target="_blank" rel="noopener sponsored">
+      <img src="{{ ad.image_url }}" alt="{{ ad.title }}" class="w-full max-h-44 object-cover">
+    </a>
+    {% if ad.sponsor %}
+      <div class="px-3 py-1.5 text-[10px] text-gray-500">Paid placement by {{ ad.sponsor }}</div>
+    {% endif %}
+    <img src="{{ url_for('revenue.ad_impression', ad_id=ad.id) }}" alt="" width="1" height="1" class="absolute opacity-0 pointer-events-none">
+  </div>
+{% endif %}

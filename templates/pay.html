@@ -1,0 +1,208 @@
+{% extends "base.html" %}
+{% from "_macros.html" import item_image, shop_badge %}
+{% block title %}Payment – RentKart{% endblock %}
+
+{% block content %}
+<div class="max-w-md mx-auto mt-4 space-y-4">
+  <h1 class="text-2xl font-bold text-center">Complete Payment</h1>
+
+  {% if mock %}
+    <div class="bg-yellow-50 border border-yellow-300 rounded-xl p-3 text-center text-sm">
+      Demo mode: this QR is for show, no real money is charged.
+    </div>
+  {% endif %}
+
+  <!-- Payment details (from the booking snapshot) -->
+  <div class="card space-y-2 text-sm">
+    <h2 class="font-bold text-gray-800">Payment details</h2>
+    <div class="grid grid-cols-3 gap-3">
+      <div class="col-span-1">{{ item_image(booking.item, height_class="h-20") }}</div>
+      <div class="col-span-2">
+        <div class="font-bold text-gray-800 leading-tight">{{ booking.item.title }}</div>
+        <div class="text-xs text-gray-500">{{ booking.item.owner.shop_name or booking.item.owner.name }}</div>
+      </div>
+    </div>
+    <div class="grid grid-cols-3 gap-2 border-t pt-2 text-center">
+      <div><div class="text-gray-500 text-xs">Start</div><div class="font-semibold">{{ booking.start_date }}</div></div>
+      <div><div class="text-gray-500 text-xs">Return by</div><div class="font-semibold">{{ booking.end_date }}</div></div>
+      <div><div class="text-gray-500 text-xs">Days</div><div class="font-semibold">{{ booking.days }}</div></div>
+    </div>
+    <div class="border-t pt-2 space-y-1">
+      <div class="flex justify-between"><span>{{ per_day | inr }} × {{ booking.days }} days</span><span>{{ booking.total_rent | inr }}</span></div>
+      <div class="flex justify-between">
+        <span>Security deposit (refundable)</span>
+        <span>{% if trust_discount %}<span class="line-through text-gray-400 mr-1">{{ deposit_original | inr }}</span>{% endif %}{{ booking.deposit | inr }}</span>
+      </div>
+      {% if trust_discount %}<div class="text-xs text-green-600 font-semibold">Trust discount applied on your deposit</div>{% endif %}
+      {% if booking.delivery_method == 'delivery' and (booking.delivery_charge or 0) %}
+        <div class="flex justify-between"><span>Delivery charge</span><span>{{ booking.delivery_charge | inr }}</span></div>
+      {% else %}
+        <div class="flex justify-between text-gray-500"><span>Delivery</span><span>Pickup, no delivery charge</span></div>
+      {% endif %}
+      {% if booking.platform_fee %}
+        <div class="flex justify-between"><span>Platform fee</span><span>{{ booking.platform_fee | inr }}</span></div>
+      {% else %}
+        <div class="flex justify-between text-gray-500"><span>Platform fee</span><span>No platform fee</span></div>
+      {% endif %}
+      {% if booking.tax_amount %}
+        <div class="flex justify-between"><span>Taxes</span><span>{{ booking.tax_amount | inr }}</span></div>
+      {% endif %}
+      <div class="flex justify-between text-base font-extrabold border-t pt-2 mt-1">
+        <span>TOTAL AMOUNT PAYABLE</span><span>{{ booking.total_payable | inr }}</span>
+      </div>
+    </div>
+
+    {% if addr.present %}
+    <div class="border-t pt-2">
+      <div class="flex justify-between items-center">
+        <h3 class="font-bold text-gray-800">{% if booking.delivery_method == 'delivery' %}Deliver to{% else %}Your address{% endif %}</h3>
+        <a href="{{ change_addr_url }}" class="text-primary text-xs underline">Change address</a>
+      </div>
+      <div class="text-gray-700 leading-snug">
+        {{ addr.name_phone }}<br>
+        {% if addr.line1 %}{{ addr.line1 }}<br>{% endif %}
+        {% if addr.line2 %}{{ addr.line2 }}<br>{% endif %}
+        {% if addr.line3 %}{{ addr.line3 }}{% endif %}
+      </div>
+    </div>
+    {% endif %}
+
+    {% if booking.delivery_method != 'delivery' %}
+      <div class="border-t pt-2 text-gray-600">
+        <span class="font-bold text-gray-800">Pickup location:</span>
+        {{ booking.item.owner.shop_address or booking.item.owner.village_or_city }}
+      </div>
+    {% endif %}
+    <p class="text-green-700 font-semibold text-xs border-t pt-2">No hidden charges: you pay exactly the total shown.</p>
+    <div class="text-xs text-gray-500">Order <span class="font-mono font-bold">{{ booking.order_id }}</span></div>
+  </div>
+
+  <!-- UPI QR (Stage 4). A static QR NEVER marks the payment as paid. -->
+  <div class="card space-y-2 text-center">
+    <h2 class="font-bold text-gray-800">Pay with UPI</h2>
+    {% if upi_demo %}
+      <div class="bg-yellow-50 border border-yellow-300 rounded-xl p-2 text-xs text-yellow-800">
+        Demo mode: this QR is for show, no real money is charged
+      </div>
+    {% endif %}
+    <img src="{{ qr_url }}" width="220" height="220" alt="UPI QR code" class="mx-auto rounded-lg border">
+    <div class="text-sm font-medium">Scan with any UPI app</div>
+    <div class="text-lg font-extrabold">{{ booking.total_payable | inr }}</div>
+    <div class="text-xs text-gray-500">Order {{ booking.order_id }}</div>
+    <a href="{{ upi_link }}"
+       class="block w-full bg-primary text-white rounded-2xl py-3 text-base font-bold hover:bg-green-700 min-h-[44px]">
+      Open UPI app
+    </a>
+    <div class="flex items-center justify-center gap-2 text-sm">
+      <span class="font-mono">{{ upi_show }}</span>
+      <button type="button" onclick="copyUpi()" class="border rounded-lg px-2 py-1 text-xs min-h-[44px]">Copy</button>
+    </div>
+    {% if provider not in ('mock', 'razorpay') %}
+      <div class="bg-blue-50 border border-blue-200 rounded-xl p-2 text-xs text-blue-800">
+        Payment is confirmed after the shop verifies it
+      </div>
+    {% endif %}
+  </div>
+
+  <form method="post" id="pay-form" class="space-y-4">
+    {% if mock or provider == 'razorpay' %}
+      <!-- Method tiles -->
+      <div class="grid grid-cols-2 gap-2">
+        {% for key, label, icon in tiles %}
+          <label class="border rounded-2xl p-3 flex flex-col items-center justify-center gap-1 min-h-[64px] cursor-pointer has-[:checked]:border-primary has-[:checked]:bg-green-50">
+            <input type="radio" name="method" value="{{ key }}" class="sr-only" {% if loop.first %}checked{% endif %}>
+            <span class="text-2xl">{{ icon }}</span>
+            <span class="text-sm font-bold text-gray-700">{{ label }}</span>
+            {% if key == 'debit_card' or key == 'credit_card' %}
+              <span class="text-[10px] text-gray-400">Card details are never collected or stored</span>
+            {% endif %}
+          </label>
+        {% endfor %}
+        {% if cash_ok and mock %}
+          <label class="border rounded-2xl p-3 flex flex-col items-center justify-center gap-1 min-h-[64px] cursor-pointer has-[:checked]:border-primary has-[:checked]:bg-green-50">
+            <input type="radio" name="method" value="cash" class="sr-only">
+            <span class="text-2xl">💵</span>
+            <span class="text-sm font-bold text-gray-700">Cash on pickup</span>
+          </label>
+        {% endif %}
+      </div>
+    {% endif %}
+
+    {% if mock %}
+      <div>
+        <label class="block text-xs font-semibold text-gray-600 mb-1">Simulate gateway result (Failed simulations let you show the retry flow)</label>
+        <select name="outcome" class="w-full border rounded-xl px-3 py-2 text-sm">
+          <option value="success">Success</option>
+          <option value="declined">Failed (bank declined)</option>
+          <option value="timeout">Failed (timeout)</option>
+        </select>
+      </div>
+      <button type="submit" class="w-full bg-primary text-white rounded-2xl py-3 text-lg font-bold hover:bg-green-700 min-h-[44px]">
+        Simulate: I have paid ({{ booking.total_payable | inr }})
+      </button>
+    {% elif provider == 'razorpay' %}
+      {# Razorpay test mode: server created the order; open hosted Checkout. #}
+      {% if rzp_order_id %}
+        <input type="hidden" name="razorpay_order_id" value="{{ rzp_order_id }}">
+        <input type="hidden" name="razorpay_payment_id" id="rzp_payment_id">
+        <input type="hidden" name="razorpay_signature" id="rzp_signature">
+        <button type="button" id="rzp-btn" disabled
+                class="w-full bg-primary text-white rounded-2xl py-3 text-lg font-bold hover:bg-green-700 min-h-[44px] disabled:opacity-50">
+          Pay {{ booking.total_payable | inr }} securely with Razorpay
+        </button>
+      {% else %}
+        <div class="bg-red-50 border border-red-300 text-red-700 rounded-xl p-3 text-sm text-center">
+          The payment gateway is temporarily unavailable. Please try again.
+        </div>
+      {% endif %}
+    {% else %}
+      <p class="text-sm text-gray-500 text-center">
+        Pay with the UPI QR above. The booking stays pending until the shop confirms your payment.
+      </p>
+    {% endif %}
+  </form>
+
+  <div class="flex flex-wrap gap-2 justify-center text-sm">
+    <a href="{{ url_for('bookings.pay', booking_id=booking.id) }}" class="border rounded-xl px-4 py-2 min-h-[44px] flex items-center">Refresh / Try again</a>
+    <form method="post" action="{{ url_for('bookings.cancel', booking_id=booking.id) }}">
+      <button class="bg-red-500 text-white rounded-xl px-4 py-2 font-bold hover:bg-red-600 min-h-[44px]">Cancel booking</button>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function copyUpi() {
+    var text = "{{ upi_show }}";
+    if (navigator.clipboard) { navigator.clipboard.writeText(text); }
+  }
+</script>
+{% if provider == 'razorpay' and rzp_key_id and rzp_order_id %}
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+<script>
+  (function() {
+    var btn = document.getElementById('rzp-btn');
+    if (btn) btn.disabled = false;
+    var opts = {
+      "key": "{{ rzp_key_id }}",               // publishable id only (never the secret)
+      "amount": {{ (booking.total_payable * 100) | round | int }},  // paise, server snapshot
+      "currency": "INR",
+      "name": "RentKart",
+      "order_id": "{{ rzp_order_id }}",
+      "handler": function (resp) {
+        document.getElementById('rzp_payment_id').value = resp.razorpay_payment_id;
+        document.getElementById('rzp_signature').value = resp.razorpay_signature;
+        document.getElementById('pay-form').submit();
+      },
+      "theme": {"color": "#16a34a"}
+    };
+    if (btn) btn.addEventListener('click', function() {
+      var rzp = new Razorpay(opts);
+      rzp.on('payment.failed', function () { document.getElementById('pay-form').submit(); });
+      rzp.open();
+    });
+  })();
+</script>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,59 @@
+{# TrustShield owner/admin action box: pending handovers, returns, disputes. #}
+{% set op = ts_owner_pending() %}
+{% if op.handovers or op.to_return or op.reviews or op.disputes %}
+<div class="card mb-6 border-l-4 border-primary space-y-3">
+  <h2 class="font-bold text-lg">🛡️ TrustShield – needs attention</h2>
+
+  {% if op.handovers %}
+    <div>
+      <p class="text-xs font-bold text-gray-500 uppercase mb-1">Pending handover reports</p>
+      {% for b in op.handovers %}
+        <div class="flex justify-between items-center gap-2 text-sm py-1 flex-wrap">
+          <span>{{ b.item.title }} · {{ b.renter.name }}</span>
+          <a href="{{ url_for('trustshield.handover_report', booking_id=b.id) }}"
+             class="bg-primary text-white rounded-lg px-3 py-1.5 text-xs font-bold min-h-[44px] flex items-center">Upload condition</a>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  {% if op.to_return %}
+    <div>
+      <p class="text-xs font-bold text-gray-500 uppercase mb-1">Active rentals – upload return report</p>
+      {% for b in op.to_return %}
+        <div class="flex justify-between items-center gap-2 text-sm py-1 flex-wrap">
+          <span>{{ b.item.title }} · {{ b.renter.name }}</span>
+          <a href="{{ url_for('trustshield.return_report', booking_id=b.id) }}"
+             class="bg-blue-600 text-white rounded-lg px-3 py-1.5 text-xs font-bold min-h-[44px] flex items-center">Return report</a>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  {% if op.reviews %}
+    <div>
+      <p class="text-xs font-bold text-gray-500 uppercase mb-1">Returns awaiting your review</p>
+      {% for b in op.reviews %}
+        <div class="flex justify-between items-center gap-2 text-sm py-1 flex-wrap">
+          <span>{{ b.item.title }} · {{ b.renter.name }}</span>
+          <a href="{{ url_for('trustshield.review', booking_id=b.id) }}"
+             class="bg-amber-500 text-white rounded-lg px-3 py-1.5 text-xs font-bold min-h-[44px] flex items-center">Review damage</a>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  {% if op.disputes %}
+    <div>
+      <p class="text-xs font-bold text-gray-500 uppercase mb-1">Open disputes</p>
+      {% for d in op.disputes %}
+        <div class="flex justify-between items-center gap-2 text-sm py-1 flex-wrap">
+          <span>{{ d.case.booking.item.title if d.case and d.case.booking else 'Dispute #' ~ d.id }} · {{ d.reason }}</span>
+          <a href="{{ url_for('trustshield.damage_report', booking_id=d.case.booking_id) if d.case else '#' }}"
+             class="bg-red-600 text-white rounded-lg px-3 py-1.5 text-xs font-bold min-h-[44px] flex items-center">View</a>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+</div>
+{% endif %}

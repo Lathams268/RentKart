@@ -1,0 +1,16 @@
+{# TrustShield pending-actions box for the renter dashboard (top-level). #}
+{% set pend = ts_renter_pending() %}
+{% if pend %}
+<div class="card mb-4 border-l-4 border-accent space-y-2">
+  <h2 class="font-bold text-sm">⏳ TrustShield – pending actions</h2>
+  {% for ctx in pend %}
+    <div class="flex justify-between items-center gap-2 text-sm flex-wrap">
+      <span>{{ ctx.booking.item.title }}</span>
+      <a href="{{ ctx.pending.url }}"
+         class="bg-accent text-white rounded-lg px-3 py-1.5 text-xs font-bold min-h-[44px] flex items-center">
+        {{ ctx.pending.label }}
+      </a>
+    </div>
+  {% endfor %}
+</div>
+{% endif %}

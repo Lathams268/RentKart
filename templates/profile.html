@@ -1,0 +1,310 @@
+{% extends "base.html" %}
+{% block title %}My Profile & Trust Score – RentKart{% endblock %}
+
+{% macro verified_pill(ok, label) -%}
+  {% if ok %}
+    <span class="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-800 border border-green-300">✓ {{ label }}</span>
+  {% else %}
+    <span class="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 border border-gray-300">○ {{ label }}</span>
+  {% endif %}
+{%- endmacro %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto space-y-4">
+
+  <!-- Header -->
+  <div class="card bg-white">
+    <div class="flex items-start justify-between gap-3">
+      <div class="min-w-0">
+        <h1 class="text-xl sm:text-2xl font-bold text-gray-900 truncate">{{ user.name }}</h1>
+        <p class="text-sm text-gray-500 truncate">
+          {{ user.email or 'No email yet' }} &bull; 📞 {{ user.phone_e164 or user.phone }}
+        </p>
+        <p class="text-xs text-gray-400 mt-0.5">
+          📍 {{ address.city if address and address.city else (user.village_or_city or 'Location not set') }}
+          &bull; Role: {{ (user.role or 'both')|capitalize }}
+          {% if user.is_admin %}<span class="ml-1 text-primary font-bold">Admin</span>{% endif %}
+        </p>
+      </div>
+      <span class="shrink-0 text-xs px-3 py-1 rounded-full font-bold
+        {% if trust.color == 'green' %}bg-green-100 text-green-800 border border-green-300
+        {% elif trust.color == 'yellow' %}bg-yellow-100 text-yellow-800 border border-yellow-300
+        {% else %}bg-red-100 text-red-800 border border-red-300{% endif %}">
+        🛡️ {{ trust.label }}
+      </span>
+    </div>
+  </div>
+
+  <!-- Verification status -->
+  <div class="card bg-white space-y-3">
+    <div>
+      <h2 class="font-bold text-gray-800">Verification status</h2>
+      <p class="text-xs text-gray-500">Verified details raise your trust score and lower deposit requirements.</p>
+    </div>
+    <div class="flex flex-wrap gap-2">
+      {{ verified_pill(user.email_verified, 'Email') }}
+      {{ verified_pill(user.phone_verified, 'Phone') }}
+      {{ verified_pill(user.address_verified, 'Address') }}
+      {{ verified_pill(user.id_verified, 'ID') }}
+    </div>
+    <div class="divide-y text-sm">
+      <div class="flex items-center justify-between py-2 gap-3">
+        <div class="min-w-0">
+          <p class="font-medium text-gray-800">Email</p>
+          <p class="text-xs text-gray-500 truncate">{{ user.email or 'Not added yet' }}</p>
+        </div>
+        {% if user.email_verified %}
+          <span class="text-xs font-bold text-green-700 shrink-0">Verified</span>
+        {% elif user.email %}
+          <a href="{{ url_for('auth.verify_email') }}" class="text-xs font-bold text-primary hover:underline shrink-0">Verify email</a>
+        {% else %}
+          <span class="text-xs text-gray-400 shrink-0">Add an email below</span>
+        {% endif %}
+      </div>
+      <div class="flex items-center justify-between py-2 gap-3">
+        <div class="min-w-0">
+          <p class="font-medium text-gray-800">Primary phone</p>
+          <p class="text-xs text-gray-500 truncate">{{ user.phone_e164 or user.phone }}</p>
+        </div>
+        <div class="flex items-center gap-3 shrink-0">
+          {% if user.phone_verified %}<span class="text-xs font-bold text-green-700">Verified</span>{% endif %}
+          <a href="{{ url_for('auth.verify_phone') }}" class="text-xs font-bold text-primary hover:underline">
+            {% if user.phone_verified %}Change number{% else %}Verify phone{% endif %}
+          </a>
+        </div>
+      </div>
+      <div class="flex items-center justify-between py-2 gap-3">
+        <div class="min-w-0">
+          <p class="font-medium text-gray-800">Alternate phone</p>
+          <p class="text-xs text-gray-500 truncate">{{ user.alternate_phone or 'Not added yet' }}</p>
+        </div>
+        <div class="flex items-center gap-3 shrink-0">
+          {% if user.alternate_phone_verified %}<span class="text-xs font-bold text-green-700">Verified</span>{% endif %}
+          <a href="{{ url_for('auth.verify_phone') }}#alternate" class="text-xs font-bold text-primary hover:underline">
+            {% if user.alternate_phone %}Change{% else %}Add number{% endif %}
+          </a>
+        </div>
+      </div>
+      <div class="flex items-center justify-between py-2 gap-3">
+        <div class="min-w-0">
+          <p class="font-medium text-gray-800">Address</p>
+          <p class="text-xs text-gray-500">
+            {% if user.address_verified %}Verified on file{% else %}Complete your address below to verify{% endif %}
+          </p>
+        </div>
+        <span class="text-xs font-bold shrink-0 {{ 'text-green-700' if user.address_verified else 'text-gray-400' }}">
+          {{ 'Verified' if user.address_verified else 'Pending' }}
+        </span>
+      </div>
+      <div class="flex items-center justify-between py-2 gap-3">
+        <div class="min-w-0">
+          <p class="font-medium text-gray-800">Government ID</p>
+          <p class="text-xs text-gray-500">Needed before high-value rentals</p>
+        </div>
+        <span class="text-xs font-bold shrink-0 {{ 'text-green-700' if user.id_verified else 'text-gray-400' }}">
+          {{ 'Verified' if user.id_verified else 'Not uploaded' }}
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Editable profile + address -->
+  <form method="post" action="{{ url_for('main.profile') }}" class="card bg-white space-y-4">
+    <input type="hidden" name="action" value="profile">
+    <div>
+      <h2 class="font-bold text-gray-800">Personal details</h2>
+      <p class="text-xs text-gray-500">Keep these up to date so owners can reach you.</p>
+    </div>
+
+    <div class="grid sm:grid-cols-2 gap-3 text-sm">
+      <div class="sm:col-span-2">
+        <label class="block text-xs font-medium text-gray-700 mb-1" for="name">Full name</label>
+        <input id="name" name="name" type="text" required value="{{ user.name }}"
+               class="w-full border rounded-xl px-3 py-2">
+      </div>
+      <div class="sm:col-span-2">
+        <label class="block text-xs font-medium text-gray-700 mb-1" for="email">Email</label>
+        <input id="email" name="email" type="email" inputmode="email" value="{{ user.email or '' }}"
+               placeholder="you@example.com" class="w-full border rounded-xl px-3 py-2">
+        {% if user.email and not user.email_verified %}
+          <p class="text-xs text-amber-700 mt-1">Changing this resets email verification.
+            <a href="{{ url_for('auth.verify_email') }}" class="font-bold hover:underline">Verify now</a>
+          </p>
+        {% endif %}
+      </div>
+      <div class="sm:col-span-2">
+        <span class="block text-xs font-medium text-gray-700 mb-1">Phone</span>
+        <div class="flex items-center justify-between border rounded-xl px-3 py-2 bg-gray-50">
+          <span class="text-gray-800">{{ user.phone_e164 or user.phone }}</span>
+          <a href="{{ url_for('auth.verify_phone') }}" class="text-xs font-bold text-primary hover:underline">Change / verify</a>
+        </div>
+        <p class="text-xs text-gray-500 mt-1">For security the number changes only after the new number is verified by OTP.</p>
+      </div>
+    </div>
+
+    <div class="border-t pt-3">
+      <h2 class="font-bold text-gray-800">Default address</h2>
+      <p class="text-xs text-gray-500 mb-3">Used for delivery and pickup on new bookings.</p>
+      <div class="grid sm:grid-cols-2 gap-3 text-sm">
+        <div>
+          <label class="block text-xs font-medium text-gray-700 mb-1" for="house_no">Address line 1</label>
+          <input id="house_no" name="house_no" type="text" value="{{ address.house_no if address else '' }}"
+                 placeholder="Flat / house no., building" class="w-full border rounded-xl px-3 py-2">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-700 mb-1" for="street">Address line 2</label>
+          <input id="street" name="street" type="text" value="{{ address.street if address else '' }}"
+                 placeholder="Street, area, landmark" class="w-full border rounded-xl px-3 py-2">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-700 mb-1" for="city">City</label>
+          <input id="city" name="city" type="text" value="{{ address.city if address else (user.village_or_city or '') }}"
+                 class="w-full border rounded-xl px-3 py-2">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-700 mb-1" for="state">State / Region</label>
+          <input id="state" name="state" type="text" value="{{ address.state if address else '' }}"
+                 class="w-full border rounded-xl px-3 py-2">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-700 mb-1" for="pincode">Postal code</label>
+          <input id="pincode" name="pincode" type="text" inputmode="numeric" value="{{ address.pincode if address else '' }}"
+                 class="w-full border rounded-xl px-3 py-2">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-700 mb-1" for="country">Country</label>
+          <input id="country" name="country" type="text" list="countryList"
+                 value="{{ address.country if address else 'India' }}" class="w-full border rounded-xl px-3 py-2">
+          <datalist id="countryList">
+            {% for c in country_choices %}<option value="{{ c.name }}"></option>{% endfor %}
+          </datalist>
+        </div>
+      </div>
+    </div>
+
+    <button type="submit" class="w-full bg-primary text-white rounded-xl py-3 font-bold hover:bg-green-700 min-h-[44px]">
+      Save profile
+    </button>
+  </form>
+
+  <!-- Password -->
+  <form method="post" action="{{ url_for('main.profile') }}" class="card bg-white space-y-3">
+    <input type="hidden" name="action" value="password">
+    <div>
+      <h2 class="font-bold text-gray-800">{{ 'Change password' if user.has_password else 'Set a password' }}</h2>
+      <p class="text-xs text-gray-500">
+        {% if user.has_password %}Use a strong password you don't reuse elsewhere.
+        {% else %}This account logs in with phone OTP. Add a password to also sign in with email.{% endif %}
+      </p>
+    </div>
+    {% if user.has_password %}
+    <div>
+      <label class="block text-xs font-medium text-gray-700 mb-1" for="current_password">Current password</label>
+      <input id="current_password" name="current_password" type="password" required autocomplete="current-password"
+             class="w-full border rounded-xl px-3 py-2 text-sm">
+    </div>
+    {% endif %}
+    <div class="grid sm:grid-cols-2 gap-3 text-sm">
+      <div>
+        <label class="block text-xs font-medium text-gray-700 mb-1" for="new_password">New password</label>
+        <input id="new_password" name="new_password" type="password" required autocomplete="new-password"
+               minlength="8" class="w-full border rounded-xl px-3 py-2">
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-700 mb-1" for="confirm_password">Confirm password</label>
+        <input id="confirm_password" name="confirm_password" type="password" required autocomplete="new-password"
+               minlength="8" class="w-full border rounded-xl px-3 py-2">
+      </div>
+    </div>
+    <p class="text-xs text-gray-500">At least 8 characters with 3 of: lowercase, uppercase, number, symbol.</p>
+    <button type="submit" class="w-full border border-primary text-primary rounded-xl py-2.5 font-bold hover:bg-green-50 min-h-[44px]">
+      {{ 'Update password' if user.has_password else 'Set password' }}
+    </button>
+  </form>
+
+  <!-- Trust Score & Smart Deposit -->
+  <div class="card bg-white space-y-4">
+    <div class="flex items-center justify-between">
+      <div>
+        <h3 class="font-bold text-gray-800 text-base">🛡️ RentKart Trust Score</h3>
+        <p class="text-xs text-gray-500">Your community reputation determines security deposit discounts.</p>
+      </div>
+      <span class="text-3xl font-black {% if trust.color == 'green' %}text-primary{% elif trust.color == 'yellow' %}text-yellow-600{% else %}text-red-500{% endif %}">
+        {{ trust.score }}/100
+      </span>
+    </div>
+
+    <div class="space-y-1">
+      <div class="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+        <div class="h-3 rounded-full transition-all duration-500
+          {% if trust.color == 'green' %}bg-primary
+          {% elif trust.color == 'yellow' %}bg-yellow-500
+          {% else %}bg-red-500{% endif %}"
+          style="width: {{ trust.score }}%"></div>
+      </div>
+      <div class="flex justify-between text-[10px] text-gray-400 font-bold uppercase tracking-wider">
+        <span>0 (New / Risky)</span>
+        <span>40 (Trusted)</span>
+        <span>70 (Highly Trusted)</span>
+        <span>100</span>
+      </div>
+    </div>
+
+    <div class="bg-gray-50 rounded-xl p-3 text-xs space-y-1 text-gray-600 border">
+      <div class="flex justify-between">
+        <span class="font-medium text-gray-700">Current Status:</span>
+        <strong class="{% if trust.color == 'green' %}text-green-700{% elif trust.color == 'yellow' %}text-yellow-700{% else %}text-red-700{% endif %}">
+          {{ trust.label }} Tier
+        </strong>
+      </div>
+      <div class="flex justify-between">
+        <span class="font-medium text-gray-700">Deposit Multiplier:</span>
+        <strong class="text-primary">{{ (trust.multiplier * 100) | int }}% of standard deposit</strong>
+      </div>
+      {% if trust.multiplier < 1.0 %}
+        <p class="text-green-600 font-semibold mt-1">🎉 You are saving {{ ((1.0 - trust.multiplier) * 100) | int }}% on deposits for all rentals!</p>
+      {% else %}
+        <p class="text-gray-500 mt-1">Complete clean returns on time to unlock deposit discounts.</p>
+      {% endif %}
+    </div>
+
+    <div class="border-t pt-3 space-y-2">
+      <h4 class="font-bold text-xs uppercase tracking-wide text-gray-700">💡 3 Tips to Improve Your Trust Score</h4>
+      <ul class="space-y-1.5 text-xs text-gray-600">
+        {% for tip in tips %}
+          <li class="flex items-start gap-2">
+            <span class="text-accent font-bold">&bull;</span>
+            <span>{{ tip }}</span>
+          </li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+
+  <!-- Recent account activity (feeds the trust score) -->
+  {% if events %}
+  <div class="card bg-white space-y-2">
+    <h2 class="font-bold text-gray-800">Recent account activity</h2>
+    <p class="text-xs text-gray-500">Every rental, return and payment is recorded against your account.</p>
+    <ul class="divide-y text-sm">
+      {% for event in events %}
+        <li class="py-2 flex items-start justify-between gap-3">
+          <div class="min-w-0">
+            <p class="font-medium text-gray-800">{{ event.kind|replace('_', ' ')|capitalize }}</p>
+            {% set detail = event.get_detail() %}
+            {% if detail %}
+              <p class="text-xs text-gray-500 break-words">
+                {% for key, value in detail.items() %}{{ key|replace('_', ' ') }}: {{ value }}{% if not loop.last %} &middot; {% endif %}{% endfor %}
+              </p>
+            {% endif %}
+          </div>
+          <span class="text-[11px] text-gray-400 shrink-0">
+            {{ event.created_at.strftime('%d %b, %H:%M') if event.created_at else '' }}
+          </span>
+        </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

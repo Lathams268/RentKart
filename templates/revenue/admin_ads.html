@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% block title %}Sponsored Banners – Admin – RentKart{% endblock %}
+
+{% block content %}
+<div class="space-y-5 py-4">
+  <div class="flex items-center justify-between flex-wrap gap-2">
+    <div>
+      <span class="text-xs uppercase font-extrabold text-purple-600 tracking-wider">Admin</span>
+      <h1 class="text-2xl font-black text-gray-900 mt-0.5">📣 Sponsored banners</h1>
+      <p class="text-xs text-gray-500 mt-1">Banners are labelled "Sponsored" on the home and browse pages.</p>
+    </div>
+    <div class="flex gap-2">
+      <a href="{{ url_for('revenue.admin_revenue') }}" class="bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 text-xs font-bold px-3 py-2 rounded-xl shadow-sm">← Dashboard</a>
+      <a href="{{ url_for('revenue.admin_settings') }}" class="bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 text-xs font-bold px-3 py-2 rounded-xl shadow-sm">⚙ Settings</a>
+    </div>
+  </div>
+
+  <form method="post" class="card space-y-3">
+    <h2 class="font-bold text-gray-800">Create a banner</h2>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+      <label class="font-bold text-gray-500 uppercase">Title *
+        <input type="text" name="title" required maxlength="120" class="block w-full border rounded-lg px-2 py-1.5 mt-0.5">
+      </label>
+      <label class="font-bold text-gray-500 uppercase">Sponsor name
+        <input type="text" name="sponsor" maxlength="120" class="block w-full border rounded-lg px-2 py-1.5 mt-0.5">
+      </label>
+      <label class="font-bold text-gray-500 uppercase">Image URL *
+        <input type="text" name="image_url" required placeholder="https://… or /static/…" class="block w-full border rounded-lg px-2 py-1.5 mt-0.5">
+      </label>
+      <label class="font-bold text-gray-500 uppercase">Link URL *
+        <input type="text" name="link_url" required placeholder="https://… or /shop/…" class="block w-full border rounded-lg px-2 py-1.5 mt-0.5">
+      </label>
+      <label class="font-bold text-gray-500 uppercase">Start date *
+        <input type="date" name="start_date" required class="block w-full border rounded-lg px-2 py-1.5 mt-0.5">
+      </label>
+      <label class="font-bold text-gray-500 uppercase">End date *
+        <input type="date" name="end_date" required class="block w-full border rounded-lg px-2 py-1.5 mt-0.5">
+      </label>
+      <label class="font-bold text-gray-500 uppercase">Deal price (₹)
+        <input type="number" step="0.01" min="0" name="price" class="block w-full border rounded-lg px-2 py-1.5 mt-0.5">
+      </label>
+    </div>
+    <div class="flex justify-end">
+      <button type="submit" class="bg-purple-600 hover:bg-purple-700 text-white font-extrabold text-sm px-4 py-2 rounded-xl shadow">
+        Create banner
+      </button>
+    </div>
+  </form>
+
+  <section class="card p-0 overflow-hidden">
+    <div class="px-4 py-3 border-b flex items-center justify-between">
+      <h2 class="font-bold text-gray-800">All banners</h2>
+      <span class="text-[11px] text-gray-400">{{ ads | length }} banner(s)</span>
+    </div>
+    {% if ads %}
+      <div class="overflow-x-auto">
+        <table class="w-full text-xs">
+          <thead class="bg-gray-50 text-gray-500 uppercase text-[10px] tracking-wider">
+            <tr>
+              <th class="text-left px-3 py-2">Banner</th>
+              <th class="text-left px-3 py-2">Window</th>
+              <th class="text-right px-3 py-2">Price</th>
+              <th class="text-right px-3 py-2">Impressions</th>
+              <th class="text-right px-3 py-2">Clicks</th>
+              <th class="text-right px-3 py-2">CTR</th>
+              <th class="text-right px-3 py-2">Status</th>
+              <th class="text-right px-3 py-2"></th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100">
+            {% for ad in ads %}
+              {% set impressions = ad.impressions %}
+              {% set clicks = ad.clicks %}
+              <tr class="hover:bg-gray-50">
+                <td class="px-3 py-2">
+                  <div class="font-semibold text-gray-800">{{ ad.title }}</div>
+                  <div class="text-[10px] text-gray-400">{{ ad.sponsor or '—' }}</div>
+                </td>
+                <td class="px-3 py-2 text-gray-500 whitespace-nowrap">
+                  {{ ad.start_date.strftime('%d %b') }} – {{ ad.end_date.strftime('%d %b %Y') }}
+                </td>
+                <td class="px-3 py-2 text-right">{{ ad.price_paise | paise_inr }}</td>
+                <td class="px-3 py-2 text-right">{{ impressions }}</td>
+                <td class="px-3 py-2 text-right">{{ clicks }}</td>
+                <td class="px-3 py-2 text-right">
+                  {{ '%.1f' | format((clicks * 100.0 / impressions) if impressions else 0) }}%
+                </td>
+                <td class="px-3 py-2 text-right">
+                  {% if ad.is_live() %}
+                    <span class="bg-green-100 text-green-800 px-2 py-0.5 rounded-full font-bold">Live</span>
+                  {% elif ad.active %}
+                    <span class="bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-bold">Scheduled/ended</span>
+                  {% else %}
+                    <span class="bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full font-bold">Paused</span>
+                  {% endif %}
+                </td>
+                <td class="px-3 py-2 text-right">
+                  <form method="post" action="{{ url_for('revenue.admin_ad_toggle', ad_id=ad.id) }}">
+                    <button type="submit" class="border border-gray-200 hover:bg-gray-50 text-gray-700 text-[10px] font-bold px-2 py-1 rounded-lg">
+                      {{ 'Pause' if ad.active else 'Activate' }}
+                    </button>
+                  </form>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="p-8 text-center text-sm text-gray-400">No banners yet. Create one above.</div>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

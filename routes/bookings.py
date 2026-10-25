@@ -1,0 +1,1260 @@
+"""Booking routes – request, approve, reject, handover, payment, dashboards."""
+import hashlib
+import json
+import os, uuid
+from datetime import date, datetime
+from flask import (
+    Blueprint, render_template, request, redirect, url_for, flash,
+    current_app, abort, jsonify, make_response,
+)
+from flask_login import login_required, current_user
+from models import db, Item, Booking, ReturnRecord, Review, Payment, Address, WebhookEvent
+from utils.booking import (
+    calculate_price, booking_snapshot, is_available,
+    generate_order_id, payment_expiry,
+)
+from utils.address import snapshot_fields
+from utils.events import record_event
+from utils.trust import get_user_trust
+from utils.settlement import calculate_settlement
+from utils.money import inr
+
+bookings_bp = Blueprint("bookings", __name__)
+
+# Display labels (Stage 4): payment method + booking payment status badge.
+METHOD_LABELS = {
+    "upi": "UPI", "gpay": "Google Pay", "phonepe": "PhonePe",
+    "debit_card": "Debit Card", "credit_card": "Credit Card",
+    "cash": "Cash on pickup",
+}
+PAYMENT_BADGE = {
+    "paid":        ("Paid", "bg-green-100 text-green-800"),
+    "paid_demo":   ("Paid", "bg-green-100 text-green-800"),
+    "pay_on_pickup": ("Pay on pickup", "bg-blue-100 text-blue-800"),
+    "refunded":    ("Refunded", "bg-gray-200 text-gray-700"),
+    "pending":     ("Pending", "bg-yellow-100 text-yellow-800"),
+}
+
+
+# ---------- Address visibility (Stage 3) ----------
+_CAPTURED = ("paid", "paid_demo", "pay_on_pickup")
+
+
+def _can_view_address(booking, viewer_id) -> bool:
+    """Renter always sees their address. The owner sees it only after payment
+    and never when the booking is cancelled."""
+    if booking.renter_id == viewer_id:
+        return True
+    if booking.item.owner_id == viewer_id:
+        return (booking.payment_status in _CAPTURED
+                and booking.status != "cancelled")
+    return False
+
+
+def _address_lines(booking):
+    """Formatted shipping address lines from the booking snapshot (never live)."""
+    l1 = " ".join(x for x in (booking.ship_house_no, booking.ship_building) if x)
+    l2 = " ".join(x for x in (booking.ship_street,
+                             ("near " + booking.ship_landmark) if booking.ship_landmark else "") if x)
+    city_tail = ", ".join(x for x in (booking.ship_city, booking.ship_district) if x)
+    l3 = f"{city_tail}, {booking.ship_state} - {booking.ship_pincode}" if city_tail else ""
+    return {
+        "name_phone": " | ".join(x for x in (booking.ship_full_name, booking.ship_phone) if x),
+        "line1": l1, "line2": l2, "line3": l3,
+        "present": bool(booking.ship_full_name or booking.ship_city or booking.ship_street),
+    }
+
+
+def _refund(booking):
+    """Refund the full amount actually captured. Cash-on-pickup / unpaid -> nothing.
+
+    Sets the paid Payment row to 'refunded' and the booking payment_status to
+    'refunded'. When the capture came from Razorpay the refund is initiated on
+    the gateway too. The caller commits. Returns a display message to flash.
+    """
+    if booking.payment_status == "pay_on_pickup":
+        return "Cash on pickup - nothing was charged, so nothing to refund."
+    paid = Payment.query.filter_by(booking_id=booking.id, status="paid").first()
+    if not paid:
+        return "No payment was captured, so nothing to refund."
+    amount = float(paid.amount)
+    refund_id = None
+    if (paid.provider or "").lower() == "razorpay" and paid.provider_payment_id:
+        refund_id = _gateway_refund(booking, paid.provider_payment_id, amount, "full")
+    paid.status = "refunded"
+    paid.refunded_amount = amount
+    paid.refund_id = refund_id
+    paid.refunded_at = datetime.utcnow()
+    booking.payment_status = "refunded"
+    from utils.revenue import reverse_booking
+    reverse_booking(booking, reason="booking cancelled/refunded")
+    record_event(booking.renter, "payment_refunded", booking_id=booking.id,
+                 payment_id=paid.id,
+                 detail={"amount": amount, "kind": "full", "refund_id": refund_id})
+    _notify("refund_notice", booking, amount)
+    return f"Refund of {inr(amount)} initiated to the original payment method."
+
+
+def _gateway_refund(booking, provider_payment_id, amount, reason):
+    """Best-effort Razorpay refund. Returns the refund id or None (never raises)."""
+    key_id = current_app.config.get("RAZORPAY_KEY_ID", "")
+    key_secret = current_app.config.get("RAZORPAY_KEY_SECRET", "")
+    if not (key_id and key_secret):
+        return None
+    try:
+        from utils.gateway import refund_payment
+        data = refund_payment(provider_payment_id, amount, key_id, key_secret,
+                              notes={"booking": booking.order_id or str(booking.id),
+                                     "reason": reason})
+        return data.get("id")
+    except Exception:
+        # Never leak gateway details; the row below stays for manual follow-up.
+        current_app.logger.warning("Razorpay refund could not be started.")
+        return None
+
+
+def _refund_deposit(booking, amount, reason="return"):
+    """Refund the held security deposit after a successful return.
+
+    Adds a Payment row of kind 'deposit_refund' (money out) and records the
+    event. The rent is NOT refunded – only the deposit (minus deductions).
+    Returns (row, warning) where warning is a user-facing note or None.
+    """
+    amount = round(float(amount or 0), 2)
+    if amount <= 0:
+        return None, None
+    paid = Payment.query.filter_by(booking_id=booking.id, status="paid")\
+        .order_by(Payment.attempt_no.desc()).first()
+    provider = (paid.provider if paid else "mock") or "mock"
+    refund_id = None
+    warning = None
+    if provider == "razorpay" and paid and paid.provider_payment_id:
+        refund_id = _gateway_refund(booking, paid.provider_payment_id, amount, reason)
+        if not refund_id:
+            warning = ("The deposit refund could not be started automatically. "
+                       "It is queued for manual follow-up.")
+    attempt_no = (max([p.attempt_no for p in booking.payments], default=0) + 1)
+    row = Payment(
+        booking_id=booking.id, order_id=booking.order_id, attempt_no=attempt_no,
+        kind="deposit_refund", method=booking.payment_method, amount=amount,
+        status="refunded", provider=provider,
+        provider_payment_id=(paid.provider_payment_id if paid else None),
+        gateway_order_id=booking.razorpay_order_id, signature_verified=bool(paid),
+        refunded_amount=amount, refund_id=refund_id, refunded_at=datetime.utcnow(),
+    )
+    db.session.add(row)
+    if paid and paid.status == "paid":
+        paid.refunded_amount = round((paid.refunded_amount or 0) + amount, 2)
+        if paid.refunded_amount >= paid.amount:
+            paid.status = "refunded"
+    record_event(booking.renter, "payment_refunded", booking_id=booking.id,
+                 detail={"amount": amount, "kind": "deposit_refund",
+                         "refund_id": refund_id})
+    return row, warning
+
+ALLOWED_IMG = {"png", "jpg", "jpeg"}
+
+
+def _allowed(fn):
+    return "." in fn and fn.rsplit(".", 1)[1].lower() in ALLOWED_IMG
+
+
+def _notify(fn_name, *args, **kwargs):
+    """Best-effort email/SMS notification. Never breaks a booking flow."""
+    try:
+        from utils import notify
+        return getattr(notify, fn_name)(*args, **kwargs)
+    except Exception:  # noqa: BLE001 - notifications are never critical
+        current_app.logger.warning("Notification '%s' failed.", fn_name)
+        return None
+
+
+# ---------- Create booking ----------
+@bookings_bp.route("/items/<int:item_id>/book", methods=["POST"])
+@login_required
+def book_item(item_id):
+    """Validate dates, check availability, create a 'requested' booking."""
+    item = Item.query.get_or_404(item_id)
+
+    # Owner cannot book own item
+    if item.owner_id == current_user.id:
+        flash("You cannot book your own item.", "error")
+        return redirect(url_for("items.item_detail", item_id=item.id))
+
+    try:
+        start = date.fromisoformat(request.form["start_date"])
+        end = date.fromisoformat(request.form["end_date"])
+    except (KeyError, ValueError):
+        flash("Please select valid start and end dates.", "error")
+        return redirect(url_for("items.item_detail", item_id=item.id))
+
+    if end < start:
+        flash("End date cannot be before start date.", "error")
+        return redirect(url_for("items.item_detail", item_id=item.id))
+    if start < date.today():
+        flash("Start date cannot be in the past.", "error")
+        return redirect(url_for("items.item_detail", item_id=item.id))
+
+    if not item.is_available or not is_available(item, start, end):
+        flash("Item is not available for the selected dates.", "error")
+        return redirect(url_for("items.item_detail", item_id=item.id))
+
+    pricing = calculate_price(item, start, end, user=current_user)
+
+    from utils.revenue import commission_percent_for
+    owner_commission = commission_percent_for(item.owner)
+
+    booking = Booking(
+        item_id=item.id,
+        renter_id=current_user.id,
+        start_date=start,
+        end_date=end,
+        commission_percent=owner_commission,
+        **booking_snapshot(pricing),
+        status="requested",
+    )
+    db.session.add(booking)
+    db.session.commit()
+    flash("Booking requested! Please complete payment.", "success")
+    return redirect(url_for("bookings.payment", booking_id=booking.id))
+
+
+# ---------- Checkout: order summary + create pending booking ----------
+def _parse_checkout(item, source):
+    """Parse/validate start, end, delivery from a dict-like source. Return (start, end, dm, error)."""
+    try:
+        start = date.fromisoformat(source.get("start", "") or source.get("start_date", ""))
+        end = date.fromisoformat(source.get("end", "") or source.get("end_date", ""))
+    except (ValueError, TypeError):
+        return None, None, "pickup", "Please select valid start and end dates."
+    dm = "delivery" if (source.get("delivery", "pickup") or "pickup").lower() == "delivery" else "pickup"
+    if end < start:
+        return None, None, dm, "End date cannot be before start date."
+    if start < date.today():
+        return None, None, dm, "Start date cannot be in the past."
+    return start, end, dm, None
+
+
+def _checkout_addons(source):
+    """Read the optional revenue add-ons from a form/query dict."""
+    if hasattr(source, "getlist"):
+        raw = source.getlist("services")
+    else:
+        raw = source.get("services") or []
+    if isinstance(raw, str):
+        raw = [raw]
+    selected = {
+        "protection": bool(source.get("protection")),
+        "service_delivery": "service_delivery" in raw,
+        "service_cleaning": "service_cleaning" in raw,
+    }
+    return selected
+
+
+@bookings_bp.route("/items/<int:item_id>/checkout", methods=["GET"])
+@login_required
+def checkout(item_id):
+    """Show the order summary page before payment. All money is server-calculated."""
+    item = Item.query.get_or_404(item_id)
+    if item.owner_id == current_user.id:
+        flash("You cannot book your own item.", "error")
+        return redirect(url_for("items.item_detail", item_id=item.id))
+
+    start, end, dm, err = _parse_checkout(item, request.args)
+    if err:
+        flash(err, "error")
+        return redirect(url_for("items.item_detail", item_id=item.id))
+    if not item.is_available or not is_available(item, start, end):
+        flash("Item is not available for the selected dates.", "error")
+        return redirect(url_for("items.item_detail", item_id=item.id))
+
+    pricing = calculate_price(item, start, end, user=current_user, delivery_method=dm,
+                              addons=_checkout_addons(request.args))
+    addrs = Address.query.filter_by(user_id=current_user.id).all()
+    default_addr = next((a for a in addrs if a.is_default), (addrs[0] if addrs else None))
+    checkout_next = url_for("bookings.checkout", item_id=item.id,
+                            start=start.isoformat(), end=end.isoformat(), delivery=dm)
+    return render_template(
+        "checkout.html", item=item, pricing=pricing, start=start, end=end,
+        delivery_method=dm, today=date.today().isoformat(),
+        addons=_checkout_addons(request.args),
+        addresses=addrs, selected_addr=default_addr,
+        states=current_app.config["INDIAN_STATES"], labels=Address.LABELS,
+        checkout_next=checkout_next, addr_errors={}, addr_form={},
+    )
+
+
+@bookings_bp.route("/api/checkout-price")
+@login_required
+def api_checkout_price():
+    """Server-side price recompute for the pickup/delivery toggle (JS reads this)."""
+    item = Item.query.get_or_404(request.args.get("item_id", type=int) or 0)
+    start, end, dm, err = _parse_checkout(item, request.args)
+    if err:
+        return jsonify({"error": err}), 400
+    pricing = calculate_price(item, start, end, user=current_user, delivery_method=dm,
+                              addons=_checkout_addons(request.args))
+    return jsonify(pricing)
+
+
+@bookings_bp.route("/items/<int:item_id>/checkout", methods=["POST"])
+@login_required
+def checkout_submit(item_id):
+    """Create (or reuse) a pending_payment booking, snapshotting server amounts."""
+    item = Item.query.get_or_404(item_id)
+    if item.owner_id == current_user.id:
+        flash("You cannot book your own item.", "error")
+        return redirect(url_for("items.item_detail", item_id=item.id))
+
+    start, end, dm, err = _parse_checkout(item, request.form)
+    if err:
+        flash(err, "error")
+        return redirect(url_for("items.item_detail", item_id=item.id))
+
+    if not request.form.get("agree"):
+        flash("Please agree to the rental terms and return date.", "error")
+        return redirect(url_for("bookings.checkout", item_id=item.id,
+                               start=start.isoformat(), end=end.isoformat(), delivery=dm))
+
+    if not item.is_available or not is_available(item, start, end):
+        flash("Item is not available for the selected dates.", "error")
+        return redirect(url_for("items.item_detail", item_id=item.id))
+
+    # An address is required and must belong to this user (server-side check).
+    addr_id = request.form.get("address_id", type=int)
+    addr = Address.query.get(addr_id) if addr_id else None
+    if not addr or addr.user_id != current_user.id:
+        flash("Please choose a valid delivery address to continue.", "error")
+        return redirect(url_for("bookings.checkout", item_id=item.id,
+                                start=start.isoformat(), end=end.isoformat(), delivery=dm))
+
+    # Amounts are always recalculated here; any total sent by the browser is ignored.
+    pricing = calculate_price(item, start, end, user=current_user, delivery_method=dm,
+                              addons=_checkout_addons(request.form))
+    snap = snapshot_fields(addr)
+
+    # Reuse an existing pending booking for the same user/item/dates (no duplicates).
+    existing = Booking.query.filter_by(
+        item_id=item.id, renter_id=current_user.id,
+        start_date=start, end_date=end, status="pending_payment",
+    ).first()
+    if existing:
+        # "Change address" keeps the dates but updates the snapshot to the new address.
+        if existing.address_id != addr.id:
+            existing.address_id = addr.id
+            for key, val in snap.items():
+                setattr(existing, key, val)
+        # Keep the latest server amounts and add-on snapshot (same booking row).
+        from utils.revenue import commission_percent_for, save_booking_addons
+        for key, val in booking_snapshot(pricing).items():
+            setattr(existing, key, val)
+        existing.commission_percent = commission_percent_for(item.owner)
+        db.session.flush()
+        save_booking_addons(existing, pricing)
+        db.session.commit()
+        return redirect(url_for("bookings.pay", booking_id=existing.id))
+
+    from utils.revenue import commission_percent_for, save_booking_addons
+    booking = Booking(
+        item_id=item.id,
+        renter_id=current_user.id,
+        start_date=start,
+        end_date=end,
+        commission_percent=commission_percent_for(item.owner),
+        order_id=generate_order_id(),
+        payment_expires_at=payment_expiry(),
+        payment_status="pending",
+        address_id=addr.id,
+        **booking_snapshot(pricing),
+        **snap,
+        status="pending_payment",
+    )
+    db.session.add(booking)
+    db.session.flush()
+    save_booking_addons(booking, pricing)
+    db.session.commit()
+    record_event(current_user, "booking_created", booking_id=booking.id,
+                 detail={"item_id": item.id, "start": start.isoformat(),
+                         "end": end.isoformat(), "total": booking.total_payable})
+    db.session.commit()
+    return redirect(url_for("bookings.pay", booking_id=booking.id))
+
+
+# ---------- Pay (Stage 3): mock gateway with retry, no card data stored ----------
+PAY_TILES = [
+    ("upi", "UPI", "\U0001F537"),
+    ("gpay", "Google Pay", "\U0001F7E2"),
+    ("phonepe", "PhonePe", "\U0001F7E3"),
+    ("debit_card", "Debit card", "\U0001F4B3"),
+    ("credit_card", "Credit card", "\U0001F4B5"),
+]
+
+
+@bookings_bp.route("/bookings/<int:booking_id>/pay", methods=["GET", "POST"])
+@login_required
+def pay(booking_id):
+    booking = Booking.query.get_or_404(booking_id)
+    if booking.renter_id != current_user.id:
+        abort(403)
+
+    now = datetime.utcnow()
+    # Expired pending bookings are cancelled automatically when visited.
+    if booking.status == "pending_payment" and booking.payment_expires_at \
+            and booking.payment_expires_at <= now:
+        booking.status = "cancelled"
+        booking.cancelled_at = now
+        booking.cancel_reason = "Payment window expired"
+        record_event(booking.renter, "booking_cancelled", booking_id=booking.id,
+                     detail={"by": "system", "reason": "payment_expired"})
+        db.session.commit()
+        flash("Payment time expired, please start again.", "error")
+        return redirect(url_for("bookings.booking_detail", booking_id=booking.id))
+
+    # Only a pending_payment booking can be paid (idempotent: paid booking can't be paid again).
+    if booking.status != "pending_payment":
+        flash("This booking is not awaiting payment.", "error")
+        return redirect(url_for("bookings.booking_detail", booking_id=booking.id))
+
+    provider = current_app.config.get("PAYMENT_MODE", "mock")
+    # Stage 5: razorpay needs both keys; otherwise fall back to mock with a log
+    # warning (never print the keys).
+    rzp_id = current_app.config.get("RAZORPAY_KEY_ID", "")
+    rzp_secret = current_app.config.get("RAZORPAY_KEY_SECRET", "")
+    if provider == "razorpay" and not (rzp_id and rzp_secret):
+        current_app.logger.warning("RAZORPAY keys missing; staying in mock mode.")
+        provider = "mock"
+    mock = provider == "mock"
+    cash_ok = bool(getattr(booking.item, "cod_available", True)) and booking.delivery_method == "pickup"
+    next_attempt = (max([p.attempt_no for p in booking.payments], default=0) + 1)
+    last_failure = None
+    for p in sorted(booking.payments, key=lambda x: x.attempt_no, reverse=True):
+        if p.status == "failed":
+            last_failure = p.failure_reason
+            break
+
+    def _success(method, provider_payment_id, signature_verified=False, gateway_order_id=None):
+        amount = float(booking.total_payable)  # server snapshot, never from the browser
+        # Re-check availability before marking paid (a pending booking did not block dates).
+        if not is_available(booking.item, booking.start_date, booking.end_date):
+            flash("Sorry, these dates are no longer available.", "error")
+            return redirect(url_for("items.item_detail", item_id=booking.item_id))
+        payment = Payment(
+            booking_id=booking.id, order_id=booking.order_id, attempt_no=next_attempt,
+            method=method, amount=amount, status="paid", provider=provider,
+            provider_payment_id=provider_payment_id,
+            gateway_order_id=gateway_order_id or booking.razorpay_order_id,
+            signature_verified=signature_verified,
+            paid_at=datetime.utcnow(),
+        )
+        db.session.add(payment)
+        booking.payment_method = method
+        booking.payment_status = "pay_on_pickup" if method == "cash" else "paid"
+        booking.status = "requested"
+        booking.payment_expires_at = None
+        from utils.revenue import record_booking_charges
+        record_booking_charges(booking)
+        record_event(booking.renter, "payment_paid", booking_id=booking.id,
+                     detail={"amount": amount, "method": method,
+                             "provider": provider,
+                             "provider_payment_id": provider_payment_id})
+        db.session.commit()
+        _notify("booking_confirmed", booking)
+        flash("Payment successful.", "success")
+        return redirect(url_for("bookings.confirmation", booking_id=booking.id))
+
+    def _failure(method, reason, code=None):
+        amount = float(booking.total_payable)
+        db.session.add(Payment(
+            booking_id=booking.id, order_id=booking.order_id, attempt_no=next_attempt,
+            method=method, amount=amount, status="failed", provider=provider,
+            failure_reason=reason, failure_code=code,
+            gateway_order_id=booking.razorpay_order_id,
+        ))
+        record_event(booking.renter, "payment_failed", booking_id=booking.id,
+                     detail={"amount": amount, "method": method, "reason": reason})
+        db.session.commit()
+        flash(reason, "error")
+        return redirect(url_for("bookings.pay", booking_id=booking.id))
+
+    if request.method == "POST":
+        method = (request.form.get("method") or "").strip()
+        allowed = {t[0] for t in PAY_TILES}
+        if cash_ok:
+            allowed.add("cash")
+        if method not in allowed:
+            flash("Choose a valid payment method.", "error")
+            return redirect(url_for("bookings.pay", booking_id=booking.id))
+
+        # ----- Razorpay (test mode): verify the signature server-side -----
+        if provider == "razorpay":
+            from utils.gateway import verify_signature
+            rzp_order = request.form.get("razorpay_order_id", "")
+            rzp_payment = request.form.get("razorpay_payment_id", "")
+            rzp_sig = request.form.get("razorpay_signature", "")
+            # The server-created order id must match what the client returns.
+            if not booking.razorpay_order_id or rzp_order != booking.razorpay_order_id:
+                return _failure(method, "Payment failed: order mismatch. No money was taken.",
+                                code="order_mismatch")
+            if verify_signature(rzp_order, rzp_payment, rzp_sig, rzp_secret):
+                return _success(method, rzp_payment, signature_verified=True,
+                                gateway_order_id=rzp_order)
+            return _failure(method, "Payment failed: signature check failed. No money was taken.",
+                            code="signature_failed")
+
+        # ----- Mock gateway -----
+        outcome = request.form.get("outcome", "success")
+        if outcome == "success":
+            return _success(method, f"mock_{uuid.uuid4().hex[:16]}")
+        if outcome == "timeout":
+            reason = "Payment failed: the payment timed out. No money was taken."
+        else:
+            reason = "Payment failed: bank declined. No money was taken."
+        return _failure(method, reason)
+
+    # ----- GET: render the payment page -----
+    per_day = round(booking.total_rent / booking.days) if booking.days else booking.total_rent
+    deposit_original = booking.item.deposit or 0
+    trust_discount = deposit_original > (booking.deposit or 0)
+    change_addr_url = url_for("bookings.checkout", item_id=booking.item_id,
+                              start=booking.start_date.isoformat(),
+                              end=booking.end_date.isoformat(),
+                              delivery=booking.delivery_method or "pickup")
+    # UPI QR (Stage 4): real id from config, otherwise a clearly fake demo id.
+    real_upi = current_app.config.get("UPI_ID", "")
+    upi_show = real_upi or "demo@rentkart"
+    upi_payee = current_app.config.get("UPI_PAYEE_NAME", "RentKart")
+    from utils.upi import build_upi_link
+    upi_link = build_upi_link(upi_show, upi_payee, booking.total_payable,
+                              booking.order_id or f"#{booking.id}")
+    qr_url = url_for("bookings.upi_qr", booking_id=booking.id)
+    upi_demo = (not real_upi) or provider == "mock"
+    rzp_order_id = None
+    if provider == "razorpay":
+        from utils.gateway import create_order
+        # Reuse the server-side order for this booking instead of creating a
+        # new one on every page refresh.
+        rzp_order_id = booking.razorpay_order_id
+        if not rzp_order_id:
+            try:
+                rzp_order_id = create_order(booking.total_payable, rzp_id, rzp_secret,
+                                            receipt=booking.order_id).get("id")
+                booking.razorpay_order_id = rzp_order_id
+                db.session.commit()
+            except Exception:
+                current_app.logger.warning("Razorpay order creation failed.")
+                rzp_order_id = None
+    return render_template("pay.html", booking=booking, tiles=PAY_TILES, cash_ok=cash_ok,
+                           provider=provider, mock=mock, last_failure=last_failure,
+                           attempt_no=next_attempt, rzp_key_id=rzp_id,
+                           rzp_order_id=rzp_order_id,
+                           per_day=per_day, deposit_original=deposit_original,
+                           trust_discount=trust_discount, addr=_address_lines(booking),
+                           change_addr_url=change_addr_url,
+                           upi_show=upi_show, upi_link=upi_link, qr_url=qr_url,
+                           upi_demo=upi_demo, amount_str=f"{booking.total_payable:.2f}")
+
+
+# ---------- UPI QR image (Stage 4) ----------
+@bookings_bp.route("/bookings/<int:booking_id>/upi-qr.png")
+@login_required
+def upi_qr(booking_id):
+    """Render the UPI QR PNG for the renter while the booking is pending payment.
+
+    Read-only: requesting the QR NEVER marks the payment as paid.
+    """
+    booking = Booking.query.get_or_404(booking_id)
+    if booking.renter_id != current_user.id:
+        abort(403)
+    if booking.status != "pending_payment":
+        abort(404)
+    upi_id = current_app.config.get("UPI_ID", "") or "demo@rentkart"
+    payee = current_app.config.get("UPI_PAYEE_NAME", "RentKart")
+    from utils.upi import build_upi_link
+    link = build_upi_link(upi_id, payee, booking.total_payable,
+                          booking.order_id or f"#{booking.id}")
+    import io
+    import qrcode
+    buf = io.BytesIO()
+    qrcode.make(link).save(buf, format="PNG")
+    resp = make_response(buf.getvalue(), 200)
+    resp.headers["Content-Type"] = "image/png"
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
+# ---------- Confirmation & Receipt (Stage 4) ----------
+def _receipt_context(booking):
+    """Shared display context for confirmation + receipt. Amounts come ONLY from
+    the booking snapshot, never recalculated here."""
+    late_fee = booking.item.late_fee_per_day or 0
+    return_time = current_app.config.get("RETURN_BY_TIME", "6:00 PM")
+    policy_tpl = current_app.config.get(
+        "RETURN_POLICY_TEXT",
+        "Return by {time}. Late fee {late_fee} per day.")
+    return_policy = policy_tpl.format(time=return_time, late_fee=inr(late_fee))
+    return dict(
+        method_label=METHOD_LABELS.get(booking.payment_method, booking.payment_method or "\u2014"),
+        badge=PAYMENT_BADGE.get(booking.payment_status,
+                                (booking.payment_status, "bg-gray-100 text-gray-600")),
+        return_time=return_time,
+        return_policy=return_policy,
+        late_fee=late_fee,
+        damage_levels=current_app.config["DAMAGE_LEVELS"],
+        show_address=_can_view_address(booking, current_user.id),
+        addr=_address_lines(booking),
+    )
+
+
+@bookings_bp.route("/bookings/<int:booking_id>/confirmation")
+@login_required
+def confirmation(booking_id):
+    booking = Booking.query.get_or_404(booking_id)
+    if booking.renter_id != current_user.id and booking.item.owner_id != current_user.id:
+        abort(403)
+    ctx = _receipt_context(booking)
+    return render_template("confirmation.html", booking=booking,
+                           renter_trust=get_user_trust(booking.renter), **ctx)
+
+
+@bookings_bp.route("/bookings/<int:booking_id>/receipt")
+@login_required
+def receipt(booking_id):
+    booking = Booking.query.get_or_404(booking_id)
+    if booking.renter_id != current_user.id and booking.item.owner_id != current_user.id:
+        abort(403)
+    ctx = _receipt_context(booking)
+    return render_template("receipt.html", booking=booking, today=date.today(), **ctx)
+
+
+# ---------- Payment ----------
+@bookings_bp.route("/bookings/<int:booking_id>/payment", methods=["GET", "POST"])
+@login_required
+def payment(booking_id):
+    """Mock payment – UPI (demo) or cash on pickup."""
+    booking = Booking.query.get_or_404(booking_id)
+    if booking.renter_id != current_user.id:
+        abort(403)
+
+    if booking.status not in ("requested", "approved") or booking.payment_method:
+        flash("Payment is not available for this booking.", "error")
+        return redirect(url_for("bookings.booking_detail", booking_id=booking.id))
+
+    if request.method == "POST":
+        method = request.form.get("payment_method", "")
+        if method == "upi":
+            booking.payment_method = "upi"
+            booking.payment_status = "paid_demo"
+            flash("UPI payment successful (demo).", "success")
+        elif method == "cash":
+            booking.payment_method = "cash"
+            booking.payment_status = "pay_on_pickup"
+            flash("Cash on pickup selected.", "success")
+        else:
+            flash("Choose a payment method.", "error")
+            return redirect(url_for("bookings.payment", booking_id=booking.id))
+        from utils.revenue import record_booking_charges
+        record_booking_charges(booking)
+        db.session.commit()
+        return redirect(url_for("bookings.booking_detail", booking_id=booking.id))
+
+    return render_template("payment.html", booking=booking)
+
+
+# ---------- Booking detail ----------
+@bookings_bp.route("/bookings/<int:booking_id>")
+@login_required
+def booking_detail(booking_id):
+    """Show booking details. Phone revealed only after approval."""
+    booking = Booking.query.get_or_404(booking_id)
+    if booking.renter_id != current_user.id and booking.item.owner_id != current_user.id:
+        abort(403)
+    renter_trust = get_user_trust(booking.renter)
+    return render_template("booking_detail.html", booking=booking, renter_trust=renter_trust,
+                           addr=_address_lines(booking),
+                           show_address=_can_view_address(booking, current_user.id))
+
+
+# ---------- Status transitions ----------
+@bookings_bp.route("/bookings/<int:booking_id>/cancel", methods=["POST"])
+@login_required
+def cancel(booking_id):
+    """Renter cancels; who/why is stored for fair trust scoring."""
+    booking = Booking.query.get_or_404(booking_id)
+    if booking.renter_id != current_user.id:
+        abort(403)
+    if booking.status not in ("pending_payment", "requested", "approved"):
+        flash("Cannot cancel at this stage.", "error")
+        return redirect(url_for("bookings.booking_detail", booking_id=booking.id))
+
+    reason_key = (request.form.get("reason") or "").strip() or "unspecified"
+    note = (request.form.get("reason_note") or "").strip()
+    labels = dict(current_app.config.get("CANCEL_REASONS", []))
+    reason_text = labels.get(reason_key, "No reason given")
+    if note:
+        reason_text = f"{reason_text}: {note}"
+
+    was_captured = booking.payment_status in ("paid", "paid_demo", "pay_on_pickup")
+    booking.status = "cancelled"
+    booking.cancelled_by = current_user.id
+    booking.cancelled_at = datetime.utcnow()
+    booking.cancel_reason = reason_text[:300]
+    refund_msg = _refund(booking) if was_captured else None
+    record_event(booking.renter, "booking_cancelled", booking_id=booking.id,
+                 detail={"by": current_user.id, "role": "renter",
+                         "reason": reason_key, "note": note})
+    db.session.commit()
+    _notify("cancellation_notice", booking, "renter", booking.cancel_reason)
+    flash("Booking cancelled." + (f" {refund_msg}" if refund_msg else ""), "success")
+    return redirect(url_for("bookings.booking_detail", booking_id=booking.id))
+
+
+@bookings_bp.route("/bookings/<int:booking_id>/approve", methods=["POST"])
+@login_required
+def approve(booking_id):
+    """Owner approves. Re-checks availability to prevent double approval."""
+    booking = Booking.query.get_or_404(booking_id)
+    if booking.item.owner_id != current_user.id:
+        abort(403)
+    if booking.status != "requested":
+        flash("Can only approve a requested booking.", "error")
+        return redirect(url_for("bookings.booking_detail", booking_id=booking.id))
+
+    # Re-check availability (excluding this booking)
+    overlap = Booking.query.filter(
+        Booking.item_id == booking.item_id,
+        Booking.id != booking.id,
+        Booking.status.in_(["approved", "picked_up"]),
+        Booking.start_date <= booking.end_date,
+        Booking.end_date >= booking.start_date,
+    ).first()
+    if overlap:
+        # Approval fails because the dates are no longer free: refund the captured payment.
+        booking.status = "rejected"
+        booking.cancelled_at = datetime.utcnow()
+        booking.cancel_reason = "Owner could not approve: dates already booked"
+        refund_msg = _refund(booking)
+        record_event(booking.renter, "booking_rejected", booking_id=booking.id,
+                     detail={"by": current_user.id, "role": "owner",
+                             "reason": "dates_unavailable"})
+        db.session.commit()
+        _notify("cancellation_notice", booking, "owner", booking.cancel_reason)
+        flash(f"Another booking overlaps these dates. Cannot approve. {refund_msg}", "error")
+        return redirect(url_for("bookings.booking_detail", booking_id=booking.id))
+
+    booking.status = "approved"
+    record_event(booking.renter, "booking_approved", booking_id=booking.id,
+                 detail={"by": current_user.id, "role": "owner"})
+    db.session.commit()
+    flash("Booking approved!", "success")
+    return redirect(url_for("bookings.booking_detail", booking_id=booking.id))
+
+
+@bookings_bp.route("/bookings/<int:booking_id>/reject", methods=["POST"])
+@login_required
+def reject(booking_id):
+    """Owner rejects a requested booking."""
+    booking = Booking.query.get_or_404(booking_id)
+    if booking.item.owner_id != current_user.id:
+        abort(403)
+    if booking.status != "requested":
+        flash("Can only reject a requested booking.", "error")
+        return redirect(url_for("bookings.booking_detail", booking_id=booking.id))
+    note = (request.form.get("reason_note") or "").strip()
+    booking.status = "rejected"
+    booking.cancelled_by = current_user.id
+    booking.cancelled_at = datetime.utcnow()
+    booking.cancel_reason = ("Rejected by owner" + (f": {note}" if note else ""))[:300]
+    refund_msg = _refund(booking)
+    record_event(booking.renter, "booking_rejected", booking_id=booking.id,
+                 detail={"by": current_user.id, "role": "owner", "note": note})
+    db.session.commit()
+    _notify("cancellation_notice", booking, "owner", booking.cancel_reason)
+    flash(f"Booking rejected. {refund_msg}", "success")
+    return redirect(url_for("bookings.booking_detail", booking_id=booking.id))
+
+
+@bookings_bp.route("/bookings/<int:booking_id>/handover", methods=["POST"])
+@login_required
+def handover(booking_id):
+    """Owner marks item as handed over (picked_up). Optional note/photo."""
+    booking = Booking.query.get_or_404(booking_id)
+    if booking.item.owner_id != current_user.id:
+        abort(403)
+    if booking.status != "approved":
+        flash("Item can only be handed over after approval.", "error")
+        return redirect(url_for("bookings.booking_detail", booking_id=booking.id))
+
+    booking.handover_note = request.form.get("handover_note", "").strip() or None
+
+    # Optional photo
+    photo = request.files.get("handover_photo")
+    if photo and photo.filename:
+        if not _allowed(photo.filename):
+            flash("Photo must be png or jpg", "error")
+            return redirect(url_for("bookings.booking_detail", booking_id=booking.id))
+        ext = photo.filename.rsplit(".", 1)[1].lower()
+        fname = f"handover_{uuid.uuid4().hex}.{ext}"
+        upload_dir = current_app.config["UPLOAD_FOLDER"]
+        os.makedirs(upload_dir, exist_ok=True)
+        photo.save(os.path.join(upload_dir, fname))
+        booking.handover_photo = fname
+
+    booking.status = "picked_up"
+    # Cash on pickup → mark paid
+    if booking.payment_status == "pay_on_pickup":
+        booking.payment_status = "paid_demo"
+        from utils.revenue import record_booking_charges
+        record_booking_charges(booking)
+
+    record_event(booking.renter, "booking_handover", booking_id=booking.id,
+                 detail={"by": current_user.id, "role": "owner"})
+    db.session.commit()
+    flash("Item handed over. Rental is now active!", "success")
+    return redirect(url_for("bookings.booking_detail", booking_id=booking.id))
+
+
+# ---------- Return flow ----------
+@bookings_bp.route("/bookings/<int:booking_id>/return", methods=["GET", "POST"])
+@login_required
+def return_item(booking_id):
+    """Owner completes the return, assesses damage/delay, creates ReturnRecord."""
+    booking = Booking.query.get_or_404(booking_id)
+    if booking.item.owner_id != current_user.id:
+        abort(403)
+    if booking.return_record is not None or booking.status == "returned":
+        flash("This booking has already been returned.", "error")
+        return redirect(url_for("bookings.settlement", booking_id=booking.id))
+    if booking.status != "picked_up":
+        flash("Only active (picked up) rentals can be returned.", "error")
+        return redirect(url_for("bookings.booking_detail", booking_id=booking.id))
+
+    if request.method == "POST":
+        try:
+            actual_date = date.fromisoformat(request.form.get("actual_return_date", ""))
+        except (ValueError, TypeError):
+            flash("Invalid return date.", "error")
+            return redirect(url_for("bookings.return_item", booking_id=booking.id))
+
+        if actual_date < booking.start_date:
+            flash("Return date cannot be before start date.", "error")
+            return redirect(url_for("bookings.return_item", booking_id=booking.id))
+
+        damage_level = request.form.get("damage_level", "none")
+        if damage_level not in current_app.config["DAMAGE_LEVELS"]:
+            flash("Invalid damage level.", "error")
+            return redirect(url_for("bookings.return_item", booking_id=booking.id))
+
+        photo_filename = None
+        photo = request.files.get("return_photo")
+        if photo and photo.filename:
+            if not _allowed(photo.filename):
+                flash("Photo must be png or jpg", "error")
+                return redirect(url_for("bookings.return_item", booking_id=booking.id))
+            ext = photo.filename.rsplit(".", 1)[1].lower()
+            photo_filename = f"return_{uuid.uuid4().hex}.{ext}"
+            upload_dir = current_app.config["UPLOAD_FOLDER"]
+            os.makedirs(upload_dir, exist_ok=True)
+            photo.save(os.path.join(upload_dir, photo_filename))
+
+        settlement = calculate_settlement(
+            deposit=booking.deposit,
+            end_date=booking.end_date,
+            actual_return_date=actual_date,
+            late_fee_per_day=booking.item.late_fee_per_day or 0,
+            damage_level=damage_level,
+            total_rent=booking.total_rent,
+            commission_percent=getattr(booking, "commission_percent", 10.0),
+        )
+
+        return_rec = ReturnRecord(
+            booking_id=booking.id,
+            actual_return_date=actual_date,
+            late_days=settlement["late_days"],
+            late_fee_per_day=settlement["late_fee_per_day"],
+            late_penalty=settlement["late_penalty"],
+            damage_level=damage_level,
+            damage_percent=settlement["damage_percent"],
+            damage_deduction=settlement["damage_deduction"],
+            deposit_held=settlement["deposit_held"],
+            total_deductions=settlement["total_deductions"],
+            refund_amount=settlement["refund_amount"],
+            extra_due=settlement["extra_due"],
+            platform_fee=settlement["platform_fee"],
+            owner_earning=settlement["owner_earning"],
+            return_note=request.form.get("return_note", "").strip() or None,
+            return_photo=photo_filename,
+        )
+        booking.status = "returned"
+        db.session.add(return_rec)
+        from utils.revenue import record_penalty_share
+        record_penalty_share(booking, return_rec)
+        # Refund the held deposit (minus any late/damage deductions).
+        _refund_deposit(booking, settlement["refund_amount"], reason="return")
+        record_event(booking.renter, "booking_returned", booking_id=booking.id,
+                     detail={"by": current_user.id, "role": "owner",
+                             "late_penalty": settlement["late_penalty"],
+                             "damage_deduction": settlement["damage_deduction"],
+                             "refund_amount": settlement["refund_amount"]})
+        db.session.commit()
+        if settlement["refund_amount"] > 0:
+            _notify("refund_notice", booking, settlement["refund_amount"])
+
+        flash("Item returned and settlement generated!", "success")
+        return redirect(url_for("bookings.settlement", booking_id=booking.id))
+
+    return render_template(
+        "return.html",
+        booking=booking,
+        damage_levels=current_app.config["DAMAGE_LEVELS"],
+        today=date.today().isoformat(),
+    )
+
+
+# ---------- Settlement receipt ----------
+@bookings_bp.route("/bookings/<int:booking_id>/settlement")
+@login_required
+def settlement(booking_id):
+    """View final settlement breakdown and before/after condition comparison."""
+    booking = Booking.query.get_or_404(booking_id)
+    if booking.renter_id != current_user.id and booking.item.owner_id != current_user.id:
+        abort(403)
+    if not booking.return_record:
+        flash("Return settlement is not available for this booking.", "error")
+        return redirect(url_for("bookings.booking_detail", booking_id=booking.id))
+
+    return render_template("settlement.html", booking=booking, rec=booking.return_record)
+
+
+@bookings_bp.route("/bookings/<int:booking_id>/complete", methods=["POST"])
+@login_required
+def complete(booking_id):
+    """Renter confirms the return is settled -> booking completed."""
+    booking = Booking.query.get_or_404(booking_id)
+    if booking.renter_id != current_user.id:
+        abort(403)
+    if booking.status != "returned":
+        flash("Only a returned booking can be completed.", "error")
+        return redirect(url_for("bookings.booking_detail", booking_id=booking.id))
+    booking.status = "completed"
+    booking.completed_at = datetime.utcnow()
+    from utils.revenue import mark_booking_earned
+    mark_booking_earned(booking)
+    record_event(booking.renter, "booking_completed", booking_id=booking.id,
+                 detail={"by": current_user.id, "role": "renter"})
+    db.session.commit()
+    flash("Booking completed. Thanks for renting with RentKart!", "success")
+    return redirect(url_for("bookings.booking_detail", booking_id=booking.id))
+
+
+# ---------- Razorpay webhooks (idempotent, signature verified) ----------
+def _next_attempt_no(booking):
+    return max([p.attempt_no for p in booking.payments], default=0) + 1
+
+
+def _webhook_payment_captured(entity):
+    """payment.captured -> mark the pending booking paid (safe to retry)."""
+    booking = Booking.query.filter_by(razorpay_order_id=entity.get("order_id")).first()
+    if booking is None:
+        return "ignored"
+    payment_id = entity.get("id")
+    if Payment.query.filter_by(provider="razorpay", provider_payment_id=payment_id).first():
+        return "duplicate"
+    if booking.payment_status in ("paid", "paid_demo", "refunded"):
+        return "ignored"
+    expected_paise = int(round(float(booking.total_payable or 0) * 100))
+    captured_paise = int(entity.get("amount") or 0)
+    method = (entity.get("method") or "upi")[:20]
+    if captured_paise and captured_paise < expected_paise:
+        db.session.add(Payment(
+            booking_id=booking.id, order_id=booking.order_id,
+            attempt_no=_next_attempt_no(booking), method=method,
+            amount=captured_paise / 100.0, status="failed", provider="razorpay",
+            provider_payment_id=payment_id,
+            gateway_order_id=entity.get("order_id"),
+            failure_reason="Captured amount is lower than the booking total.",
+            failure_code="amount_mismatch",
+        ))
+        record_event(booking.renter, "payment_failed", booking_id=booking.id,
+                     detail={"reason": "amount_mismatch", "captured_paise": captured_paise})
+        return "amount_mismatch"
+    db.session.add(Payment(
+        booking_id=booking.id, order_id=booking.order_id,
+        attempt_no=_next_attempt_no(booking), method=method,
+        amount=float(booking.total_payable), status="paid", provider="razorpay",
+        provider_payment_id=payment_id, gateway_order_id=entity.get("order_id"),
+        signature_verified=True, paid_at=datetime.utcnow(),
+    ))
+    booking.payment_method = method
+    booking.payment_status = "paid"
+    if booking.status == "pending_payment":
+        booking.status = "requested"
+    booking.payment_expires_at = None
+    from utils.revenue import record_booking_charges
+    record_booking_charges(booking)
+    record_event(booking.renter, "payment_paid", booking_id=booking.id,
+                 detail={"amount": booking.total_payable, "method": method,
+                         "provider": "razorpay", "webhook": True})
+    return "paid"
+
+
+def _webhook_payment_failed(entity):
+    """payment.failed -> record the attempt, keep the booking payable."""
+    booking = Booking.query.filter_by(razorpay_order_id=entity.get("order_id")).first()
+    if booking is None or booking.payment_status != "pending":
+        return "ignored"
+    payment_id = entity.get("id")
+    if Payment.query.filter_by(provider="razorpay", provider_payment_id=payment_id).first():
+        return "duplicate"
+    reason = entity.get("error_description") or "Gateway reported a failed payment."
+    db.session.add(Payment(
+        booking_id=booking.id, order_id=booking.order_id,
+        attempt_no=_next_attempt_no(booking),
+        method=(entity.get("method") or "upi")[:20],
+        amount=float(booking.total_payable), status="failed", provider="razorpay",
+        provider_payment_id=payment_id, gateway_order_id=entity.get("order_id"),
+        failure_reason=reason, failure_code=entity.get("error_code"),
+    ))
+    record_event(booking.renter, "payment_failed", booking_id=booking.id,
+                 detail={"reason": reason, "webhook": True})
+    return "failed"
+
+
+def _webhook_refund_processed(entity):
+    """refund.processed -> update the captured payment with refund details."""
+    payment = Payment.query.filter_by(
+        provider="razorpay", provider_payment_id=entity.get("payment_id")).first()
+    if payment is None:
+        return "ignored"
+    refund_id = entity.get("id")
+    if refund_id and Payment.query.filter_by(provider="razorpay", refund_id=refund_id).first():
+        return "duplicate"
+    amount = int(entity.get("amount") or 0) / 100.0
+    payment.refund_id = refund_id or payment.refund_id
+    payment.refunded_amount = round((payment.refunded_amount or 0) + amount, 2)
+    payment.refunded_at = datetime.utcnow()
+    if payment.refunded_amount >= payment.amount:
+        payment.status = "refunded"
+        payment.booking.payment_status = "refunded"
+        from utils.revenue import reverse_booking
+        reverse_booking(payment.booking, reason="gateway refund")
+    record_event(payment.booking.renter, "payment_refunded",
+                 booking_id=payment.booking_id, payment_id=payment.id,
+                 detail={"amount": amount, "refund_id": refund_id, "webhook": True})
+    return "refunded"
+
+
+@bookings_bp.route("/webhooks/razorpay", methods=["POST"])
+def razorpay_webhook():
+    """Receive Razorpay events: verify the signature, dedupe, then apply."""
+    from utils.gateway import verify_webhook_signature
+
+    secret = current_app.config.get("RAZORPAY_WEBHOOK_SECRET", "")
+    if not secret:
+        return jsonify({"error": "webhook not configured"}), 503
+    raw = request.get_data() or b""
+    signature = request.headers.get("X-Razorpay-Signature", "")
+    if not verify_webhook_signature(raw, signature, secret):
+        return jsonify({"error": "invalid signature"}), 400
+    try:
+        event = json.loads(raw.decode("utf-8") or "{}")
+    except ValueError:
+        return jsonify({"error": "invalid payload"}), 400
+
+    event_id = event.get("id") or hashlib.sha256(raw).hexdigest()
+    if WebhookEvent.query.filter_by(provider="razorpay", event_id=event_id).first():
+        return jsonify({"status": "duplicate"}), 200
+
+    record = WebhookEvent(provider="razorpay", event_id=event_id,
+                          event_type=event.get("event"),
+                          payload=raw.decode("utf-8", "replace")[:20000])
+    db.session.add(record)
+    payload = event.get("payload") or {}
+    handlers = {
+        "payment.captured": ("payment", _webhook_payment_captured),
+        "payment.failed": ("payment", _webhook_payment_failed),
+        "refund.processed": ("refund", _webhook_refund_processed),
+    }
+    spec = handlers.get(event.get("event"))
+    try:
+        if spec is None:
+            status = "ignored"
+        else:
+            entity = (payload.get(spec[0]) or {}).get("entity") or {}
+            status = spec[1](entity)
+        record.processed_at = datetime.utcnow()
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception("Razorpay webhook processing failed.")
+        return jsonify({"error": "processing failed"}), 500
+    if status == "paid":
+        order_id = ((payload.get("payment") or {}).get("entity") or {}).get("order_id")
+        confirmed = Booking.query.filter_by(razorpay_order_id=order_id).first()
+        if confirmed is not None:
+            _notify("booking_confirmed", confirmed)
+    return jsonify({"status": status}), 200
+
+
+# ---------- Reviews ----------
+@bookings_bp.route("/bookings/<int:booking_id>/review", methods=["POST"])
+@login_required
+def add_review(booking_id):
+    """Renter leaves a rating and review for a returned booking."""
+    booking = Booking.query.get_or_404(booking_id)
+    if booking.renter_id != current_user.id:
+        abort(403)
+    if booking.status not in ("returned", "completed"):
+        flash("Can only review returned bookings.", "error")
+        return redirect(url_for("bookings.booking_detail", booking_id=booking.id))
+    if booking.review is not None:
+        flash("You have already reviewed this booking.", "error")
+        return redirect(url_for("bookings.booking_detail", booking_id=booking.id))
+
+    try:
+        rating = int(request.form.get("rating", 0))
+    except (ValueError, TypeError):
+        rating = 0
+
+    if rating < 1 or rating > 5:
+        flash("Rating must be between 1 and 5.", "error")
+        return redirect(url_for("bookings.booking_detail", booking_id=booking.id))
+
+    comment = request.form.get("comment", "").strip() or None
+    review = Review(
+        booking_id=booking.id,
+        reviewer_id=current_user.id,
+        owner_id=booking.item.owner_id,
+        rating=rating,
+        comment=comment,
+    )
+    db.session.add(review)
+    db.session.commit()
+    flash("Thank you for your review!", "success")
+    return redirect(url_for("bookings.booking_detail", booking_id=booking.id))
+
+
+# ---------- Owner dashboard ----------
+@bookings_bp.route("/dashboard/owner")
+@login_required
+def owner_dashboard():
+    """Owner view: my items, incoming requests, active rentals, completed rentals, earnings."""
+    my_items = Item.query.filter_by(owner_id=current_user.id).all()
+    item_ids = [i.id for i in my_items]
+
+    incoming = Booking.query.filter(
+        Booking.item_id.in_(item_ids), Booking.status == "requested"
+    ).order_by(Booking.created_at.desc()).all() if item_ids else []
+
+    approved = Booking.query.filter(
+        Booking.item_id.in_(item_ids), Booking.status == "approved"
+    ).order_by(Booking.start_date).all() if item_ids else []
+
+    active = Booking.query.filter(
+        Booking.item_id.in_(item_ids), Booking.status == "picked_up"
+    ).order_by(Booking.end_date).all() if item_ids else []
+
+    completed = Booking.query.filter(
+        Booking.item_id.in_(item_ids), Booking.status.in_(["returned", "completed"])
+    ).order_by(Booking.created_at.desc()).all() if item_ids else []
+
+    # Total earnings: use net owner_earning for returned bookings, total_rent for picked_up
+    earned_bookings = Booking.query.filter(
+        Booking.item_id.in_(item_ids),
+        Booking.status.in_(["picked_up", "returned", "completed"]),
+    ).all() if item_ids else []
+
+    total_earnings = 0.0
+    for b in earned_bookings:
+        if b.return_record:
+            total_earnings += getattr(b.return_record, "owner_earning", b.total_rent + b.return_record.total_deductions)
+        else:
+            total_earnings += b.total_rent
+    total_earnings = round(total_earnings, 2)
+
+    from utils.plans import get_plan, has_feature
+    current_plan_key = current_user.current_plan()
+    active_sub = current_user.active_subscription()
+    plan_info = get_plan(current_user)
+    days_left = active_sub.days_left if active_sub else 0
+    show_expiry_warning = (active_sub is not None and 0 <= days_left <= 5)
+    has_overflow_items = (len(my_items) > plan_info.get("max_items", 5))
+    can_qr_poster = has_feature(current_user, "qr_poster")
+    can_roi_tracker = has_feature(current_user, "roi_tracker")
+
+    # Phase 7: ROI tracking metrics & insights
+    from utils.roi import item_earnings, roi_progress, payback_days, utilization_30d
+    item_insights = []
+    idle_items = []
+    best_item = None
+    best_earned = -1.0
+    total_net_earnings = 0.0
+
+    for item in my_items:
+        earned = item_earnings(item)
+        total_net_earnings += earned
+        util_pct = utilization_30d(item)
+        progress = roi_progress(item)
+        pdays = payback_days(item)
+
+        if earned > best_earned and earned > 0:
+            best_earned = earned
+            best_item = item
+
+        if util_pct == 0.0:
+            idle_items.append(item)
+
+        item_insights.append({
+            "item": item,
+            "has_purchase_price": item.purchase_price is not None and item.purchase_price > 0,
+            "purchase_price": item.purchase_price,
+            "earned": earned,
+            "progress_percent": progress.percent,
+            "to_recover": progress.to_recover,
+            "payback_days": pdays,
+            "utilization_30d": util_pct,
+        })
+
+    total_net_earnings = round(total_net_earnings, 2)
+
+    return render_template(
+        "owner_dashboard.html",
+        my_items=my_items,
+        incoming=incoming,
+        approved=approved,
+        active=active,
+        completed=completed,
+        total_earnings=total_earnings,
+        total_net_earnings=total_net_earnings,
+        today=date.today(),
+        get_user_trust=get_user_trust,
+        current_plan_key=current_plan_key,
+        plan_info=plan_info,
+        active_sub=active_sub,
+        days_left=days_left,
+        show_expiry_warning=show_expiry_warning,
+        has_overflow_items=has_overflow_items,
+        can_qr_poster=can_qr_poster,
+        can_roi_tracker=can_roi_tracker,
+        item_insights=item_insights,
+        idle_items=idle_items,
+        best_item=best_item,
+    )
+
+
+# ---------- Renter dashboard ----------
+@bookings_bp.route("/dashboard/renter")
+@login_required
+def renter_dashboard():
+    """Renter view: my bookings grouped by status with overdue tracking."""
+    all_bookings = Booking.query.filter_by(renter_id=current_user.id)\
+        .order_by(Booking.created_at.desc()).all()
+
+    grouped = {}
+    for b in all_bookings:
+        grouped.setdefault(b.status, []).append(b)
+
+    return render_template(
+        "renter_dashboard.html",
+        grouped=grouped,
+        today=date.today(),
+    )

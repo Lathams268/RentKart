@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="{{ current_lang or 'en' }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}RentKart{% endblock %}</title>
+  <!-- Google Fonts for English, Devanagari (Hindi), Telugu, Kannada -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;600;700&family=Noto+Sans+Kannada:wght@400;600;700&family=Noto+Sans+Telugu:wght@400;600;700&family=Noto+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+  <!-- Tailwind CSS via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#16a34a',   /* green-600 */
+            accent:  '#f97316',   /* orange-500 */
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      font-family: 'Noto Sans', 'Noto Sans Devanagari', 'Noto Sans Telugu', 'Noto Sans Kannada', sans-serif;
+    }
+    /* Global mobile-first helpers */
+    .card { @apply bg-white rounded-2xl shadow p-4; }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen flex flex-col">
+
+  <!-- Navbar -->
+  <nav class="bg-primary text-white px-4 py-3 flex items-center justify-between flex-wrap gap-2">
+    <div class="flex items-center gap-3">
+      <a href="{{ url_for('main.index') }}" class="text-xl font-bold tracking-tight">🛒 RentKart</a>
+      <a href="{{ url_for('main.browse') }}" class="text-sm font-semibold hover:text-green-100 hidden sm:inline">{{ t('Browse') }}</a>
+      <a href="{{ url_for('subscriptions.pricing') }}" class="text-sm font-semibold hover:text-green-100">{{ t('Pricing') }}</a>
+    </div>
+    <div class="flex items-center gap-2 flex-wrap text-sm">
+      <!-- Language Selector Dropdown -->
+      <select onchange="window.location.href='/set-language/' + this.value"
+              aria-label="Select Language"
+              class="bg-white/20 text-white rounded-full px-2.5 py-1 text-xs font-semibold hover:bg-white/30 border border-white/30 focus:bg-primary focus:outline-none">
+        <option value="en" class="text-gray-900" {% if current_lang == 'en' %}selected{% endif %}>English</option>
+        <option value="hi" class="text-gray-900" {% if current_lang == 'hi' %}selected{% endif %}>हिंदी (Hindi)</option>
+        <option value="te" class="text-gray-900" {% if current_lang == 'te' %}selected{% endif %}>తెలుగు (Telugu)</option>
+        <option value="kn" class="text-gray-900" {% if current_lang == 'kn' %}selected{% endif %}>ಕನ್ನಡ (Kannada)</option>
+      </select>
+
+      {% if current_user.is_authenticated %}
+        {% if current_user.is_admin %}
+          <a href="{{ url_for('admin.dashboard') }}" class="bg-purple-600 text-white rounded-full px-2.5 py-1 text-xs font-bold hover:bg-purple-700">⚡ {{ t('Admin') }}</a>
+        {% endif %}
+        <a href="{{ url_for('main.profile') }}" class="font-semibold hover:underline bg-white/10 rounded-full px-2.5 py-0.5 text-xs">👤 {{ current_user.name }}</a>
+        {% if not current_user.phone_verified %}
+          <a href="{{ url_for('auth.verify_phone') }}" class="bg-amber-400 text-gray-900 rounded-full px-2.5 py-1 text-xs font-bold hover:bg-amber-300">Verify phone</a>
+        {% endif %}
+        <a href="{{ url_for('subscriptions.subscription_view') }}" class="bg-white/20 rounded-full px-2.5 py-1 text-xs hover:bg-white/30">{{ t('Plan') }}</a>
+        <a href="{{ url_for('bookings.owner_dashboard') }}" class="bg-white/20 rounded-full px-2.5 py-1 text-xs hover:bg-white/30">{{ t('Owner') }}</a>
+        <a href="{{ url_for('revenue.owner_earnings') }}" class="bg-white/20 rounded-full px-2.5 py-1 text-xs hover:bg-white/30">Earnings</a>
+        <a href="{{ url_for('bookings.renter_dashboard') }}" class="bg-white/20 rounded-full px-2.5 py-1 text-xs hover:bg-white/30">{{ t('Bookings') }}</a>
+        <a href="{{ url_for('feedback.my_feedback') }}" class="relative bg-white/20 rounded-full px-2.5 py-1 text-xs hover:bg-white/30">
+          {{ t('Feedback') }}
+          {% if has_unseen_feedback %}
+            <span class="absolute -top-1 -right-1 w-2.5 h-2.5 bg-accent rounded-full border border-white animate-pulse"></span>
+          {% endif %}
+        </a>
+        <a href="{{ url_for('auth.logout') }}" class="bg-white/20 rounded-full px-2.5 py-1 text-xs hover:bg-white/30">{{ t('Logout') }}</a>
+      {% else %}
+        <a href="{{ url_for('auth.signup') }}" class="bg-white/20 rounded-full px-3 py-1.5 font-semibold text-xs hover:bg-white/30 min-h-[36px] flex items-center">{{ t('Sign up') }}</a>
+        <a href="{{ url_for('auth.login') }}" class="bg-accent rounded-full px-4 py-1.5 font-semibold text-xs hover:bg-orange-600 min-h-[36px] flex items-center">{{ t('Login') }}</a>
+      {% endif %}
+    </div>
+  </nav>
+
+
+  <!-- Flash messages -->
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <div class="px-4 pt-2 space-y-1">
+        {% for cat, msg in messages %}
+          <div class="rounded-lg px-4 py-2 text-sm
+            {% if cat == 'error' %}bg-red-100 text-red-700
+            {% elif cat == 'success' %}bg-green-100 text-green-700
+            {% else %}bg-blue-100 text-blue-700{% endif %}">
+            {{ msg | safe }}
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
+
+  <!-- Main content -->
+  <main class="flex-1 p-4 max-w-3xl mx-auto w-full">
+    {% block content %}{% endblock %}
+  </main>
+
+  <!-- Floating Feedback Button -->
+  <div class="fixed bottom-4 right-4 z-40">
+    <button onclick="openFeedbackModal()"
+            class="bg-accent hover:bg-orange-600 text-white font-bold py-2 px-4 rounded-full shadow-lg flex items-center gap-1.5 transition-transform hover:scale-105 text-sm">
+      💬 <span>Feedback</span>
+    </button>
+  </div>
+
+  <!-- Feedback Modal -->
+  <div id="feedbackModal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-2xl max-w-md w-full p-5 shadow-2xl relative">
+      <button onclick="closeFeedbackModal()" class="absolute top-4 right-4 text-gray-400 hover:text-gray-700 text-xl font-bold">&times;</button>
+      
+      <div id="feedbackFormContainer">
+        <h3 class="text-lg font-bold text-gray-800 mb-1" id="feedbackModalTitle">Share Your Feedback</h3>
+        <p class="text-xs text-gray-500 mb-4">Help us improve RentKart for everyone in your community.</p>
+
+        <form id="feedbackForm" onsubmit="submitFeedbackForm(event)" class="space-y-3">
+          <input type="hidden" id="fbPageUrl" name="page_url">
+          <input type="hidden" id="fbRelatedItem" name="related_item_id">
+          <input type="hidden" id="fbRelatedBooking" name="related_booking_id">
+
+          <div>
+            <label class="block text-xs font-semibold text-gray-700 mb-1">Feedback Type</label>
+            <select id="fbType" name="type" class="w-full border rounded-xl px-3 py-2 text-sm bg-gray-50 focus:bg-white">
+              <option value="suggestion">💡 Suggestion / Idea</option>
+              <option value="complaint">⚠️ Complaint / Problem</option>
+              <option value="bug">🐛 Bug Report</option>
+              <option value="praise">❤️ Praise</option>
+              <option value="other">📌 Other</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold text-gray-700 mb-1">Rating (optional)</label>
+            <div class="flex items-center gap-2">
+              <label class="cursor-pointer text-xl hover:scale-110 transition"><input type="radio" name="rating" value="1" class="sr-only peer"><span class="opacity-40 peer-checked:opacity-100">😡</span></label>
+              <label class="cursor-pointer text-xl hover:scale-110 transition"><input type="radio" name="rating" value="2" class="sr-only peer"><span class="opacity-40 peer-checked:opacity-100">🙁</span></label>
+              <label class="cursor-pointer text-xl hover:scale-110 transition"><input type="radio" name="rating" value="3" class="sr-only peer"><span class="opacity-40 peer-checked:opacity-100">😐</span></label>
+              <label class="cursor-pointer text-xl hover:scale-110 transition"><input type="radio" name="rating" value="4" class="sr-only peer"><span class="opacity-40 peer-checked:opacity-100">🙂</span></label>
+              <label class="cursor-pointer text-xl hover:scale-110 transition"><input type="radio" name="rating" value="5" class="sr-only peer"><span class="opacity-40 peer-checked:opacity-100">🤩</span></label>
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold text-gray-700 mb-1">Your Message (10-500 characters)</label>
+            <textarea id="fbMessage" name="message" rows="3" required minlength="10" maxlength="500"
+                      placeholder="Tell us what happened or how we can make RentKart better…"
+                      class="w-full border rounded-xl p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"></textarea>
+            <div class="flex justify-between text-[11px] text-gray-400 mt-0.5">
+              <span>Min 10 characters</span>
+              <span id="fbCharCount">0/500</span>
+            </div>
+          </div>
+
+          <div id="fbError" class="hidden bg-red-50 text-red-700 text-xs p-2.5 rounded-xl border border-red-200"></div>
+
+          <div class="flex justify-end gap-2 pt-2">
+            <button type="button" onclick="closeFeedbackModal()" class="px-4 py-2 text-xs font-bold text-gray-600 rounded-xl hover:bg-gray-100">Cancel</button>
+            <button type="submit" id="fbSubmitBtn" class="bg-primary hover:bg-green-700 text-white text-xs font-bold px-4 py-2 rounded-xl transition shadow">
+              Submit Feedback
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <div id="feedbackSuccess" class="hidden text-center py-6 space-y-3">
+        <div class="text-4xl">🎉</div>
+        <h4 class="font-bold text-base text-gray-800">Thank you for your feedback!</h4>
+        <p class="text-xs text-gray-500">Your response has been received. Our team reviews every submission to improve the platform.</p>
+        <button onclick="closeFeedbackModal()" class="bg-primary text-white text-xs font-bold px-4 py-2 rounded-xl shadow mt-2">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function openFeedbackModal(type = 'suggestion', itemId = null, bookingId = null, title = 'Share Your Feedback') {
+      const modal = document.getElementById('feedbackModal');
+      document.getElementById('feedbackFormContainer').classList.remove('hidden');
+      document.getElementById('feedbackSuccess').classList.add('hidden');
+      document.getElementById('fbError').classList.add('hidden');
+      document.getElementById('feedbackForm').reset();
+      document.getElementById('fbPageUrl').value = window.location.href;
+      document.getElementById('fbType').value = type;
+      document.getElementById('feedbackModalTitle').innerText = title;
+      if (itemId) document.getElementById('fbRelatedItem').value = itemId;
+      if (bookingId) document.getElementById('fbRelatedBooking').value = bookingId;
+      modal.classList.remove('hidden');
+    }
+
+    function closeFeedbackModal() {
+      document.getElementById('feedbackModal').classList.add('hidden');
+    }
+
+    const fbMsgArea = document.getElementById('fbMessage');
+    if (fbMsgArea) {
+      fbMsgArea.addEventListener('input', function() {
+        document.getElementById('fbCharCount').innerText = `${this.value.length}/500`;
+      });
+    }
+
+    async function submitFeedbackForm(e) {
+      e.preventDefault();
+      const form = document.getElementById('feedbackForm');
+      const errBox = document.getElementById('fbError');
+      const submitBtn = document.getElementById('fbSubmitBtn');
+      errBox.classList.add('hidden');
+
+      const formData = new FormData(form);
+      const payload = {};
+      formData.forEach((val, key) => { if (val) payload[key] = val; });
+
+      submitBtn.disabled = true;
+      submitBtn.innerText = 'Sending…';
+
+      try {
+        const res = await fetch('/feedback', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          document.getElementById('feedbackFormContainer').classList.add('hidden');
+          document.getElementById('feedbackSuccess').classList.remove('hidden');
+        } else {
+          errBox.innerText = data.error || 'Failed to submit feedback. Please try again.';
+          errBox.classList.remove('hidden');
+        }
+      } catch (err) {
+        errBox.innerText = 'Network error. Please try again.';
+        errBox.classList.remove('hidden');
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.innerText = 'Submit Feedback';
+      }
+    }
+
+    // Prevent double submits by showing loading state on submit buttons
+
+    document.addEventListener('submit', function(e) {
+      const form = e.target;
+      if (form.id === 'feedbackForm') return; // Handled asynchronously by feedback script
+      const submitBtn = form.querySelector('button[type="submit"], input[type="submit"]');
+      if (submitBtn && !submitBtn.disabled) {
+        setTimeout(function() {
+          submitBtn.disabled = true;
+          submitBtn.classList.add('opacity-70', 'cursor-not-allowed');
+          if (submitBtn.tagName === 'BUTTON' && !submitBtn.querySelector('.spinner')) {
+            submitBtn.dataset.originalText = submitBtn.innerHTML;
+            submitBtn.innerHTML = '⏳ Processing…';
+          }
+        }, 0);
+      }
+    });
+  </script>
+
+  <!-- Footer -->
+  <footer class="text-center text-xs text-gray-400 py-4">
+    &copy; 2026 RentKart &mdash; Hyperlocal Rentals
+  </footer>
+
+  {% block scripts %}{% endblock %}
+</body>
+</html>
+

@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+{% block title %}Owner Earnings – RentKart{% endblock %}
+
+{% block content %}
+<div class="space-y-6 py-4">
+  <div class="flex items-center justify-between flex-wrap gap-2">
+    <div>
+      <span class="text-xs uppercase font-extrabold text-primary tracking-wider">Owner</span>
+      <h1 class="text-2xl font-black text-gray-900 mt-0.5">💰 Earnings &amp; payouts</h1>
+      <p class="text-xs text-gray-500 mt-1">Security deposits are never counted as earnings.</p>
+    </div>
+    <div class="flex gap-2 flex-wrap">
+      <a href="{{ url_for('revenue.owner_featured') }}"
+         class="bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold px-3 py-2 rounded-xl shadow transition">
+        ⭐ Featured listings
+      </a>
+      <a href="{{ url_for('revenue.owner_earnings_csv') }}"
+         class="bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 text-xs font-bold px-3 py-2 rounded-xl shadow-sm transition">
+        ⬇ Export CSV
+      </a>
+    </div>
+  </div>
+
+  {% if is_pro %}
+    <div class="bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-2xl p-4 shadow flex items-center justify-between flex-wrap gap-2">
+      <div>
+        <div class="text-xs uppercase font-extrabold tracking-wider text-purple-100">Owner Pro active</div>
+        <div class="font-bold">{{ settings.owner_pro_commission_percent }}% commission · {{ settings.owner_pro_photos }} photos · 1 free featured week / month</div>
+      </div>
+      <a href="{{ url_for('revenue.owner_featured') }}" class="bg-white/20 hover:bg-white/30 rounded-xl px-3 py-1.5 text-xs font-bold">Use benefits</a>
+    </div>
+  {% elif revenue_features.owner_pro %}
+    <div class="bg-purple-50 border border-purple-200 rounded-2xl p-4 flex items-center justify-between flex-wrap gap-2">
+      <div>
+        <div class="text-sm font-bold text-purple-900">Unlock Owner Pro</div>
+        <div class="text-xs text-purple-800">{{ settings.owner_pro_commission_percent }}% commission, {{ settings.owner_pro_photos }} photos per listing, analytics and a free featured week every month.</div>
+      </div>
+      <a href="{{ url_for('subscriptions.pricing') }}" class="bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold px-3 py-2 rounded-xl shadow">See plans</a>
+    </div>
+  {% endif %}
+
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+    <div class="card p-4 rounded-2xl bg-white border border-gray-100 space-y-1">
+      <span class="text-[11px] text-gray-400 font-bold uppercase">Total earned</span>
+      <div class="text-xl font-extrabold text-primary">{{ total_earned | inr }}</div>
+    </div>
+    <div class="card p-4 rounded-2xl bg-white border border-gray-100 space-y-1">
+      <span class="text-[11px] text-gray-400 font-bold uppercase">Pending payout</span>
+      <div class="text-xl font-extrabold text-amber-600">{{ total_pending | inr }}</div>
+    </div>
+    <div class="card p-4 rounded-2xl bg-white border border-gray-100 space-y-1">
+      <span class="text-[11px] text-gray-400 font-bold uppercase">Commission deducted</span>
+      <div class="text-xl font-extrabold text-gray-800">{{ total_commission | inr }}</div>
+    </div>
+    <div class="card p-4 rounded-2xl bg-white border border-gray-100 space-y-1">
+      <span class="text-[11px] text-gray-400 font-bold uppercase">Late/damage fees</span>
+      <div class="text-xl font-extrabold text-orange-600">{{ total_penalties | inr }}</div>
+    </div>
+  </div>
+
+  <section class="card p-0 overflow-hidden">
+    <div class="px-4 py-3 border-b flex items-center justify-between">
+      <h2 class="font-bold text-gray-800">Payout history</h2>
+      <span class="text-[11px] text-gray-400">{{ rows | length }} booking(s)</span>
+    </div>
+    {% if rows %}
+      <div class="overflow-x-auto">
+        <table class="w-full text-xs">
+          <thead class="bg-gray-50 text-gray-500 uppercase text-[10px] tracking-wider">
+            <tr>
+              <th class="text-left px-3 py-2">Booking</th>
+              <th class="text-left px-3 py-2">Item</th>
+              <th class="text-right px-3 py-2">Rent</th>
+              <th class="text-right px-3 py-2">Commission</th>
+              <th class="text-right px-3 py-2">Late/damage</th>
+              <th class="text-right px-3 py-2">Your net</th>
+              <th class="text-right px-3 py-2">Status</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100">
+            {% for row in rows %}
+              <tr class="hover:bg-gray-50">
+                <td class="px-3 py-2 font-semibold text-gray-700">
+                  <a href="{{ url_for('bookings.booking_detail', booking_id=row.booking.id) }}" class="hover:underline">
+                    {{ row.booking.order_id or ('#' ~ row.booking.id) }}
+                  </a>
+                </td>
+                <td class="px-3 py-2 text-gray-600 max-w-[180px] truncate">{{ row.item.title if row.item else '—' }}</td>
+                <td class="px-3 py-2 text-right">{{ row.rent | inr }}</td>
+                <td class="px-3 py-2 text-right text-gray-500">-{{ row.commission | inr }}</td>
+                <td class="px-3 py-2 text-right text-orange-600">{{ row.penalties | inr }}</td>
+                <td class="px-3 py-2 text-right font-extrabold text-gray-900">{{ row.net | inr }}</td>
+                <td class="px-3 py-2 text-right">
+                  {% if row.final %}
+                    <span class="bg-green-100 text-green-800 px-2 py-0.5 rounded-full font-bold">Settled</span>
+                  {% else %}
+                    <span class="bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-bold">Pending</span>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="p-8 text-center text-sm text-gray-400">No paid bookings yet. Your payouts will appear here after the first rental.</div>
+    {% endif %}
+  </section>
+
+  <section class="card">
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="font-bold text-gray-800">Listing analytics</h2>
+      {% if is_pro %}
+        <span class="text-[10px] bg-purple-100 text-purple-800 font-extrabold px-2 py-0.5 rounded-full border border-purple-200">OWNER PRO</span>
+      {% endif %}
+    </div>
+    {% if is_pro and analytics %}
+      <div class="space-y-2">
+        {% set top_gross = (analytics | map(attribute='gross') | max) or 1 %}
+        {% for row in analytics %}
+          <div class="border border-gray-100 rounded-xl p-3">
+            <div class="flex justify-between items-baseline gap-2">
+              <span class="text-sm font-bold text-gray-800 truncate">{{ row.item.title }}</span>
+              <span class="text-xs text-gray-500">{{ row.bookings }} booking(s) · {{ row.gross | inr }}</span>
+            </div>
+            <div class="mt-2 h-2 bg-gray-100 rounded-full overflow-hidden">
+              <div class="h-full bg-primary rounded-full" style="width: {{ (row.gross / top_gross * 100) | round(0) }}%"></div>
+            </div>
+            <div class="text-[11px] text-gray-500 mt-1">Net after commission: <strong class="text-gray-800">{{ row.net | inr }}</strong></div>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="rounded-xl border border-dashed border-purple-200 bg-purple-50 p-4 text-sm text-purple-900">
+        Per-listing analytics are part of <strong>Owner Pro</strong>.
+        <a href="{{ url_for('subscriptions.pricing') }}" class="underline font-bold">Upgrade</a> to see which listings earn the most.
+      </div>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

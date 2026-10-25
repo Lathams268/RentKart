@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% block title %}Bulk Pricing Rules – RentKart{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between flex-wrap gap-2 mb-4">
+  <h1 class="text-2xl font-bold">🏷️ Shop Pricing Rules</h1>
+  <a href="/bulk/add" class="text-sm font-semibold text-primary underline">Bulk add</a>
+</div>
+<p class="text-xs text-gray-600 mb-4">
+  Rules set default prices when a row does not carry its own price. Order used at
+  import: value in the row → most specific rule (e.g. genre) → category default → error.
+</p>
+
+<!-- Category picker -->
+<form method="get" class="flex items-center gap-2 mb-4">
+  <label class="text-sm font-semibold">Category:</label>
+  <select name="category" onchange="this.form.submit()"
+          class="border rounded-xl px-3 py-2 min-h-[44px] text-sm bg-white">
+    {% for key, cat in categories.items() %}
+      <option value="{{ key }}" {% if key == category %}selected{% endif %}>{{ cat.icon }} {{ cat.label }}</option>
+    {% endfor %}
+  </select>
+</form>
+
+<!-- Add rule -->
+<div class="card mb-4">
+  <h2 class="font-bold mb-2">Add a rule</h2>
+  <form method="post" class="space-y-3">
+    <input type="hidden" name="category" value="{{ category }}">
+    <input type="hidden" name="action" value="add">
+    <div>
+      <label class="block text-xs font-semibold mb-1">Match field (leave blank for category default)</label>
+      <select name="match_field" id="match_field"
+              class="w-full border rounded-xl px-3 py-2 min-h-[44px] text-sm bg-white">
+        <option value="">— Default rule for all {{ category }} —</option>
+        {% for f in match_fields %}
+          <option value="{{ f.name }}">{{ f.label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="block text-xs font-semibold mb-1">Match value</label>
+      <input name="match_value" id="match_value" list="match_value_opts"
+             class="w-full border rounded-xl px-3 py-2 min-h-[44px] text-sm"
+             placeholder="e.g. Comedy / Humor">
+      <datalist id="match_value_opts"></datalist>
+    </div>
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div>
+        <label class="block text-xs font-semibold mb-1">Price / day (₹)</label>
+        <input name="price_per_day" type="number" min="1" step="1"
+               class="w-full border rounded-xl px-3 py-2 min-h-[44px] text-sm">
+      </div>
+      <div>
+        <label class="block text-xs font-semibold mb-1">Deposit (₹)</label>
+        <input name="deposit" type="number" min="0" step="1"
+               class="w-full border rounded-xl px-3 py-2 min-h-[44px] text-sm">
+      </div>
+      <div>
+        <label class="block text-xs font-semibold mb-1">Late fee / day (₹)</label>
+        <input name="late_fee_per_day" type="number" min="0" step="1"
+               class="w-full border rounded-xl px-3 py-2 min-h-[44px] text-sm">
+      </div>
+    </div>
+    <button type="submit"
+            class="w-full sm:w-auto bg-primary text-white font-bold px-5 py-2.5 min-h-[44px] rounded-xl">
+      Save rule
+    </button>
+  </form>
+</div>
+
+<!-- Existing rules -->
+<div class="card">
+  <h2 class="font-bold mb-2">Your rules</h2>
+  {% if my_rules %}
+  <div class="overflow-x-auto">
+  <table class="w-full text-sm">
+    <thead class="text-left text-gray-500">
+      <tr>
+        <th class="py-1">Match</th><th>Price/day</th><th>Deposit</th><th>Late fee</th><th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in my_rules %}
+      <tr class="border-t">
+        <td class="py-2">
+          {% if r.is_default %}<span class="text-gray-500">Default</span>
+          {% else %}<b>{{ r.match_field }}</b> = {{ r.match_value }}{% endif %}
+        </td>
+        <td>₹{{ r.price_per_day|int if r.price_per_day is not none else '—' }}</td>
+        <td>₹{{ r.deposit|int if r.deposit is not none else '—' }}</td>
+        <td>₹{{ r.late_fee_per_day|int if r.late_fee_per_day is not none else '—' }}</td>
+        <td class="text-right">
+          <form method="post" onsubmit="return confirm('Delete this rule?')">
+            <input type="hidden" name="category" value="{{ category }}">
+            <input type="hidden" name="action" value="delete">
+            <input type="hidden" name="rule_id" value="{{ r.id }}">
+            <button type="submit" class="text-red-600 font-bold px-3 py-2 min-h-[44px]">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <p class="text-xs text-gray-500">No rules yet. Add a default rule so imported rows get prices.</p>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // Populate the value datalist from the category's field options.
+  const FIELD_OPTIONS = {{ field_options | tojson }};
+  const fieldSel = document.getElementById('match_field');
+  const dl = document.getElementById('match_value_opts');
+  function refreshOpts() {
+    dl.innerHTML = '';
+    (FIELD_OPTIONS[fieldSel.value] || []).forEach(function (opt) {
+      const o = document.createElement('option');
+      o.value = opt;
+      dl.appendChild(o);
+    });
+  }
+  if (fieldSel) fieldSel.addEventListener('change', refreshOpts);
+  refreshOpts();
+</script>
+{% endblock %}

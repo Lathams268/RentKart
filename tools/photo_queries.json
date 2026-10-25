@@ -1,0 +1,257 @@
+[
+ {
+  "category": "clothes",
+  "subcategory_key": "lehenga",
+  "phrase": "bridal lehenga"
+ },
+ {
+  "category": "clothes",
+  "subcategory_key": "saree",
+  "phrase": "saree silk"
+ },
+ {
+  "category": "clothes",
+  "subcategory_key": "sherwani",
+  "phrase": "sherwani groom"
+ },
+ {
+  "category": "clothes",
+  "subcategory_key": "kurta",
+  "phrase": "kurta men"
+ },
+ {
+  "category": "clothes",
+  "subcategory_key": "kurta_set",
+  "phrase": "kurta set women"
+ },
+ {
+  "category": "clothes",
+  "subcategory_key": "kids_wear",
+  "phrase": "kids ethnic wear"
+ },
+ {
+  "category": "clothes",
+  "subcategory_key": "western",
+  "phrase": "women western dress"
+ },
+ {
+  "category": "clothes",
+  "subcategory_key": "gown",
+  "phrase": "party gown"
+ },
+ {
+  "category": "clothes",
+  "subcategory_key": "blazer",
+  "phrase": "formal blazer men"
+ },
+ {
+  "category": "clothes",
+  "subcategory_key": "frock",
+  "phrase": "kids party frock"
+ },
+ {
+  "category": "clothes",
+  "subcategory_key": "anarkali",
+  "phrase": "anarkali dress"
+ },
+ {
+  "category": "books",
+  "subcategory_key": "comedy",
+  "phrase": "funny book stack"
+ },
+ {
+  "category": "books",
+  "subcategory_key": "spiritual",
+  "phrase": "spiritual books"
+ },
+ {
+  "category": "books",
+  "subcategory_key": "motivation",
+  "phrase": "motivational books"
+ },
+ {
+  "category": "books",
+  "subcategory_key": "self_help",
+  "phrase": "self help book"
+ },
+ {
+  "category": "books",
+  "subcategory_key": "fiction",
+  "phrase": "novel books stack"
+ },
+ {
+  "category": "books",
+  "subcategory_key": "biography",
+  "phrase": "biography book"
+ },
+ {
+  "category": "books",
+  "subcategory_key": "mythology",
+  "phrase": "mythology books"
+ },
+ {
+  "category": "books",
+  "subcategory_key": "children_books",
+  "phrase": "children picture books"
+ },
+ {
+  "category": "books",
+  "subcategory_key": "education",
+  "phrase": "textbook stack"
+ },
+ {
+  "category": "books",
+  "subcategory_key": "business_books",
+  "phrase": "business books"
+ },
+ {
+  "category": "books",
+  "subcategory_key": "health",
+  "phrase": "health fitness book"
+ },
+ {
+  "category": "books",
+  "subcategory_key": "poetry",
+  "phrase": "poetry book"
+ },
+ {
+  "category": "books",
+  "subcategory_key": "other_books",
+  "phrase": "open book stack"
+ },
+ {
+  "category": "farm_tools",
+  "subcategory_key": "tractor",
+  "phrase": "tractor field"
+ },
+ {
+  "category": "farm_tools",
+  "subcategory_key": "attachments",
+  "phrase": "farm plough implement"
+ },
+ {
+  "category": "farm_tools",
+  "subcategory_key": "water_tank",
+  "phrase": "water storage tank"
+ },
+ {
+  "category": "farm_tools",
+  "subcategory_key": "sprayer",
+  "phrase": "hand sprayer farm"
+ },
+ {
+  "category": "farm_tools",
+  "subcategory_key": "harvesting",
+  "phrase": "harvesting crops farm"
+ },
+ {
+  "category": "farm_tools",
+  "subcategory_key": "hand_tools",
+  "phrase": "garden hand tools"
+ },
+ {
+  "category": "farm_tools",
+  "subcategory_key": "power_tools",
+  "phrase": "power tools drill"
+ },
+ {
+  "category": "farm_tools",
+  "subcategory_key": "soil",
+  "phrase": "farm soil cultivation"
+ },
+ {
+  "category": "farm_tools",
+  "subcategory_key": "transport",
+  "phrase": "farm cart transport"
+ },
+ {
+  "category": "electronics",
+  "subcategory_key": "camera",
+  "phrase": "dslr camera"
+ },
+ {
+  "category": "electronics",
+  "subcategory_key": "laptop",
+  "phrase": "laptop computer"
+ },
+ {
+  "category": "electronics",
+  "subcategory_key": "projector",
+  "phrase": "projector presentation"
+ },
+ {
+  "category": "electronics",
+  "subcategory_key": "speaker",
+  "phrase": "bluetooth speaker"
+ },
+ {
+  "category": "electronics",
+  "subcategory_key": "microphone",
+  "phrase": "microphone stage"
+ },
+ {
+  "category": "electronics",
+  "subcategory_key": "drone",
+  "phrase": "camera drone"
+ },
+ {
+  "category": "electronics",
+  "subcategory_key": "lights",
+  "phrase": "led string lights"
+ },
+ {
+  "category": "electronics",
+  "subcategory_key": "generator",
+  "phrase": "power generator"
+ },
+ {
+  "category": "electronics",
+  "subcategory_key": "console",
+  "phrase": "gaming console"
+ },
+ {
+  "category": "electronics",
+  "subcategory_key": "screen",
+  "phrase": "led tv screen"
+ },
+ {
+  "category": "event_items",
+  "subcategory_key": "decoration",
+  "phrase": "flower decoration stage"
+ },
+ {
+  "category": "event_items",
+  "subcategory_key": "chairs",
+  "phrase": "plastic chairs event"
+ },
+ {
+  "category": "event_items",
+  "subcategory_key": "tent",
+  "phrase": "wedding tent decoration"
+ },
+ {
+  "category": "event_items",
+  "subcategory_key": "stage_lighting",
+  "phrase": "stage lighting concert"
+ },
+ {
+  "category": "event_items",
+  "subcategory_key": "catering",
+  "phrase": "catering buffet setup"
+ },
+ {
+  "category": "event_items",
+  "subcategory_key": "stage",
+  "phrase": "event stage backdrop"
+ },
+ {
+  "category": "event_items",
+  "subcategory_key": "festival_items",
+  "phrase": "diya diwali lights"
+ },
+ {
+  "category": "event_items",
+  "subcategory_key": "photobooth",
+  "phrase": "photobooth frame props"
+ }
+]

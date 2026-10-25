@@ -1,0 +1,245 @@
+{% extends "base.html" %}
+{% block title %}Login – RentKart{% endblock %}
+
+{% block content %}
+<div class="max-w-sm mx-auto mt-8">
+  <h1 class="text-2xl font-bold text-center mb-1">Login / Sign Up</h1>
+  <p class="text-center text-sm text-gray-500 mb-4">
+    New here? <a href="{{ url_for('auth.signup') }}" class="text-primary font-semibold hover:underline">Create an account</a>
+  </p>
+
+  {% if step == "phone" %}
+    <!-- Method tabs -->
+    <div class="flex bg-gray-100 rounded-xl p-1 mb-4 text-sm font-semibold">
+      <a href="{{ url_for('auth.login', mode='phone', next=next_url) }}"
+         class="flex-1 text-center py-2 rounded-lg {% if login_mode != 'email' %}bg-white shadow text-gray-900{% else %}text-gray-500{% endif %}">Phone + OTP</a>
+      <a href="{{ url_for('auth.login', mode='email', next=next_url) }}"
+         class="flex-1 text-center py-2 rounded-lg {% if login_mode == 'email' %}bg-white shadow text-gray-900{% else %}text-gray-500{% endif %}">Email + password</a>
+    </div>
+
+    {% if login_mode == 'email' %}
+      <form method="post" class="card space-y-4">
+        {% if next_url %}<input type="hidden" name="next" value="{{ next_url }}">{% endif %}
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1" for="login-email">Email address</label>
+          <input id="login-email" type="email" name="email" required autocomplete="email" inputmode="email" autofocus
+                 class="w-full border rounded-xl px-4 py-3 text-lg focus:ring-primary focus:border-primary">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1" for="login-password">Password</label>
+          <input id="login-password" type="password" name="password" required autocomplete="current-password"
+                 class="w-full border rounded-xl px-4 py-3 text-lg focus:ring-primary focus:border-primary">
+        </div>
+        <label class="flex items-center gap-2 text-sm text-gray-600">
+          <input type="checkbox" name="remember" value="yes"> Remember me on this device
+        </label>
+        <button type="submit"
+                class="w-full bg-primary text-white rounded-2xl py-3 text-lg font-bold hover:bg-green-700 min-h-[44px]">
+          Log in
+        </button>
+        <div class="text-center text-sm">
+          <a href="{{ url_for('auth.forgot_password') }}" class="text-primary font-semibold hover:underline">Forgot password?</a>
+        </div>
+      </form>
+    {% else %}
+    <!-- Demo OTP notice -->
+    {% if otp_mode == 'demo' %}
+      <div class="bg-green-50 border border-green-300 rounded-xl p-3 text-center text-sm mb-4 text-green-800 font-medium">
+        Demo mode: your OTP is <strong>{{ demo_otp or '1234' }}</strong>
+      </div>
+    {% elif otp_mode == 'console' %}
+      <div class="bg-amber-50 border border-amber-300 rounded-xl p-3 text-center text-xs mb-4 text-amber-800">
+        <strong>Dev mode: OTP is printed in the server terminal.</strong>
+      </div>
+    {% endif %}
+
+    <!-- Step 1: Phone -->
+    <form method="post" class="card space-y-4">
+      {% if next_url %}
+        <input type="hidden" name="next" value="{{ next_url }}">
+      {% endif %}
+      <label class="block text-sm font-medium text-gray-700">Phone Number</label>
+      <input type="tel" name="phone" required placeholder="e.g. 9876543210" autocomplete="off" value=""
+             inputmode="tel"
+             class="w-full border rounded-xl px-4 py-3 text-lg focus:ring-primary focus:border-primary">
+      <button type="submit"
+              class="w-full bg-primary text-white rounded-2xl py-3 text-lg font-bold hover:bg-green-700 min-h-[44px]">
+        Send OTP
+      </button>
+      <p class="text-center text-xs text-gray-500">
+        Prefer a password? <a href="{{ url_for('auth.login', mode='email', next=next_url) }}" class="text-primary font-semibold hover:underline">Log in with email</a>
+      </p>
+    </form>
+    {% endif %}
+  {% else %}
+    {% if otp_mode == 'console' %}
+      <div class="bg-amber-50 border border-amber-300 rounded-xl p-3 text-center text-xs mb-4 text-amber-800">
+        <strong>Dev mode: OTP is printed in the server terminal.</strong>
+        Set <code>OTP_MODE=sms</code> in <code>.env</code> to send real SMS.
+      </div>
+    {% endif %}
+
+    <!-- Fake Phone Notification (Demo Mode) -->
+    {% if otp_mode == 'demo' %}
+      <div id="smsNotification"
+           style="transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.5s ease; transform: translateY(-120%);"
+           class="fixed top-4 left-1/2 -translate-x-1/2 z-50 w-[92%] max-w-sm bg-gray-900/95 backdrop-blur text-white p-3.5 rounded-2xl shadow-2xl border border-gray-700 flex items-center gap-3 opacity-0 pointer-events-none">
+        <div class="w-10 h-10 rounded-full bg-green-500/20 text-green-400 flex items-center justify-center shrink-0">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M8 10h.01M12 10h.01M16 10h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+          </svg>
+        </div>
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center justify-between">
+            <span class="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Messages</span>
+            <span class="text-[10px] text-gray-400">now</span>
+          </div>
+          <div class="text-sm font-medium text-gray-100 truncate mt-0.5">
+            RentKart: Your OTP is {{ demo_otp or '1234' }}. Do not share it.
+          </div>
+        </div>
+      </div>
+
+      <!-- Big green box: Demo mode: your OTP is 1234 -->
+      <div class="bg-green-100 border-2 border-green-500 rounded-2xl p-4 text-center text-green-900 mb-4 shadow-sm">
+        <div class="text-lg font-bold">Demo mode: your OTP is {{ demo_otp or '1234' }}</div>
+        <button type="button" id="fillOtpBtn" onclick="fillOtp()"
+                class="mt-2 inline-block bg-green-600 hover:bg-green-700 text-white text-sm font-bold py-1.5 px-4 rounded-xl shadow transition cursor-pointer">
+          Fill OTP
+        </button>
+      </div>
+    {% endif %}
+
+    <div class="card space-y-4">
+      <div class="flex items-center justify-between bg-gray-50 p-3 rounded-xl border flex-wrap gap-2">
+        <div>
+          <span class="text-sm font-bold text-gray-800 block">
+            OTP sent to {{ masked_phone }}
+          </span>
+          <span class="sr-only">Invalid OTP</span>
+        </div>
+        <a href="{{ url_for('auth.change_number', next=next_url) }}"
+           class="text-xs text-primary font-bold hover:underline px-2.5 py-1.5 rounded-lg border border-primary/30 hover:bg-green-50 inline-flex items-center">
+          Change number
+        </a>
+      </div>
+
+      <form method="post" class="space-y-4">
+        {% if next_url %}
+          <input type="hidden" name="next" value="{{ next_url }}">
+        {% endif %}
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Enter OTP</label>
+          <input type="text" name="otp" id="otp-input" required maxlength="{{ otp_length or 6 }}" placeholder="{{ demo_otp if otp_mode == 'demo' else (otp_length|string) + '-digit OTP' }}" autocomplete="one-time-code"
+                 autofocus inputmode="numeric" pattern="[0-9]*" oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, {{ otp_length or 6 }})"
+                 class="w-full border rounded-xl px-4 py-3 text-lg text-center tracking-widest focus:ring-primary focus:border-primary">
+        </div>
+
+        {% if not existing_user %}
+          <p class="text-xs text-gray-400 mt-2">New number – please fill in your details:</p>
+          <input type="text" name="name" required placeholder="Your Name" autocomplete="off"
+                 class="w-full border rounded-xl px-4 py-3">
+          <input type="text" name="village_or_city" required placeholder="Village or City" autocomplete="off"
+                 class="w-full border rounded-xl px-4 py-3">
+        {% endif %}
+
+        <!-- Hidden geolocation fields -->
+        <input type="hidden" name="lat" id="lat">
+        <input type="hidden" name="lng" id="lng">
+
+        <button type="submit"
+                class="w-full bg-accent text-white rounded-2xl py-3 text-lg font-bold hover:bg-orange-600 min-h-[44px]">
+          Verify &amp; Login
+        </button>
+      </form>
+
+      <!-- Resend OTP Form with 30s countdown -->
+      <div class="border-t pt-3 flex items-center justify-between text-xs text-gray-500">
+        <span>Didn't receive code?</span>
+        <form method="post" action="{{ url_for('auth.resend_otp', next=next_url) }}">
+          {% if next_url %}
+            <input type="hidden" name="next" value="{{ next_url }}">
+          {% endif %}
+          <button type="submit" id="resendBtn" {% if resend_wait %}disabled{% endif %}
+                  class="font-bold {% if resend_wait %}text-gray-400 cursor-not-allowed{% else %}text-primary cursor-pointer hover:underline{% endif %} hover:text-primary transition py-1.5 px-2 rounded-lg">
+            {% if resend_wait %}Resend in {{ resend_wait }}s{% else %}Resend OTP{% endif %}
+          </button>
+        </form>
+      </div>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  {% if otp_mode == 'demo' %}
+  function fillOtp() {
+    var el = document.getElementById('otp-input') || document.querySelector('input[name="otp"]');
+    if (el) {
+      el.value = '{{ demo_otp or "1234" }}';
+      el.focus();
+    }
+  }
+  {% endif %}
+
+  // Auto-focus OTP input if present
+  var el = document.getElementById('otp-input') || document.querySelector('input[name="otp"]');
+  if (el) {
+    el.focus();
+  }
+
+  // Fake phone notification slide in after 1s, hide after 8s
+  var smsNotif = document.getElementById('smsNotification');
+  if (smsNotif) {
+    setTimeout(function() {
+      smsNotif.style.transform = 'translateY(0)';
+      smsNotif.classList.remove('opacity-0', 'pointer-events-none');
+      smsNotif.classList.add('opacity-100');
+
+      setTimeout(function() {
+        smsNotif.style.transform = 'translateY(-120%)';
+        smsNotif.classList.remove('opacity-100');
+        smsNotif.classList.add('opacity-0', 'pointer-events-none');
+      }, 8000);
+    }, 1000);
+  }
+
+  // Attempt browser geolocation
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(function(pos) {
+      var lat = document.getElementById('lat');
+      var lng = document.getElementById('lng');
+      if (lat) lat.value = pos.coords.latitude;
+      if (lng) lng.value = pos.coords.longitude;
+    });
+  }
+
+  // Resend OTP 30s countdown
+  const resendBtn = document.getElementById('resendBtn');
+  if (resendBtn) {
+    let timeLeft = {{ resend_wait if resend_wait is defined else 30 }};
+    function enableResend() {
+      resendBtn.disabled = false;
+      resendBtn.innerText = 'Resend OTP';
+      resendBtn.classList.remove('text-gray-400', 'cursor-not-allowed');
+      resendBtn.classList.add('text-primary', 'hover:underline', 'cursor-pointer');
+    }
+    if (timeLeft <= 0) {
+      enableResend();
+    } else {
+      const timer = setInterval(function() {
+        timeLeft--;
+        if (timeLeft <= 0) {
+          clearInterval(timer);
+          enableResend();
+        } else {
+          resendBtn.innerText = `Resend in ${timeLeft}s`;
+        }
+      }, 1000);
+    }
+  }
+</script>
+{% endblock %}

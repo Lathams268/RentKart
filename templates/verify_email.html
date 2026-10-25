@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Verify email – RentKart{% endblock %}
+
+{% block content %}
+<div class="max-w-sm mx-auto mt-8">
+  <div class="text-center mb-4">
+    <div class="text-4xl mb-2">✉️</div>
+    <h1 class="text-2xl font-bold text-gray-900">Verify your email</h1>
+    {% if email %}
+      <p class="text-sm text-gray-500 mt-1">We emailed a {{ otp_length }}-digit code to <strong>{{ masked_email }}</strong></p>
+    {% else %}
+      <p class="text-sm text-gray-500 mt-1">Add an email address to your profile first.</p>
+    {% endif %}
+  </div>
+
+  {% if dev_mode %}
+    <div class="bg-amber-50 border border-amber-300 text-amber-800 rounded-xl p-3 text-xs mb-4">
+      <strong>Dev mode: OTP is printed in the server terminal.</strong>
+    </div>
+  {% endif %}
+
+  {% if email %}
+  <form method="post" action="{{ url_for('auth.verify_email') }}" class="card space-y-4">
+    <input type="hidden" name="action" value="verify">
+    <input name="otp" type="text" required inputmode="numeric" pattern="[0-9]*" maxlength="{{ otp_length }}"
+           autocomplete="one-time-code" autofocus
+           class="w-full border rounded-xl px-4 py-3 text-lg text-center tracking-widest"
+           oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, {{ otp_length }})">
+    <button type="submit" class="w-full bg-accent text-white rounded-2xl py-3 font-bold">Verify email</button>
+  </form>
+
+  <form method="post" action="{{ url_for('auth.verify_email') }}" class="text-center mt-3">
+    <input type="hidden" name="action" value="resend">
+    <button type="submit" {% if resend_wait %}disabled{% endif %}
+            class="text-sm font-semibold {% if resend_wait %}text-gray-400{% else %}text-primary hover:underline{% endif %}">
+      {% if resend_wait %}Resend in {{ resend_wait }}s{% else %}Resend code{% endif %}
+    </button>
+  </form>
+  {% endif %}
+</div>
+{% endblock %}

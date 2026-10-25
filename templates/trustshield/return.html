@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Return Condition – RentKart TrustShield{% endblock %}
+
+{% block content %}
+<div class="card space-y-4">
+  <h1 class="text-xl font-bold">📦 TrustShield Return Report</h1>
+  <p class="text-sm text-gray-600">Item: <strong>{{ booking.item.title }}</strong>
+     · Renter: {{ booking.renter.name }}</p>
+
+  <form method="post" enctype="multipart/form-data" class="space-y-5">
+    <section>
+      <h2 class="font-bold text-sm mb-1">Return date <span class="text-red-500">*</span></h2>
+      <input type="date" name="actual_return_date" required value="{{ today }}"
+             class="border rounded-xl px-3 py-2 text-sm min-h-[44px]">
+    </section>
+
+    <section>
+      <h2 class="font-bold text-sm mb-1">Condition photos by angle
+        <span class="text-red-500">* (min {{ min_photos }})</span></h2>
+      <div class="space-y-2">
+        {% for a in angles %}
+          <div class="flex items-center gap-2 border rounded-xl p-2">
+            <span class="text-xs font-semibold w-24 shrink-0">{{ a }}</span>
+            <input type="hidden" name="angle" value="{{ a }}">
+            <input type="file" name="photo" accept=".png,.jpg,.jpeg"
+                   class="text-xs bg-white rounded-lg px-2 py-2 min-h-[44px]">
+          </div>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section>
+      <h2 class="font-bold text-sm mb-1">Condition checklist</h2>
+      <div class="space-y-1">
+        {% for item in checklist %}
+          <label class="flex items-center gap-2 text-sm min-h-[44px]">
+            <input type="checkbox" name="check" value="{{ item }}" class="w-5 h-5">
+            <span class="whitespace-nowrap overflow-hidden text-ellipsis">{{ item }}</span>
+          </label>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section>
+      <h2 class="font-bold text-sm mb-1">New damage you can already see (optional)</h2>
+      <input type="text" name="d_type" placeholder="Type" class="w-full border rounded-lg px-2 py-2 text-sm">
+      <textarea name="d_desc" rows="2" placeholder="Description" class="w-full border rounded-lg px-2 py-2 text-sm mt-1"></textarea>
+    </section>
+
+    <section>
+      <h2 class="font-bold text-sm mb-1">Note</h2>
+      <textarea name="note" rows="2" class="w-full border rounded-xl px-3 py-2 text-sm"></textarea>
+    </section>
+
+    <button type="submit" class="bg-primary text-white rounded-xl px-4 py-2 text-sm font-bold min-h-[44px]">
+      Upload return report & compare
+    </button>
+  </form>
+</div>
+{% endblock %}

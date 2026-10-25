@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+{% block title %}Verify phone – RentKart{% endblock %}
+
+{% block content %}
+<div class="max-w-sm mx-auto mt-8">
+  <div class="text-center mb-4">
+    <div class="text-4xl mb-2">📱</div>
+    <h1 class="text-2xl font-bold text-gray-900">
+      {% if purpose == 'change_phone' %}Confirm your new number{% elif purpose == 'alternate_phone' %}Verify alternate number{% else %}Verify your phone{% endif %}
+    </h1>
+    <p class="text-sm text-gray-500 mt-1">We sent a {{ otp_length }}-digit code to
+      <strong class="text-gray-800">{{ masked_phone }}</strong></p>
+  </div>
+
+  {% if dev_mode %}
+    <div class="bg-amber-50 border border-amber-300 text-amber-800 rounded-xl p-3 text-xs mb-4">
+      <strong>Dev mode: OTP is printed in the server terminal.</strong>
+      Set <code>OTP_MODE=sms</code> with a provider key to send real SMS.
+    </div>
+  {% endif %}
+
+  {% if locked %}
+    <div class="bg-red-50 border border-red-300 text-red-700 rounded-xl p-3 text-sm mb-4">
+      Too many wrong attempts. This code is locked for {{ (otp_lock_minutes if otp_lock_minutes is defined else 15) }} minutes.
+      {% if change_available %}You can change the number below to start fresh.{% endif %}
+    </div>
+  {% elif expired %}
+    <div class="bg-orange-50 border border-orange-300 text-orange-700 rounded-xl p-3 text-sm mb-4">
+      This code expired. Tap “Resend code” to get a new one.
+    </div>
+  {% endif %}
+
+  <form method="post" action="{{ url_for('auth.verify_phone') }}" class="card space-y-4" id="otpForm">
+    <input type="hidden" name="action" value="verify">
+    <input type="hidden" name="otp" id="otpHidden">
+    {% if next_url %}<input type="hidden" name="next" value="{{ next_url }}">{% endif %}
+
+    <fieldset>
+      <legend class="sr-only">Enter the {{ otp_length }}-digit code</legend>
+      <div class="flex justify-center gap-2" id="otpBoxes">
+        {% for i in range(otp_length) %}
+        <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" autocomplete="one-time-code"
+               aria-label="Digit {{ i + 1 }}"
+               class="otp-box w-11 h-13 text-center text-xl font-bold border-2 rounded-xl py-2 focus:border-primary focus:ring-primary"
+               data-index="{{ i }}" {% if loop.first %}autofocus{% endif %}>
+        {% endfor %}
+      </div>
+    </fieldset>
+
+    <p class="text-xs text-center {% if attempts_left <= 2 %}text-red-600 font-semibold{% else %}text-gray-500{% endif %}">
+      {% if attempts_left %}You have {{ attempts_left }} attempt{{ '' if attempts_left == 1 else 's' }} left.{% endif %}
+    </p>
+
+    <button type="submit" id="verifyBtn"
+            class="w-full bg-accent text-white rounded-2xl py-3 text-lg font-bold hover:bg-orange-600 min-h-[44px]">
+      Verify
+    </button>
+  </form>
+
+  <div class="card mt-3 space-y-3">
+    <div class="flex items-center justify-between text-sm">
+      <span class="text-gray-600">Didn't get the code?</span>
+      <form method="post" action="{{ url_for('auth.verify_phone') }}">
+        <input type="hidden" name="action" value="resend">
+        {% if next_url %}<input type="hidden" name="next" value="{{ next_url }}">{% endif %}
+        <button type="submit" id="resendBtn" {% if resend_wait %}disabled{% endif %}
+                class="font-bold {% if resend_wait %}text-gray-400 cursor-not-allowed{% else %}text-primary hover:underline{% endif %} py-1 px-2 rounded-lg">
+          {% if resend_wait %}Resend in {{ resend_wait }}s{% else %}Resend code{% endif %}
+        </button>
+      </form>
+    </div>
+
+    {% if purpose != 'alternate_phone' and not alternate_masked %}
+      <details class="border-t pt-3">
+        <summary class="text-sm font-semibold text-gray-700 cursor-pointer">Add an alternate number</summary>
+        <form method="post" action="{{ url_for('auth.verify_phone') }}" class="space-y-2 mt-3">
+          <input type="hidden" name="action" value="alternate">
+          {% if next_url %}<input type="hidden" name="next" value="{{ next_url }}">{% endif %}
+          <div class="flex gap-2">
+            <select name="country" aria-label="Country code" class="w-32 border rounded-xl px-2 py-2 text-sm bg-gray-50">
+              {% for c in countries %}<option value="{{ c.iso }}">{{ c.label }}</option>{% endfor %}
+            </select>
+            <input name="new_phone" type="tel" required inputmode="tel" placeholder="Alternate number"
+                   class="flex-1 border rounded-xl px-3 py-2">
+          </div>
+          <button type="submit" class="w-full bg-gray-800 text-white rounded-xl py-2 text-sm font-bold">Send code</button>
+        </form>
+      </details>
+    {% elif alternate_masked %}
+      <p class="text-xs text-green-700 border-t pt-3">✓ Alternate number verified: {{ alternate_masked }}</p>
+    {% endif %}
+
+    <details class="border-t pt-3" {% if purpose == 'change_phone' %}open{% endif %}>
+      <summary class="text-sm font-semibold text-gray-700 cursor-pointer">Use a different number</summary>
+      <form method="post" action="{{ url_for('auth.verify_phone') }}" class="space-y-2 mt-3">
+        <input type="hidden" name="action" value="change">
+        {% if next_url %}<input type="hidden" name="next" value="{{ next_url }}">{% endif %}
+        <div class="flex gap-2">
+          <select name="country" aria-label="Country code" class="w-32 border rounded-xl px-2 py-2 text-sm bg-gray-50">
+            {% for c in countries %}<option value="{{ c.iso }}">{{ c.label }}</option>{% endfor %}
+          </select>
+          <input name="new_phone" type="tel" required inputmode="tel" placeholder="New phone number"
+                 class="flex-1 border rounded-xl px-3 py-2">
+        </div>
+        <p class="text-xs text-gray-500">Your account number only changes after the new number is verified.</p>
+        <button type="submit" class="w-full bg-gray-800 text-white rounded-xl py-2 text-sm font-bold">Send code to new number</button>
+      </form>
+    </details>
+
+    <div class="border-t pt-3 flex items-center justify-between text-xs">
+      <a href="{{ url_for('main.profile') }}" class="text-gray-500 hover:underline">Go to profile</a>
+      {% if purpose == 'signup' %}
+        <a href="{{ url_for('main.profile') }}" class="text-gray-400 hover:underline">Skip for now</a>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  (function () {
+    var boxes = Array.prototype.slice.call(document.querySelectorAll('.otp-box'));
+    var hidden = document.getElementById('otpHidden');
+    function sync() {
+      hidden.value = boxes.map(function (b) { return b.value || ''; }).join('');
+    }
+    boxes.forEach(function (box, index) {
+      box.addEventListener('input', function () {
+        box.value = (box.value || '').replace(/[^0-9]/g, '').slice(0, 1);
+        sync();
+        if (box.value && index < boxes.length - 1) boxes[index + 1].focus();
+      });
+      box.addEventListener('keydown', function (event) {
+        if (event.key === 'Backspace' && !box.value && index > 0) {
+          boxes[index - 1].focus();
+          boxes[index - 1].value = '';
+          sync();
+          event.preventDefault();
+        }
+        if (event.key === 'ArrowLeft' && index > 0) boxes[index - 1].focus();
+        if (event.key === 'ArrowRight' && index < boxes.length - 1) boxes[index + 1].focus();
+      });
+      box.addEventListener('paste', function (event) {
+        var text = (event.clipboardData || window.clipboardData).getData('text') || '';
+        var digits = text.replace(/[^0-9]/g, '').split('');
+        if (!digits.length) return;
+        event.preventDefault();
+        var start = index;
+        digits.slice(0, boxes.length - start).forEach(function (digit, offset) {
+          boxes[start + offset].value = digit;
+        });
+        sync();
+        var next = Math.min(boxes.length - 1, start + digits.length);
+        boxes[next].focus();
+      });
+    });
+    sync();
+
+    var resendBtn = document.getElementById('resendBtn');
+    if (resendBtn) {
+      var timeLeft = {{ resend_wait or 0 }};
+      function enableResend() {
+        resendBtn.disabled = false;
+        resendBtn.innerText = 'Resend code';
+        resendBtn.classList.remove('text-gray-400', 'cursor-not-allowed');
+        resendBtn.classList.add('text-primary', 'hover:underline');
+      }
+      if (timeLeft <= 0) { enableResend(); }
+      else {
+        var timer = setInterval(function () {
+          timeLeft--;
+          if (timeLeft <= 0) { clearInterval(timer); enableResend(); }
+          else { resendBtn.innerText = 'Resend in ' + timeLeft + 's'; }
+        }, 1000);
+      }
+    }
+
+    document.getElementById('otpForm').addEventListener('submit', function (event) {
+      sync();
+      if ((hidden.value || '').length !== boxes.length) {
+        event.preventDefault();
+        boxes.find(function (b) { return !b.value; }).focus();
+      } else {
+        var btn = document.getElementById('verifyBtn');
+        btn.disabled = true;
+        btn.innerText = 'Verifying…';
+      }
+    });
+  })();
+</script>
+{% endblock %}

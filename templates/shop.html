@@ -1,0 +1,248 @@
+{% extends "base.html" %}
+{% from "_macros.html" import item_image, shop_badge %}
+{% block title %}{{ owner.shop_name or owner.name ~ "'s Shop" }} – RentKart{% endblock %}
+
+{% block content %}
+<!-- Shop Header Card -->
+{% if owner.shop_slug == 'shravani' %}
+  <!-- Maroon and Gold Festive Banner Theme for Shravani Boutique -->
+  <div class="mb-6 rounded-3xl p-6 sm:p-8 bg-gradient-to-r from-[#500014] via-[#7B1113] to-[#B38728] text-white shadow-xl border-2 border-amber-300/40 relative overflow-hidden">
+    <div class="absolute -right-8 -bottom-8 opacity-10 text-9xl select-none">👗</div>
+    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 relative z-10">
+      <div>
+        <div class="flex items-center gap-3 flex-wrap">
+          <h1 class="text-3xl sm:text-4xl font-extrabold text-amber-200 tracking-tight flex items-center gap-2">
+            <span>👑</span> {{ owner.shop_name }}
+          </h1>
+          <span class="text-xs px-3 py-1 rounded-full font-bold bg-amber-400 text-amber-950 shadow">
+            🛡️ {{ trust.label }} ({{ trust.score }})
+          </span>
+        </div>
+        <p class="text-sm text-amber-100/90 mt-1.5 flex items-center gap-2">
+          <span>📍 {{ owner.village_or_city }}</span>
+          <span>&bull;</span>
+          <span>Boutique Owner: {{ owner.name }}</span>
+        </p>
+        {% if owner.shop_description %}
+          <p class="text-sm text-white/95 mt-3 bg-black/25 backdrop-blur-sm p-3.5 rounded-2xl border border-amber-300/20 max-w-2xl leading-relaxed">
+            {{ owner.shop_description }}
+          </p>
+        {% endif %}
+      </div>
+
+      <!-- QR Code Preview & Action Buttons -->
+      <div class="flex flex-col items-center gap-2 self-center md:self-auto bg-white/10 backdrop-blur-md p-3.5 rounded-2xl border border-amber-200/30">
+        <img src="{{ url_for('shop.shop_qr', slug=owner.shop_slug) }}" alt="Shop QR Code" class="w-28 h-28 rounded-xl shadow bg-white p-1">
+        <div class="flex gap-2">
+          <a href="{{ url_for('shop.shop_qr', slug=owner.shop_slug) }}" download="{{ owner.shop_slug }}-qr.png"
+             class="bg-amber-400 hover:bg-amber-300 text-amber-950 text-xs font-bold px-3 py-1.5 rounded-lg transition-colors">
+            ⬇️ Download QR
+          </a>
+          <a href="{{ url_for('shop.shop_poster', slug=owner.shop_slug) }}"
+             class="bg-rose-950 hover:bg-black text-white text-xs font-bold px-3 py-1.5 rounded-lg border border-amber-300/40 transition-colors">
+            📄 Print Poster
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Key Stats Row & WhatsApp Share -->
+    <div class="mt-5 pt-4 border-t border-amber-300/30 flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center gap-3 text-xs font-semibold">
+        {% set rstats = owner.owner_review_stats %}
+        {% if rstats.count > 0 %}
+          <span class="bg-amber-400/20 text-amber-200 border border-amber-300/30 px-3 py-1 rounded-full">
+            ⭐ {{ rstats.avg }} / 5.0 ({{ rstats.count }} reviews)
+          </span>
+        {% else %}
+          <span class="bg-black/20 text-amber-100 px-3 py-1 rounded-full">⭐ Verified Boutique</span>
+        {% endif %}
+
+        <span class="bg-amber-400/20 text-amber-200 border border-amber-300/30 px-3 py-1 rounded-full">
+          👗 Bridal & Festive Collection
+        </span>
+      </div>
+
+      <!-- WhatsApp Share Button & Report link -->
+      <div class="flex items-center gap-3">
+        <button type="button" onclick="openFeedbackModal('complaint', null, null, 'Report a Problem with {{ owner.shop_name or owner.name }}\'s Shop')"
+                class="text-xs text-amber-200 hover:text-white font-semibold hover:underline">
+          ⚠️ Report a problem
+        </button>
+        <a href="{{ whatsapp_url }}" target="_blank" rel="noopener noreferrer"
+           class="inline-flex items-center gap-1.5 bg-[#25D366] hover:bg-[#1ebd5a] text-white text-sm font-bold px-4 py-2 rounded-xl shadow transition-transform active:scale-95">
+          <span>💬 Share Boutique on WhatsApp</span>
+        </a>
+      </div>
+    </div>
+  </div>
+
+{% else %}
+  <!-- Regular Shop Header Card -->
+  <div class="card mb-6 border-t-4 border-primary">
+    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+      <div>
+        <div class="flex items-center gap-2 flex-wrap">
+          <h1 class="text-2xl font-black text-gray-900">🏪 {{ owner.shop_name or owner.name }}</h1>
+          <span class="text-xs px-2.5 py-1 rounded-full font-bold
+            {% if trust.color == 'green' %}bg-green-100 text-green-800 border border-green-300
+            {% elif trust.color == 'yellow' %}bg-yellow-100 text-yellow-800 border border-yellow-300
+            {% else %}bg-red-100 text-red-800 border border-red-300{% endif %}">
+            🛡️ {{ trust.label }} ({{ trust.score }})
+          </span>
+        </div>
+        <p class="text-sm text-gray-500 mt-1">📍 {{ owner.village_or_city }} &bull; Owner: {{ owner.name }}</p>
+        {% if owner.shop_description %}
+          <p class="text-sm text-gray-700 mt-2 bg-gray-50 p-3 rounded-xl border border-gray-100">{{ owner.shop_description }}</p>
+        {% endif %}
+      </div>
+
+      <!-- QR Code Preview & Action Buttons -->
+      <div class="flex flex-col items-center gap-2 self-center md:self-auto bg-gray-50 p-3 rounded-2xl border">
+        <img src="{{ url_for('shop.shop_qr', slug=owner.shop_slug) }}" alt="Shop QR Code" class="w-28 h-28 rounded-lg shadow-sm">
+        <div class="flex gap-2">
+          <a href="{{ url_for('shop.shop_qr', slug=owner.shop_slug) }}" download="{{ owner.shop_slug }}-qr.png"
+             class="bg-gray-800 hover:bg-black text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-colors">
+            ⬇️ Download QR
+          </a>
+          <a href="{{ url_for('shop.shop_poster', slug=owner.shop_slug) }}"
+             class="bg-primary hover:bg-green-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-colors">
+            📄 Print Poster
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Key Stats Row & WhatsApp Share -->
+    <div class="mt-4 pt-4 border-t flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center gap-4 text-xs font-semibold text-gray-600">
+        {% set rstats = owner.owner_review_stats %}
+        {% if rstats.count > 0 %}
+          <span class="bg-yellow-50 text-yellow-800 border border-yellow-200 px-3 py-1 rounded-full">
+            ⭐ {{ rstats.avg }} / 5.0 ({{ rstats.count }} reviews)
+          </span>
+        {% else %}
+          <span class="bg-gray-100 text-gray-600 px-3 py-1 rounded-full">⭐ No reviews yet</span>
+        {% endif %}
+
+        <span class="bg-blue-50 text-blue-800 border border-blue-200 px-3 py-1 rounded-full">
+          📦 {{ owner.total_successful_rentals }} Successful Rentals
+        </span>
+      </div>
+
+      <!-- WhatsApp Share Button & Report link -->
+      <div class="flex items-center gap-3">
+        <button type="button" onclick="openFeedbackModal('complaint', null, null, 'Report a Problem with {{ owner.shop_name or owner.name }}\'s Shop')"
+                class="text-xs text-red-500 hover:text-red-700 font-semibold hover:underline">
+          ⚠️ Report a problem
+        </button>
+        <a href="{{ whatsapp_url }}" target="_blank" rel="noopener noreferrer"
+           class="inline-flex items-center gap-1.5 bg-[#25D366] hover:bg-[#1ebd5a] text-white text-sm font-bold px-4 py-2 rounded-xl shadow transition-transform active:scale-95">
+          <span>💬 Share on WhatsApp</span>
+        </a>
+      </div>
+    </div>
+  </div>
+{% endif %}
+
+<!-- Split Items: Clothes Items and Other Items -->
+{% set clothes_items = [] %}
+{% set other_items = [] %}
+{% for it in items %}
+  {% if it.category == 'clothes' %}
+    {% set _ = clothes_items.append(it) %}
+  {% else %}
+    {% set _ = other_items.append(it) %}
+  {% endif %}
+{% endfor %}
+
+{% if clothes_items %}
+  <!-- Clothes items in a scrolling row at the top -->
+  <div class="mb-8 bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
+    <div class="flex justify-between items-center mb-3 px-1">
+      <h2 class="text-xl font-extrabold text-gray-900 flex items-center gap-2">
+        <span>👗</span>
+        <span>Clothes & Festive Collection</span>
+        <span class="text-xs text-gray-400 font-normal">({{ clothes_items | length }})</span>
+      </h2>
+    </div>
+    <div class="flex gap-4 overflow-x-auto snap-x snap-mandatory flex-nowrap pb-3 pt-1 px-1 -mx-1 scrollbar-thin">
+      {% for item in clothes_items %}
+        <div class="flex-none w-[260px] snap-start">
+          <div class="card hover:shadow-lg transition block relative h-full flex flex-col justify-between">
+            <div>
+              <a href="{{ url_for('items.item_detail', item_id=item.id) }}" class="block">
+                {{ item_image(item, height_class="h-40") }}
+              </a>
+              <div class="flex items-center justify-between text-xs mb-1">
+                <span class="text-rose-700 font-bold text-xs">👗 Clothes</span>
+                {% if item.review_stats.count > 0 %}
+                  <span class="text-yellow-600 font-bold">⭐ {{ item.review_stats.avg }}</span>
+                {% endif %}
+              </div>
+              <a href="{{ url_for('items.item_detail', item_id=item.id) }}" class="block font-bold text-gray-800 text-sm hover:text-primary line-clamp-1">
+                {{ item.title }}
+              </a>
+              <p class="text-xs text-rose-800 font-semibold mt-0.5">by Shravani</p>
+            </div>
+            <div class="mt-2 pt-2 border-t border-gray-100 flex items-center justify-between text-xs">
+              <span class="bg-green-100 text-primary font-bold rounded-full px-2 py-0.5">{{ item.price_per_day | inr }}/day</span>
+              {% if item.deposit %}
+                <span class="text-gray-500 font-medium">Dep: {{ item.deposit | inr }}</span>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+{% endif %}
+
+<!-- Other Items or Regular Grid -->
+{% if other_items %}
+  <h2 class="text-xl font-bold mb-3 flex items-center justify-between">
+    <span>Other Available Items ({{ other_items | length }})</span>
+    <a href="{{ url_for('main.browse') }}" class="text-xs text-primary font-bold hover:underline">Explore all marketplace &rarr;</a>
+  </h2>
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+    {% for item in other_items %}
+      <a href="{{ url_for('items.item_detail', item_id=item.id) }}"
+         class="card hover:shadow-lg transition block">
+        <!-- Image with fixed height and object-cover -->
+        {{ item_image(item, height_class="h-40") }}
+
+        <!-- Category badge & rating -->
+        <div class="flex items-center justify-between text-xs mb-0.5">
+          {% set cat = categories.get(item.category, {}) %}
+          <span class="text-gray-400">{{ cat.get('icon','') }} {{ cat.get('label','') }}</span>
+          {% if item.review_stats.count > 0 %}
+            <span class="text-yellow-600 font-bold">⭐ {{ item.review_stats.avg }} ({{ item.review_stats.count }})</span>
+          {% endif %}
+        </div>
+
+        <!-- Title -->
+        <h3 class="font-bold text-gray-800 truncate">{{ item.title }}</h3>
+
+        <!-- Price & deposit -->
+        <div class="flex gap-2 mt-1 text-sm">
+          <span class="bg-green-100 text-primary font-bold rounded-full px-2 py-0.5">{{ item.price_per_day | inr }}/day</span>
+          {% if item.deposit %}
+            <span class="bg-orange-100 text-accent font-bold rounded-full px-2 py-0.5">Dep {{ item.deposit | inr }}</span>
+          {% endif %}
+        </div>
+
+        <div class="flex justify-between mt-2 text-xs text-gray-500">
+          <span>📍 {{ item.owner.village_or_city }}</span>
+          <span class="text-primary font-bold">Rent Now &rarr;</span>
+        </div>
+      </a>
+    {% endfor %}
+  </div>
+{% elif not clothes_items %}
+  <div class="card text-center py-12 text-gray-400">
+    <p class="text-4xl mb-2">📦</p>
+    <p class="font-bold">No items currently available in this shop.</p>
+    <p class="text-xs mt-1">Check back soon for new listings!</p>
+  </div>
+{% endif %}
+{% endblock %}

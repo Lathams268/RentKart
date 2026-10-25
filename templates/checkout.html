@@ -1,0 +1,284 @@
+{% extends "base.html" %}
+{% from "_macros.html" import item_image, shop_badge %}
+{% block title %}Review and Pay – RentKart{% endblock %}
+
+{% block content %}
+<!-- Your address (associated with the checkout form below via form="checkout-form") -->
+<div class="card space-y-2 mb-4">
+  <h2 class="font-bold text-gray-800">📍 Your address</h2>
+  {% if addresses %}
+    <div class="space-y-2">
+      {% for a in addresses %}
+        <label class="border rounded-xl p-3 flex gap-3 items-start cursor-pointer has-[:checked]:border-primary has-[:checked]:bg-green-50 min-h-[44px]">
+          <input type="radio" name="address_id" value="{{ a.id }}" form="checkout-form"
+                 {% if selected_addr and a.id == selected_addr.id %}checked{% endif %} class="mt-1 addr-radio">
+          <span class="text-sm">
+            <span class="font-bold">{{ a.label }}{% if a.is_default %} · Default{% endif %}</span><br>
+            <span class="text-gray-700">{{ a.full_name }} · {{ a.phone }}</span><br>
+            <span class="text-gray-600">{{ a.house_no }}{% if a.building %}, {{ a.building }}{% endif %}, {{ a.street }}{% if a.landmark %}, near {{ a.landmark }}{% endif %}<br>
+              {{ a.city }}{% if a.district %}, {{ a.district }}{% endif %}, {{ a.state }} – {{ a.pincode }}</span>
+            <a href="{{ url_for('addresses.address_list', next=checkout_next) }}" class="text-primary text-xs underline">Edit</a>
+          </span>
+        </label>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p class="text-sm text-gray-500">You have no saved addresses. Add one to continue.</p>
+  {% endif %}
+
+  <details {% if not addresses %}open{% endif %}>
+    <summary class="text-sm font-bold text-accent cursor-pointer py-2 min-h-[44px] flex items-center">➕ Add a new address</summary>
+    <form method="post" action="{{ url_for('addresses.address_add') }}" class="pt-2">
+      {% with form=addr_form, errors=addr_errors, states=states, labels=labels, next=checkout_next, submit_label='Save and use this address' %}
+        {% include "_address_fields.html" %}
+      {% endwith %}
+    </form>
+  </details>
+</div>
+
+<form method="post" action="{{ url_for('bookings.checkout_submit', item_id=item.id) }}" id="checkout-form" class="space-y-4">
+  <input type="hidden" name="start_date" value="{{ start.isoformat() }}">
+  <input type="hidden" name="end_date" value="{{ end.isoformat() }}">
+
+  <!-- Item -->
+  <div class="card space-y-3">
+    <div class="grid grid-cols-3 gap-3">
+      <div class="col-span-1">{{ item_image(item, height_class="h-24") }}</div>
+      <div class="col-span-2">
+        <h1 class="font-bold text-lg text-gray-800 leading-tight">{{ item.title }}</h1>
+        {{ shop_badge(item) }}
+        <div class="text-xs text-gray-500 mt-1">Category: {{ item.category | replace('_',' ') | title }}</div>
+        <div class="text-xs text-gray-500">Pickup address: {{ item.owner.shop_address or item.owner.village_or_city }}</div>
+      </div>
+    </div>
+    <div class="grid grid-cols-2 gap-2 text-sm border-t pt-2">
+      <div class="flex justify-between"><span class="text-gray-500">Price/day</span><span class="font-semibold">{{ effective_price(item) | inr }}</span></div>
+      <div class="flex justify-between"><span class="text-gray-500">Duration</span><span class="font-semibold">{{ pricing.days }} days</span></div>
+      <div class="flex justify-between"><span class="text-gray-500">Start</span><span>{{ start }}</span></div>
+      <div class="flex justify-between"><span class="text-gray-500">Return by</span><span>{{ end }}</span></div>
+    </div>
+  </div>
+
+  <!-- Pickup / Delivery choice -->
+  <div class="card space-y-2">
+    <h2 class="font-bold text-gray-800">How do you want it?</h2>
+    <div class="flex gap-2">
+      <label class="flex-1 border rounded-xl px-3 py-3 flex items-center gap-2 min-h-[44px]">
+        <input type="radio" name="delivery" value="pickup" {% if delivery_method == 'pickup' %}checked{% endif %}> Pickup
+      </label>
+      {% if item.delivery_available %}
+        <label class="flex-1 border rounded-xl px-3 py-3 flex items-center gap-2 min-h-[44px]">
+          <input type="radio" name="delivery" value="delivery" {% if delivery_method == 'delivery' %}checked{% endif %}>
+          Delivery ({{ (item.delivery_charge or 0) | round | int | inr }})
+        </label>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Optional revenue add-ons (hidden when all revenue features are off) -->
+  {% if revenue_features.protection or revenue_features.services %}
+  <div class="card space-y-2">
+    <h2 class="font-bold text-gray-800">Protection &amp; extra services <span class="text-xs font-normal text-gray-400">(optional)</span></h2>
+    {% if revenue_features.protection %}
+      <label class="flex items-start gap-2 text-sm border rounded-xl px-3 py-2">
+        <input type="checkbox" name="protection" value="1" class="mt-1 h-5 w-5 addon-toggle"
+               {% if addons.protection %}checked{% endif %}>
+        <span>
+          <strong>Damage protection add-on</strong>
+          <span class="block text-xs text-gray-500">{{ revenue_settings.protection_percent }}% of rent · covers small damage claims up to {{ pricing.protection_cover | inr }}</span>
+        </span>
+      </label>
+    {% endif %}
+    {% if revenue_features.services %}
+      <label class="flex items-start gap-2 text-sm border rounded-xl px-3 py-2">
+        <input type="checkbox" name="services" value="service_delivery" class="mt-1 h-5 w-5 addon-toggle"
+               {% if addons.service_delivery %}checked{% endif %}>
+        <span>
+          <strong>Doorstep delivery / pickup</strong>
+          <span class="block text-xs text-gray-500">{{ revenue_settings.service_delivery_paise | paise_inr }}</span>
+        </span>
+      </label>
+      {% if item.category == 'clothes' %}
+        <label class="flex items-start gap-2 text-sm border rounded-xl px-3 py-2">
+          <input type="checkbox" name="services" value="service_cleaning" class="mt-1 h-5 w-5 addon-toggle"
+                 {% if addons.service_cleaning %}checked{% endif %}>
+          <span>
+            <strong>Cleaning / dry-cleaning</strong>
+            <span class="block text-xs text-gray-500">{{ revenue_settings.service_cleaning_paise | paise_inr }}</span>
+          </span>
+        </label>
+      {% endif %}
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <!-- Price table -->
+  <div class="card space-y-1 text-sm" id="price-table">
+    <h2 class="font-bold text-gray-800 mb-1">Price details</h2>
+    <div class="flex justify-between"><span>Rent ({{ pricing.days }} × {{ effective_price(item) | inr }})</span><span data-line="rent">{{ pricing.rent | inr }}</span></div>
+    <div class="flex justify-between">
+      <span>Security deposit (refundable)</span>
+      <span>
+        {% if pricing.trust_discount %}<span class="line-through text-gray-400 mr-1">{{ pricing.deposit_original | inr }}</span>{% endif %}
+        <span data-line="deposit">{{ pricing.deposit | inr }}</span>
+      </span>
+    </div>
+    <div class="flex justify-between"><span>Delivery charge</span><span data-line="delivery_charge">{{ pricing.delivery_charge | inr }}</span></div>
+    <div class="flex justify-between">
+      <span>Platform fee{% if revenue_features.renter_fee %} ({{ pricing.renter_fee_percent }}%)
+        <span class="text-gray-400 cursor-help" title="Why this fee? It covers payment processing, customer support and dispute handling.">ⓘ</span>{% endif %}</span>
+      <span data-line="platform_fee">{{ pricing.platform_fee | inr }}</span>
+    </div>
+    {% set protection_line = (pricing.addon_lines | selectattr('kind', 'equalto', 'protection') | list | first) %}
+    {% set delivery_line = (pricing.addon_lines | selectattr('kind', 'equalto', 'service_delivery') | list | first) %}
+    {% set cleaning_line = (pricing.addon_lines | selectattr('kind', 'equalto', 'service_cleaning') | list | first) %}
+    {% if revenue_features.protection %}
+      <div class="flex justify-between" data-addon-row="protection" {% if not protection_line %}hidden{% endif %}>
+        <span>Damage protection add-on</span>
+        <span data-addon="protection">{{ (protection_line.amount if protection_line else 0) | inr }}</span>
+      </div>
+    {% endif %}
+    {% if revenue_features.services %}
+      <div class="flex justify-between" data-addon-row="service_delivery" {% if not delivery_line %}hidden{% endif %}>
+        <span>Delivery / pickup service</span>
+        <span data-addon="service_delivery">{{ (delivery_line.amount if delivery_line else 0) | inr }}</span>
+      </div>
+      {% if item.category == 'clothes' %}
+        <div class="flex justify-between" data-addon-row="service_cleaning" {% if not cleaning_line %}hidden{% endif %}>
+          <span>Cleaning / dry-cleaning</span>
+          <span data-addon="service_cleaning">{{ (cleaning_line.amount if cleaning_line else 0) | inr }}</span>
+        </div>
+      {% endif %}
+    {% endif %}
+    {% if pricing.tax_amount %}
+      <div class="flex justify-between"><span>Taxes</span><span data-line="tax_amount">{{ pricing.tax_amount | inr }}</span></div>
+    {% endif %}
+    <div class="flex justify-between text-lg font-extrabold border-t pt-2 mt-1">
+      <span>TOTAL PAYABLE</span><span data-line="total_payable">{{ pricing.total_payable | inr }}</span>
+    </div>
+  </div>
+
+  <!-- Refundable box -->
+  <div class="card bg-green-50 border border-green-200 text-sm space-y-1">
+    <h3 class="font-bold text-green-800">What is refundable</h3>
+    <p class="text-green-900">The security deposit of <strong data-line="refundable">{{ pricing.refundable_amount | inr }}</strong> is returned after the item comes back in good condition and on time.</p>
+  </div>
+
+  <!-- Possible charges later -->
+  <div class="card bg-orange-50 border border-orange-200 text-sm space-y-1">
+    <h3 class="font-bold text-accent">Possible charges later (not included in the total)</h3>
+    <ul class="list-disc pl-5 text-orange-900 space-y-0.5">
+      {% for c in pricing.possible_later_charges %}
+        {% if c.type == 'late_fee' %}
+          <li>Late fee: {{ c.amount | inr }} per day</li>
+        {% else %}
+          <li>{{ c.label }}: up to {{ c.of_deposit_percent }}% of deposit ({{ c.amount | inr }})</li>
+        {% endif %}
+      {% endfor %}
+    </ul>
+    <p class="font-semibold text-green-700 pt-1">No hidden charges: you pay exactly the total shown.</p>
+  </div>
+
+  <!-- Cancellation rule -->
+  <div class="card text-sm text-gray-600">
+    <strong>Cancellation:</strong> full refund if the owner rejects, or you cancel before the owner approves.
+  </div>
+
+  <!-- Agree -->
+  <label class="flex items-start gap-2 text-sm px-1">
+    <input type="checkbox" name="agree" value="1" required class="mt-1 h-5 w-5">
+    <span>I agree to the rental terms and the return date.</span>
+  </label>
+
+  <!-- Payment methods preview -->
+  <div class="card text-sm">
+    <h3 class="font-bold text-gray-800 mb-1">Pay with</h3>
+    <div class="flex flex-wrap gap-2 text-gray-600">
+      <span class="border rounded-full px-3 py-1">UPI</span>
+      <span class="border rounded-full px-3 py-1">Google Pay</span>
+      <span class="border rounded-full px-3 py-1">PhonePe</span>
+      <span class="border rounded-full px-3 py-1">Debit / Credit card</span>
+      {% if item.cod_available %}<span class="border rounded-full px-3 py-1">Cash on pickup</span>{% endif %}
+    </div>
+  </div>
+
+  <button type="submit" id="proceed-btn"
+          class="w-full bg-accent text-white rounded-2xl py-3 text-lg font-bold hover:bg-orange-600 min-h-[44px] disabled:opacity-50">
+    Proceed to Payment
+  </button>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  (function() {
+    var itemId = {{ item.id }};
+    var start = "{{ start.isoformat() }}";
+    var end = "{{ end.isoformat() }}";
+    var form = document.getElementById('checkout-form');
+    function fmt(n) {
+      n = Math.round((Number(n) + Number.EPSILON) * 100) / 100;
+      var whole = (n % 1 === 0);
+      var s = n.toLocaleString('en-IN', {minimumFractionDigits: whole ? 0 : 2, maximumFractionDigits: 2});
+      return '\u20B9' + s;
+    }
+    function setLine(key, val) {
+      document.querySelectorAll('[data-line="' + key + '"]').forEach(function(e){ e.textContent = fmt(val); });
+    }
+    function setAddon(kind, val) {
+      var row = document.querySelector('[data-addon-row="' + kind + '"]');
+      var cell = document.querySelector('[data-addon="' + kind + '"]');
+      if (cell) cell.textContent = fmt(val || 0);
+      if (row) row.hidden = !(val > 0);
+    }
+    function addonQuery() {
+      var parts = [];
+      if (form.querySelector('input[name="protection"]:checked')) parts.push('protection=1');
+      form.querySelectorAll('input[name="services"]:checked').forEach(function(el){
+        parts.push('services=' + encodeURIComponent(el.value));
+      });
+      return parts.length ? '&' + parts.join('&') : '';
+    }
+    function refresh() {
+      var dmEl = form.querySelector('input[name="delivery"]:checked');
+      var dm = dmEl ? dmEl.value : 'pickup';
+      var url = '/api/checkout-price?item_id=' + itemId + '&start=' + encodeURIComponent(start) +
+                '&end=' + encodeURIComponent(end) + '&delivery=' + encodeURIComponent(dm) + addonQuery();
+      fetch(url, {headers: {'Accept': 'application/json'}})
+        .then(function(r){ return r.ok ? r.json() : null; })
+        .then(function(p){
+          if (!p || p.error) return;
+          setLine('rent', p.rent);
+          setLine('deposit', p.deposit);
+          setLine('delivery_charge', p.delivery_charge);
+          setLine('platform_fee', p.platform_fee);
+          (p.addon_lines || []).forEach(function(line){ setAddon(line.kind, line.amount); });
+          setAddon('protection', p.protection_fee || 0);
+          setAddon('service_delivery', (p.addon_lines || []).some(function(l){ return l.kind === 'service_delivery'; }) ? p.addon_lines.filter(function(l){ return l.kind === 'service_delivery'; })[0].amount : 0);
+          setAddon('service_cleaning', (p.addon_lines || []).some(function(l){ return l.kind === 'service_cleaning'; }) ? p.addon_lines.filter(function(l){ return l.kind === 'service_cleaning'; })[0].amount : 0);
+          if (p.tax_amount) setLine('tax_amount', p.tax_amount);
+          setLine('total_payable', p.total_payable);
+          setLine('refundable', p.refundable_amount);
+        })
+        .catch(function(){});
+    }
+    form.querySelectorAll('input[name="delivery"]').forEach(function(el){
+      el.addEventListener('change', refresh);
+    });
+    form.querySelectorAll('.addon-toggle').forEach(function(el){
+      el.addEventListener('change', refresh);
+    });
+
+    // Proceed stays disabled until an address is chosen.
+    var btn = document.getElementById('proceed-btn');
+    function hasAddr() {
+      return !!document.querySelector('input[name="address_id"]:checked');
+    }
+    function gate() { btn.disabled = !hasAddr(); }
+    document.querySelectorAll('input[name="address_id"]').forEach(function(el){
+      el.addEventListener('change', gate);
+    });
+    gate();
+  })();
+</script>
+{% endblock %}

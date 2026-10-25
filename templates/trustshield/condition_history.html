@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}Condition History – {{ item.title }}{% endblock %}
+
+{% block content %}
+<div class="space-y-4">
+  <div class="card">
+    <h1 class="text-xl font-bold">🛡️ Condition History</h1>
+    <p class="text-sm text-gray-600 mt-1">{{ item.title }} · {{ ts_category_label(item.category) }}</p>
+  </div>
+
+  <!-- Every rental on this item, both galleries -->
+  {% for row in timeline %}
+    {% set ctx = row.ctx %}
+    {% set b = row.booking %}
+    <div class="card space-y-2">
+      <h2 class="font-bold text-sm">Rental #{{ b.id }} · {{ b.renter.name }} · {{ b.created_at.strftime('%d %b %Y') if b.created_at else '' }}</h2>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <p class="text-xs font-bold text-gray-500 mb-1">Original condition</p>
+          <div class="grid grid-cols-4 gap-1">
+            {% for e in ts_report_photos(ctx.handover.id if ctx and ctx.handover else None) %}
+              <img src="{{ url_for('trustshield.serve_evidence', evidence_id=e.id) }}" alt="{{ e.angle }}" class="w-full rounded border">
+            {% else %}
+              <span class="text-xs text-gray-400 col-span-4">—</span>
+            {% endfor %}
+          </div>
+        </div>
+        <div>
+          <p class="text-xs font-bold text-gray-500 mb-1">Return condition</p>
+          <div class="grid grid-cols-4 gap-1">
+            {% for e in ts_report_photos(ctx.return.id if ctx and ctx.return else None) %}
+              <img src="{{ url_for('trustshield.serve_evidence', evidence_id=e.id) }}" alt="{{ e.angle }}" class="w-full rounded border">
+            {% else %}
+              <span class="text-xs text-gray-400 col-span-4">—</span>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+      {% if ctx and ctx.cards.damage.has_case %}
+        <p class="text-xs text-gray-600">Damage case: proposed Rs {{ ctx.cards.damage.proposed }}
+           · verified Rs {{ ctx.cards.damage.verified }} · {{ ctx.cards.deposit.text }}</p>
+      {% endif %}
+    </div>
+  {% else %}
+    <div class="card text-sm text-gray-600">No rentals recorded for this item yet.</div>
+  {% endfor %}
+
+  <!-- Full damage history across all rentals -->
+  <div class="card space-y-2">
+    <h2 class="font-bold text-sm">Damage history (all rentals)</h2>
+    {% for d in records %}
+      <div class="border rounded-xl p-2 text-sm flex justify-between items-center gap-2 flex-wrap">
+        <div>
+          <p class="font-semibold">{{ d.damage_type }}
+            <span class="text-xs px-2 py-0.5 rounded-full bg-gray-100">{{ d.status }}</span></p>
+          <p class="text-xs text-gray-500">
+            {% if d.angle %}{{ d.angle }} · {% endif %}
+            {% if d.area %}{{ d.area }} · {% endif %}
+            Rental #{{ d.booking_id or '—' }}
+            · {{ d.created_at.strftime('%d %b %Y') if d.created_at else '' }}
+            {% if d.amount %}· Rs {{ d.amount|int }}{% endif %}
+          </p>
+        </div>
+        {% if d.status in ('existing', 'verified') and not d.repaired_at %}
+          <form method="post" action="{{ url_for('trustshield.mark_repaired', record_id=d.id) }}">
+            <button type="submit" class="bg-green-600 text-white rounded-lg px-3 py-1.5 text-xs font-bold min-h-[44px]">Mark as repaired</button>
+          </form>
+        {% endif %}
+      </div>
+    {% else %}
+      <p class="text-sm text-gray-500">No damage records.</p>
+    {% endfor %}
+  </div>
+
+  <a href="{{ url_for('items.item_detail', item_id=item.id) }}" class="text-sm underline">Back to item</a>
+</div>
+{% endblock %}

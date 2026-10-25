@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Receipt {{ booking.order_id or ('#' ~ booking.id) }} – RentKart</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @page { size: A4; margin: 16mm; }
+    @media print {
+      .no-print { display: none !important; }
+      body { background: #fff; }
+      .receipt { box-shadow: none !important; border: none !important; }
+    }
+  </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+{% set show_phone = booking.status in ('approved', 'picked_up', 'returned') %}
+<div class="max-w-2xl mx-auto p-4">
+
+  <div class="no-print flex justify-between items-center mb-3">
+    <a href="{{ url_for('bookings.booking_detail', booking_id=booking.id) }}" class="text-primary font-bold text-sm">&larr; Back to booking</a>
+    <button onclick="window.print()" class="bg-primary text-white rounded-xl px-4 py-2 font-bold min-h-[44px]">Print / Save as PDF</button>
+  </div>
+
+  <div class="receipt bg-white rounded-2xl shadow p-6">
+    <!-- Header -->
+    <div class="flex justify-between items-start border-b-2 border-primary pb-3">
+      <div>
+        <h1 class="text-2xl font-black text-primary">RentKart</h1>
+        <p class="text-xs text-gray-500">Rental receipt</p>
+      </div>
+      <div class="text-right text-sm">
+        <div class="font-mono font-bold">{{ booking.order_id or ('#' ~ booking.id) }}</div>
+        <div class="text-gray-500">{{ today }}</div>
+      </div>
+    </div>
+
+    <!-- Parties -->
+    <div class="grid grid-cols-2 gap-4 text-sm my-4">
+      <div>
+        <div class="text-gray-500 text-xs uppercase">Renter</div>
+        <div class="font-bold">{{ booking.renter.name }}</div>
+        <div>{{ booking.renter.village_or_city }}</div>
+        {% if show_address and addr.present %}
+          <div class="mt-1 text-xs leading-snug">
+            {{ addr.name_phone }}<br>
+            {% if addr.line1 %}{{ addr.line1 }}, {% endif %}
+            {% if addr.line2 %}{{ addr.line2 }}, {% endif %}
+            {% if addr.line3 %}{{ addr.line3 }}{% endif %}
+          </div>
+        {% endif %}
+      </div>
+      <div>
+        <div class="text-gray-500 text-xs uppercase">Shop</div>
+        <div class="font-bold">{{ booking.item.owner.shop_name or booking.item.owner.name }}</div>
+        <div>{{ booking.item.owner.shop_address or booking.item.owner.village_or_city }}</div>
+        {% if show_phone %}<div>{{ booking.item.owner.phone }}</div>{% endif %}
+      </div>
+    </div>
+
+    <!-- Item + dates -->
+    <div class="text-sm border-t pt-3 space-y-1">
+      <div class="flex justify-between"><span class="text-gray-500">Item</span><span class="font-semibold">{{ booking.item.title }}</span></div>
+      <div class="flex justify-between"><span class="text-gray-500">Category</span><span>{{ booking.item.category | replace('_',' ') | title }}</span></div>
+      <div class="flex justify-between"><span class="text-gray-500">Rental period</span><span>{{ booking.start_date }} &rarr; {{ booking.end_date }} ({{ booking.days }} days)</span></div>
+      <div class="flex justify-between"><span class="text-gray-500">Return by</span><span>{{ booking.end_date }}, {{ return_time }}</span></div>
+    </div>
+
+    <!-- Price lines (snapshot only) -->
+    <table class="w-full text-sm mt-4">
+      <tbody>
+        <tr class="border-b"><td class="py-1">Rent</td><td class="py-1 text-right">{{ booking.total_rent | inr }}</td></tr>
+        <tr class="border-b"><td class="py-1">Security deposit (refundable)</td><td class="py-1 text-right">{{ booking.deposit | inr }}</td></tr>
+        <tr class="border-b"><td class="py-1">Delivery charge</td><td class="py-1 text-right">{{ (booking.delivery_charge or 0) | inr }}</td></tr>
+        <tr class="border-b"><td class="py-1">Platform fee</td><td class="py-1 text-right">{{ (booking.platform_fee or 0) | inr }}</td></tr>
+        {% if booking.tax_amount %}
+          <tr class="border-b"><td class="py-1">Taxes</td><td class="py-1 text-right">{{ booking.tax_amount | inr }}</td></tr>
+        {% endif %}
+        <tr class="font-extrabold text-base"><td class="py-2">Total paid</td><td class="py-2 text-right">{{ booking.total_payable | inr }}</td></tr>
+      </tbody>
+    </table>
+
+    <div class="flex justify-between items-center text-sm border-t pt-3 mt-2">
+      <div><span class="text-gray-500">Method:</span> <strong>{{ method_label }}</strong></div>
+      <div><span class="text-gray-500">Status:</span>
+        <span class="rounded-full px-3 py-1 text-xs font-bold {{ badge[1] }}">{{ badge[0] }}</span>
+      </div>
+    </div>
+
+    <!-- Return instructions -->
+    <div class="mt-4 bg-orange-50 border border-orange-200 rounded-xl p-3 text-xs space-y-1">
+      <div class="font-bold text-accent">Return instructions</div>
+      <p class="text-orange-900">{{ return_policy }}</p>
+      <ul class="list-disc pl-5 text-orange-900 space-y-0.5">
+        {% if late_fee %}<li>Late fee: {{ late_fee | inr }} per day</li>{% endif %}
+        {% for lvl, info in damage_levels.items() %}
+          {% if info.percent %}<li>{{ info.label }}: {{ info.percent }}% of deposit</li>{% endif %}
+        {% endfor %}
+        <li>The security deposit ({{ booking.deposit | inr }}) is refunded after inspection.</li>
+      </ul>
+    </div>
+
+    <p class="text-center text-[11px] text-gray-400 mt-4">This is a computer-generated receipt from RentKart.</p>
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}TrustShield Disputes – Admin{% endblock %}
+
+{% block content %}
+<div class="space-y-4">
+  <h1 class="text-xl font-bold">🛡️ TrustShield Disputes</h1>
+
+  {% if not rows %}
+    <div class="card text-sm text-gray-600">No disputes yet.</div>
+  {% endif %}
+
+  {% for row in rows %}
+    {% set d = row.d %}{% set case = row.case %}
+    <div class="card flex items-center justify-between flex-wrap gap-2">
+      <div class="text-sm">
+        <p class="font-semibold">Dispute #{{ d.id }} · Case #{{ d.case_id }}
+           · Booking #{{ case.booking_id if case else '?' }}</p>
+        <p class="text-xs text-gray-600">{{ row.booking.item.title if row.booking and row.booking.item else '' }}
+           · Reason: {{ d.reason }} · Status: {{ d.status }}
+           · Proposed Rs {{ case.proposed_total|int if case else 0 }}</p>
+      </div>
+      <a href="{{ url_for('trustshield.admin_dispute_detail', dispute_id=d.id) }}"
+         class="bg-primary text-white rounded-xl px-4 py-2 text-sm font-bold min-h-[44px]">Review</a>
+    </div>
+  {% endfor %}
+</div>
+{% endblock %}

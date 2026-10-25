@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+{% block title %}Revenue Settings – Admin – RentKart{% endblock %}
+
+{% block content %}
+{% set overrides = [] %}
+{% for key, value in settings.renter_fee_category_overrides.items() %}
+  {% set _ = overrides.append(key ~ '=' ~ value) %}
+{% endfor %}
+
+<div class="space-y-5 py-4">
+  <div class="flex items-center justify-between flex-wrap gap-2">
+    <div>
+      <span class="text-xs uppercase font-extrabold text-purple-600 tracking-wider">Admin</span>
+      <h1 class="text-2xl font-black text-gray-900 mt-0.5">⚙ Revenue settings</h1>
+      <p class="text-xs text-gray-500 mt-1">Changes apply to new bookings only. Existing bookings keep their snapshotted fee and commission.</p>
+    </div>
+    <div class="flex gap-2">
+      <a href="{{ url_for('revenue.admin_revenue') }}" class="bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 text-xs font-bold px-3 py-2 rounded-xl shadow-sm">← Dashboard</a>
+      <a href="{{ url_for('revenue.admin_ads') }}" class="bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 text-xs font-bold px-3 py-2 rounded-xl shadow-sm">📣 Banners</a>
+    </div>
+  </div>
+
+  <form method="post" class="space-y-4">
+    <section class="card">
+      <h2 class="font-bold text-gray-800 mb-3">Feature switches</h2>
+      <p class="text-[11px] text-gray-500 mb-3">Turning a switch off restores the previous (pre-revenue) behaviour for that feature.</p>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
+        {% for key, label in [
+          ('renter_fee_enabled', 'Renter platform fee'),
+          ('owner_commission_enabled', 'Owner commission'),
+          ('featured_enabled', 'Featured listings'),
+          ('owner_pro_enabled', 'Owner Pro subscription'),
+          ('protection_enabled', 'Damage protection add-on'),
+          ('penalty_share_enabled', 'Late/damage fee share'),
+          ('services_enabled', 'Extra services'),
+          ('ads_enabled', 'Sponsored banners'),
+          ('ledger_enabled', 'Revenue ledger')
+        ] %}
+          <label class="flex items-center gap-2 border rounded-xl px-3 py-2 bg-gray-50">
+            <input type="checkbox" name="{{ key }}" value="1" class="rounded text-primary"
+                   {% if settings[key] %}checked{% endif %}>
+            <span class="font-semibold text-gray-700">{{ label }}</span>
+          </label>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="card">
+      <h2 class="font-bold text-gray-800 mb-3">Renter platform fee</h2>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+        <label class="font-bold text-gray-500 uppercase">Percent
+          <input type="number" step="0.1" min="0" max="50" name="renter_fee_percent"
+                 value="{{ settings.renter_fee_percent }}" class="block w-full border rounded-lg px-2 py-1.5 mt-0.5">
+        </label>
+        <label class="font-bold text-gray-500 uppercase">Minimum (₹)
+          <input type="number" step="0.01" min="0" name="renter_fee_min"
+                 value="{{ '%.2f' | format(settings.renter_fee_min_paise / 100) }}" class="block w-full border rounded-lg px-2 py-1.5 mt-0.5">
+        </label>
+        <label class="font-bold text-gray-500 uppercase">Maximum (₹)
+          <input type="number" step="0.01" min="1" name="renter_fee_max"
+                 value="{{ '%.2f' | format(settings.renter_fee_max_paise / 100) }}" class="block w-full border rounded-lg px-2 py-1.5 mt-0.5">
+        </label>
+        <label class="font-bold text-gray-500 uppercase">Category overrides
+          <input type="text" name="category_overrides" value="{{ overrides | join(', ') }}"
+                 placeholder="clothes=6, books=4" class="block w-full border rounded-lg px-2 py-1.5 mt-0.5">
+        </label>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2 class="font-bold text-gray-800 mb-3">Owner commission &amp; Owner Pro</h2>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+        <label class="font-bold text-gray-500 uppercase">Commission %
+          <input type="number" step="0.1" min="0" max="30" name="owner_commission_percent"
+                 value="{{ settings.owner_commission_percent }}" class="block w-full border rounded-lg px-2 py-1.5 mt-0.5">
+        </label>
+        <label class="font-bold text-gray-500 uppercase">Waive first N bookings
+          <input type="number" min="0" max="100" name="owner_commission_waiver_bookings"
+                 value="{{ settings.owner_commission_waiver_bookings }}" class="block w-full border rounded-lg px-2 py-1.5 mt-0.5">
+        </label>
+        <label class="font-bold text-gray-500 uppercase">Pro price / month (₹)
+          <input type="number" step="0.01" min="0" name="owner_pro_price"
+                 value="{{ '%.2f' | format(settings.owner_pro_price_paise / 100) }}" class="block w-full border rounded-lg px-2 py-1.5 mt-0.5">
+        </label>
+        <label class="font-bold text-gray-500 uppercase">Yearly discount %
+          <input type="number" step="0.1" min="0" max="80" name="owner_pro_yearly_discount_percent"
+                 value="{{ settings.owner_pro_yearly_discount_percent }}" class="block w-full border rounded-lg px-2 py-1.5 mt-0.5">
+        </label>
+        <label class="font-bold text-gray-500 uppercase">Pro commission %
+          <input type="number" step="0.1" min="0" max="30" name="owner_pro_commission_percent"
+                 value="{{ settings.owner_pro_commission_percent }}" class="block w-full border rounded-lg px-2 py-1.5 mt-0.5">
+        </label>
+        <label class="font-bold text-gray-500 uppercase">Pro photo limit
+          <input type="number" min="6" max="30" name="owner_pro_photos"
+                 value="{{ settings.owner_pro_photos }}" class="block w-full border rounded-lg px-2 py-1.5 mt-0.5">
+        </label>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2 class="font-bold text-gray-800 mb-3">Featured listing prices</h2>
+      <div class="grid grid-cols-3 gap-3 text-xs">
+        {% for weeks in ['1', '2', '3'] %}
+          <label class="font-bold text-gray-500 uppercase">{{ weeks }} week{% if weeks|int > 1 %}s{% endif %} (₹)
+            <input type="number" step="0.01" min="0" name="featured_price_{{ weeks }}"
+                   value="{{ '%.2f' | format(settings.featured_prices_paise.get(weeks, 0) / 100) }}"
+                   class="block w-full border rounded-lg px-2 py-1.5 mt-0.5">
+          </label>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="card">
+      <h2 class="font-bold text-gray-800 mb-3">Protection, penalties &amp; services</h2>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+        <label class="font-bold text-gray-500 uppercase">Protection %
+          <input type="number" step="0.1" min="0" max="20" name="protection_percent"
+                 value="{{ settings.protection_percent }}" class="block w-full border rounded-lg px-2 py-1.5 mt-0.5">
+        </label>
+        <label class="font-bold text-gray-500 uppercase">Protection cover (₹)
+          <input type="number" step="0.01" min="0" name="protection_cover"
+                 value="{{ '%.2f' | format(settings.protection_cover_paise / 100) }}" class="block w-full border rounded-lg px-2 py-1.5 mt-0.5">
+        </label>
+        <label class="font-bold text-gray-500 uppercase">Platform penalty share %
+          <input type="number" step="0.1" min="0" max="100" name="penalty_share_percent"
+                 value="{{ settings.penalty_share_percent }}" class="block w-full border rounded-lg px-2 py-1.5 mt-0.5">
+        </label>
+        <label class="font-bold text-gray-500 uppercase">Service margin %
+          <input type="number" step="0.1" min="0" max="90" name="service_margin_percent"
+                 value="{{ settings.service_margin_percent }}" class="block w-full border rounded-lg px-2 py-1.5 mt-0.5">
+        </label>
+        <label class="font-bold text-gray-500 uppercase">Delivery / pickup (₹)
+          <input type="number" step="0.01" min="0" name="service_delivery"
+                 value="{{ '%.2f' | format(settings.service_delivery_paise / 100) }}" class="block w-full border rounded-lg px-2 py-1.5 mt-0.5">
+        </label>
+        <label class="font-bold text-gray-500 uppercase">Cleaning (₹)
+          <input type="number" step="0.01" min="0" name="service_cleaning"
+                 value="{{ '%.2f' | format(settings.service_cleaning_paise / 100) }}" class="block w-full border rounded-lg px-2 py-1.5 mt-0.5">
+        </label>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2 class="font-bold text-gray-800 mb-3">Ledger accounting</h2>
+      <div class="grid grid-cols-2 gap-3 text-xs">
+        <label class="font-bold text-gray-500 uppercase">GST % (included in gross)
+          <input type="number" step="0.1" min="0" max="28" name="gst_percent"
+                 value="{{ settings.gst_percent }}" class="block w-full border rounded-lg px-2 py-1.5 mt-0.5">
+        </label>
+        <label class="font-bold text-gray-500 uppercase">Gateway cost estimate %
+          <input type="number" step="0.1" min="0" max="10" name="gateway_percent"
+                 value="{{ settings.gateway_percent }}" class="block w-full border rounded-lg px-2 py-1.5 mt-0.5">
+        </label>
+      </div>
+    </section>
+
+    <div class="flex justify-end">
+      <button type="submit" class="bg-purple-600 hover:bg-purple-700 text-white font-extrabold text-sm px-5 py-2.5 rounded-xl shadow">
+        Save revenue settings
+      </button>
+    </div>
+  </form>
+</div>
+{% endblock %}

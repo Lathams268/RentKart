@@ -1,0 +1,240 @@
+{% extends "base.html" %}
+{% block title %}Booking #{{ booking.id }} – RentKart{% endblock %}
+
+{% block content %}
+{% set status_colors = {
+  'pending_payment': 'bg-orange-100 text-orange-800',
+  'requested': 'bg-yellow-100 text-yellow-800',
+  'approved': 'bg-green-100 text-green-800',
+  'picked_up': 'bg-blue-100 text-blue-800',
+  'returned': 'bg-gray-100 text-gray-600',
+  'completed': 'bg-emerald-100 text-emerald-800',
+  'rejected': 'bg-red-100 text-red-700',
+  'cancelled': 'bg-red-100 text-red-700',
+} %}
+
+<div class="card space-y-4">
+  <div class="flex items-center justify-between">
+    <h1 class="text-xl font-bold">Booking #{{ booking.id }}</h1>
+    <span class="rounded-full px-3 py-1 text-xs font-bold {{ status_colors.get(booking.status, '') }}">
+      {{ booking.status | upper }}
+    </span>
+  </div>
+
+  {% if booking.order_id %}
+    <div class="text-sm flex justify-between"><span class="text-gray-500">Order ID</span>
+      <span class="font-mono font-bold">{{ booking.order_id }}</span></div>
+  {% endif %}
+
+  <!-- Item info -->
+  <div class="border-t pt-3 text-sm space-y-1">
+    <div class="flex justify-between"><span class="text-gray-500">Item</span>
+      <a href="{{ url_for('items.item_detail', item_id=booking.item.id) }}" class="text-primary font-bold">{{ booking.item.title }}</a>
+    </div>
+    <div class="flex justify-between"><span class="text-gray-500">Dates</span><span>{{ booking.start_date }} → {{ booking.end_date }}</span></div>
+    <div class="flex justify-between"><span class="text-gray-500">Days</span><span>{{ booking.days }}</span></div>
+    <div class="flex justify-between"><span class="text-gray-500">Rent</span><span>{{ booking.total_rent | inr }}</span></div>
+    <div class="flex justify-between"><span class="text-gray-500">Deposit</span><span>{{ booking.deposit | inr }}</span></div>
+    {% if booking.delivery_charge %}
+      <div class="flex justify-between"><span class="text-gray-500">Delivery charge</span><span>{{ booking.delivery_charge | inr }}</span></div>
+    {% endif %}
+    {% if booking.platform_fee %}
+      <div class="flex justify-between"><span class="text-gray-500">Platform fee</span><span>{{ booking.platform_fee | inr }}</span></div>
+    {% endif %}
+    {% if booking.tax_amount %}
+      <div class="flex justify-between"><span class="text-gray-500">Taxes</span><span>{{ booking.tax_amount | inr }}</span></div>
+    {% endif %}
+    <div class="flex justify-between font-bold"><span>Total Payable</span><span>{{ booking.total_payable | inr }}</span></div>
+  </div>
+
+  {% if booking.cancel_reason %}
+    <div class="border-t pt-3 text-sm bg-red-50 border border-red-200 rounded-xl p-3">
+      <span class="font-bold text-red-700">Cancellation reason:</span>
+      <span class="text-red-800">{{ booking.cancel_reason }}</span>
+      {% if booking.cancelled_at %}
+        <span class="block text-xs text-red-500 mt-0.5">Recorded {{ booking.cancelled_at.strftime('%d %b %Y, %I:%M %p') }}</span>
+      {% endif %}
+    </div>
+  {% endif %}
+
+  <!-- Payment -->
+  <div class="border-t pt-3 text-sm space-y-1">
+    <div class="flex justify-between"><span class="text-gray-500">Payment</span>
+      <span>{{ booking.payment_method or '—' }} · {{ booking.payment_status }}</span>
+    </div>
+    {% if booking.payment_status in ('paid', 'paid_demo', 'pay_on_pickup', 'refunded') %}
+      <a href="{{ url_for('bookings.receipt', booking_id=booking.id) }}" class="text-primary font-bold hover:underline">🧾 View receipt</a>
+    {% endif %}
+  </div>
+
+  {% if show_address and addr.present %}
+  <div class="border-t pt-3 text-sm">
+    <span class="text-gray-500">{% if booking.delivery_method == 'delivery' %}Delivery address{% else %}Renter address{% endif %}:</span>
+    <div class="text-gray-700 leading-snug mt-1">
+      {{ addr.name_phone }}<br>
+      {% if addr.line1 %}{{ addr.line1 }}, {% endif %}
+      {% if addr.line2 %}{{ addr.line2 }}, {% endif %}
+      {% if addr.line3 %}{{ addr.line3 }}{% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Renter info & Trust Badge -->
+  <div class="border-t pt-3 text-sm flex justify-between items-center">
+    <div>
+      <span class="text-gray-500">Renter:</span> <strong>{{ booking.renter.name }}</strong>
+    </div>
+    {% if renter_trust %}
+      <span class="text-xs px-2.5 py-0.5 rounded-full font-bold
+        {% if renter_trust.color == 'green' %}bg-green-100 text-green-800 border border-green-300
+        {% elif renter_trust.color == 'yellow' %}bg-yellow-100 text-yellow-800 border border-yellow-300
+        {% else %}bg-red-100 text-red-800 border border-red-300{% endif %}">
+        🛡️ {{ renter_trust.label }} ({{ renter_trust.score }})
+      </span>
+    {% endif %}
+  </div>
+
+  <!-- Phone (visible only after approval) -->
+  {% if booking.status in ('approved', 'picked_up', 'returned') %}
+    <div class="border-t pt-3 text-sm">
+      {% if current_user.id == booking.renter_id %}
+        <span class="text-gray-500">Owner phone:</span> <strong>{{ booking.item.owner.phone }}</strong>
+      {% else %}
+        <span class="text-gray-500">Renter phone:</span> <strong>{{ booking.renter.phone }}</strong>
+      {% endif %}
+    </div>
+  {% endif %}
+
+  <!-- Handover info -->
+  {% if booking.handover_note %}
+    <div class="border-t pt-3 text-sm">
+      <span class="text-gray-500">Handover note:</span> {{ booking.handover_note }}
+    </div>
+  {% endif %}
+
+  <!-- Settlement link if returned -->
+  {% if booking.status == 'returned' and booking.return_record %}
+    <div class="border-t pt-3 flex items-center justify-between">
+      <span class="text-sm font-semibold text-gray-700">Rental Completed & Settled</span>
+      <a href="{{ url_for('bookings.settlement', booking_id=booking.id) }}"
+         class="bg-gray-800 text-white rounded-xl px-4 py-2 text-xs font-bold hover:bg-black shadow">
+        📄 View Settlement Receipt
+      </a>
+    </div>
+  {% endif %}
+
+  <!-- Review section if returned -->
+  {% if booking.status == 'returned' %}
+    <div class="border-t pt-3 text-sm space-y-2">
+      <h3 class="font-bold text-gray-700 text-xs uppercase tracking-wide">Rental Review</h3>
+      {% if booking.review %}
+        <div class="bg-gray-50 rounded-xl p-3 text-xs border space-y-1">
+          <div class="flex items-center gap-1 font-bold text-accent">
+            {% for _ in range(booking.review.rating) %}★{% endfor %}
+            <span class="text-gray-600 font-normal">({{ booking.review.rating }}/5)</span>
+          </div>
+          {% if booking.review.comment %}
+            <p class="text-gray-700 italic">"{{ booking.review.comment }}"</p>
+          {% endif %}
+        </div>
+        {% if current_user.id == booking.renter_id %}
+          <div class="bg-primary/10 border border-primary/20 rounded-xl p-3 text-xs space-y-1.5 mt-2">
+            <span class="font-bold text-gray-800 block">How was your RentKart experience?</span>
+            <p class="text-gray-600 text-[11px]">Tell us how the rental process went or how RentKart can improve.</p>
+            <button type="button" onclick="openFeedbackModal('praise', null, {{ booking.id }}, 'How was your RentKart experience?')"
+                    class="bg-primary hover:bg-green-700 text-white font-bold text-xs px-3 py-1 rounded-lg shadow">
+              💬 Give Experience Feedback
+            </button>
+          </div>
+        {% endif %}
+      {% elif current_user.id == booking.renter_id %}
+        <form method="post" action="{{ url_for('bookings.add_review', booking_id=booking.id) }}" class="space-y-2">
+          <div class="flex items-center gap-2">
+            <label class="text-xs font-medium text-gray-600">Your Rating:</label>
+            <select name="rating" required class="border rounded-lg px-2 py-1 text-xs">
+              <option value="5">⭐⭐⭐⭐⭐ (5/5 Excellent)</option>
+              <option value="4">⭐⭐⭐⭐ (4/5 Good)</option>
+              <option value="3">⭐⭐⭐ (3/5 Average)</option>
+              <option value="2">⭐⭐ (2/5 Below Average)</option>
+              <option value="1">⭐ (1/5 Poor)</option>
+            </select>
+          </div>
+          <input type="text" name="comment" placeholder="Write a comment about this rental (optional)..."
+                 class="w-full border rounded-xl px-3 py-1.5 text-xs">
+          <button type="submit" class="bg-accent text-white rounded-xl px-4 py-1.5 text-xs font-bold hover:bg-orange-600">
+            Submit Review
+          </button>
+        </form>
+      {% endif %}
+    </div>
+  {% endif %}
+
+  <!-- Action buttons -->
+  <div class="border-t pt-3 flex flex-wrap gap-2">
+    {% if current_user.id == booking.renter_id and booking.status == 'pending_payment' %}
+      <a href="{{ url_for('bookings.pay', booking_id=booking.id) }}"
+         class="bg-accent text-white rounded-xl px-4 py-2 text-sm font-bold hover:bg-orange-600 min-h-[44px]">💳 Pay now</a>
+      <form method="post" action="{{ url_for('bookings.cancel', booking_id=booking.id) }}" class="flex flex-wrap gap-2 items-center">
+        <select name="reason" class="border rounded-xl px-3 py-2 text-sm">
+          <option value="">Reason for cancelling…</option>
+          {% for key, label in config.CANCEL_REASONS %}<option value="{{ key }}">{{ label }}</option>{% endfor %}
+        </select>
+        <input type="text" name="reason_note" maxlength="200" placeholder="Optional note"
+               class="border rounded-xl px-3 py-2 text-sm">
+        <button class="bg-red-500 text-white rounded-xl px-4 py-2 text-sm font-bold hover:bg-red-600 min-h-[44px]">Cancel</button>
+      </form>
+    {% endif %}
+
+    {% if current_user.id == booking.renter_id and booking.status in ('requested', 'approved') %}
+      <form method="post" action="{{ url_for('bookings.cancel', booking_id=booking.id) }}" class="flex flex-wrap gap-2 items-center">
+        <select name="reason" class="border rounded-xl px-3 py-2 text-sm">
+          <option value="">Reason for cancelling…</option>
+          {% for key, label in config.CANCEL_REASONS %}<option value="{{ key }}">{{ label }}</option>{% endfor %}
+        </select>
+        <input type="text" name="reason_note" maxlength="200" placeholder="Optional note"
+               class="border rounded-xl px-3 py-2 text-sm">
+        <button class="bg-red-500 text-white rounded-xl px-4 py-2 text-sm font-bold hover:bg-red-600">Cancel</button>
+      </form>
+    {% endif %}
+
+    {% if current_user.id == booking.renter_id and booking.status == 'returned' %}
+      <form method="post" action="{{ url_for('bookings.complete', booking_id=booking.id) }}">
+        <button class="bg-emerald-600 text-white rounded-xl px-4 py-2 text-sm font-bold hover:bg-emerald-700">
+          ✅ Confirm return completed
+        </button>
+      </form>
+    {% endif %}
+
+    {% if current_user.id == booking.item.owner_id and booking.status == 'requested' %}
+      <form method="post" action="{{ url_for('bookings.approve', booking_id=booking.id) }}">
+        <button class="bg-green-600 text-white rounded-xl px-4 py-2 text-sm font-bold hover:bg-green-700">Approve</button>
+      </form>
+      <form method="post" action="{{ url_for('bookings.reject', booking_id=booking.id) }}">
+        <button class="bg-red-500 text-white rounded-xl px-4 py-2 text-sm font-bold hover:bg-red-600">Reject</button>
+      </form>
+    {% endif %}
+
+    {% if not booking.trustshield and current_user.id == booking.item.owner_id and booking.status == 'approved' %}
+      <form method="post" action="{{ url_for('bookings.handover', booking_id=booking.id) }}"
+            enctype="multipart/form-data" class="w-full space-y-2">
+        <input type="text" name="handover_note" placeholder="Handover note (optional)"
+               class="w-full border rounded-xl px-3 py-2 text-sm">
+        <input type="file" name="handover_photo" accept=".png,.jpg,.jpeg"
+               class="w-full border rounded-xl px-3 py-2 text-sm bg-white">
+        <button class="bg-blue-600 text-white rounded-xl px-4 py-2 text-sm font-bold hover:bg-blue-700">
+          Mark Handed Over
+        </button>
+      </form>
+    {% endif %}
+
+    {% if not booking.trustshield and current_user.id == booking.item.owner_id and booking.status == 'picked_up' %}
+      <a href="{{ url_for('bookings.return_item', booking_id=booking.id) }}"
+         class="bg-primary text-white rounded-xl px-4 py-2 text-sm font-bold hover:bg-green-700 shadow">
+        📦 Mark Item Returned & Assess Condition
+      </a>
+    {% endif %}
+
+    {% include "trustshield/_booking_actions.html" %}
+  </div>
+</div>
+{% endblock %}

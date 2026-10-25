@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block title %}My Bookings – RentKart{% endblock %}
+
+{% block content %}
+{% set status_colors = {
+  'pending_payment': 'bg-orange-100 text-orange-800',
+  'requested': 'bg-yellow-100 text-yellow-800',
+  'approved': 'bg-green-100 text-green-800',
+  'picked_up': 'bg-blue-100 text-blue-800',
+  'returned': 'bg-gray-100 text-gray-600',
+  'completed': 'bg-emerald-100 text-emerald-800',
+  'rejected': 'bg-red-100 text-red-700',
+  'cancelled': 'bg-red-100 text-red-700',
+} %}
+{% set order = ['pending_payment', 'picked_up', 'approved', 'requested', 'returned', 'completed', 'rejected', 'cancelled'] %}
+
+<h1 class="text-2xl font-bold mb-4">📋 My Bookings</h1>
+
+{% include "trustshield/_renter_pending.html" %}
+
+{% for status in order %}
+  {% if status in grouped %}
+    <section class="mb-6">
+      <h2 class="font-bold text-lg mb-2">
+        <span class="rounded-full px-3 py-1 text-xs {{ status_colors.get(status, '') }}">{{ status | upper }}</span>
+        <span class="text-sm text-gray-500 ml-1">({{ grouped[status] | length }})</span>
+      </h2>
+      {% for b in grouped[status] %}
+        <div class="card mb-2 hover:shadow-md space-y-2">
+          <div class="flex justify-between items-center">
+            <a href="{{ url_for('bookings.booking_detail', booking_id=b.id) }}" class="font-bold text-sm text-gray-800 hover:text-primary">
+              {{ b.item.title }}
+            </a>
+            <span class="text-xs font-semibold text-gray-600">{{ b.total_payable | inr }}</span>
+          </div>
+
+          <div class="flex justify-between items-center text-xs text-gray-500">
+            <span>{{ b.start_date }} → {{ b.end_date }} ({{ b.days }} days)</span>
+            {% if b.order_id %}<span class="font-mono">{{ b.order_id }}</span>{% endif %}
+          </div>
+
+          {% if status == 'picked_up' and today > b.end_date %}
+            {% set late_days = (today - b.end_date).days %}
+            {% set late_pen = late_days * (b.item.late_fee_per_day or 0) %}
+            <div class="text-xs">
+              <span class="bg-red-100 text-red-700 font-extrabold text-[11px] px-2 py-0.5 rounded-full border border-red-300">
+                ⚠️ OVERDUE {{ late_days }}d (+{{ late_pen | inr }})
+              </span>
+            </div>
+          {% endif %}
+
+          {% if status == 'pending_payment' %}
+            <div class="border-t pt-2 flex justify-between items-center text-xs">
+              <a href="{{ url_for('bookings.pay', booking_id=b.id) }}"
+                 class="bg-accent text-white px-3 py-1.5 rounded-lg font-bold hover:bg-orange-600 min-h-[44px] flex items-center">💳 Pay now</a>
+              <a href="{{ url_for('bookings.booking_detail', booking_id=b.id) }}" class="text-primary font-bold hover:underline">Details</a>
+            </div>
+          {% endif %}
+
+          {% if b.payment_status in ('paid', 'paid_demo', 'pay_on_pickup', 'refunded') %}
+            <div class="border-t pt-2 text-xs">
+              <a href="{{ url_for('bookings.receipt', booking_id=b.id) }}" class="text-primary font-bold hover:underline">🧾 View receipt</a>
+            </div>
+          {% endif %}
+
+          {% if status in ('returned', 'completed') %}
+            <div class="border-t pt-2 flex justify-between items-center text-xs">
+              <a href="{{ url_for('bookings.settlement', booking_id=b.id) }}" class="text-primary font-bold hover:underline">
+                📄 View Settlement
+              </a>
+
+              {% if b.review %}
+                <span class="text-accent font-bold">Rated: {{ b.review.rating }}★</span>
+              {% else %}
+                <a href="{{ url_for('bookings.booking_detail', booking_id=b.id) }}" class="bg-accent text-white px-2.5 py-1 rounded-lg font-bold hover:bg-orange-600">
+                  Rate this rental
+                </a>
+              {% endif %}
+            </div>
+          {% endif %}
+
+          {% if b.trustshield %}{% include "trustshield/_renter_cards.html" %}{% endif %}
+        </div>
+      {% endfor %}
+    </section>
+  {% endif %}
+{% endfor %}
+
+{% if not grouped or grouped.values() | sum(start=[]) | length == 0 %}
+  <div class="card p-8 text-center text-gray-500 my-4">
+    <div class="text-4xl mb-2">📭</div>
+    <h3 class="font-bold text-base text-gray-800">No bookings yet</h3>
+    <p class="text-xs text-gray-500 mt-1 mb-4">You haven't requested or rented any items yet. Start by browsing what's available nearby.</p>
+    <a href="{{ url_for('main.browse') }}"
+       class="inline-flex items-center justify-center bg-primary text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow hover:bg-green-700 min-h-[44px]">
+      🔍 {{ t('Browse Items') }}
+    </a>
+  </div>
+{% endif %}
+{% endblock %}
+

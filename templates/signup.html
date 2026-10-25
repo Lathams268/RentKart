@@ -1,0 +1,224 @@
+{% extends "base.html" %}
+{% block title %}Create account – RentKart{% endblock %}
+
+{% macro field_error(name) -%}
+  {% if errors.get(name) %}<p class="text-xs text-red-600 mt-1">{{ errors[name] }}</p>{% endif %}
+{%- endmacro %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto mt-6">
+  <div class="text-center mb-5">
+    <h1 class="text-2xl font-bold text-gray-900">Create your RentKart account</h1>
+    <p class="text-sm text-gray-500 mt-1">Rent what you need. Earn from what you own.</p>
+  </div>
+
+  {% if errors %}
+    <div class="bg-red-50 border border-red-200 text-red-700 rounded-xl p-3 text-sm mb-4">
+      Please fix the highlighted fields and try again.
+    </div>
+  {% endif %}
+
+  <form method="post" action="{{ url_for('auth.signup') }}" class="card space-y-5" novalidate id="signupForm">
+    <!-- Identity -->
+    <section class="space-y-3">
+      <h2 class="text-sm font-bold text-gray-700 uppercase tracking-wide">Your details</h2>
+
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1" for="name">Full name</label>
+        <input id="name" name="name" type="text" required autocomplete="name" value="{{ form.get('name', '') }}"
+               class="w-full border rounded-xl px-4 py-3 focus:ring-primary focus:border-primary {% if errors.get('name') %}border-red-400{% endif %}">
+        {{ field_error('name') }}
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1" for="email">Email address</label>
+        <input id="email" name="email" type="email" required autocomplete="email" inputmode="email"
+               value="{{ form.get('email', '') }}"
+               class="w-full border rounded-xl px-4 py-3 focus:ring-primary focus:border-primary {% if errors.get('email') %}border-red-400{% endif %}">
+        {{ field_error('email') }}
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1" for="phone">Phone number</label>
+        <div class="flex gap-2">
+          <select name="country" id="country" aria-label="Country code"
+                  class="w-40 border rounded-xl px-2 py-3 bg-gray-50 focus:bg-white text-sm">
+            {% for c in countries %}
+              <option value="{{ c.iso }}" data-dial="{{ c.dial }}" {% if c.iso == default_iso %}selected{% endif %}>{{ c.label }}</option>
+            {% endfor %}
+          </select>
+          <input id="phone" name="phone" type="tel" required autocomplete="tel-national" inputmode="tel"
+                 placeholder="98765 43210" value="{{ form.get('phone', '') }}"
+                 class="flex-1 border rounded-xl px-4 py-3 focus:ring-primary focus:border-primary {% if errors.get('phone') %}border-red-400{% endif %}">
+        </div>
+        <p class="text-xs text-gray-500 mt-1">We store this in international format (E.164) and verify it with a one-time code.</p>
+        {{ field_error('phone') }}
+      </div>
+
+      <div class="grid sm:grid-cols-2 gap-3">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1" for="password">Password</label>
+          <input id="password" name="password" type="password" required autocomplete="new-password"
+                 class="w-full border rounded-xl px-4 py-3 focus:ring-primary focus:border-primary {% if errors.get('password') %}border-red-400{% endif %}"
+                 oninput="updateStrength()">
+          <div class="mt-2 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+            <div id="strengthBar" class="h-full w-0 bg-red-400 transition-all"></div>
+          </div>
+          <p id="strengthText" class="text-xs text-gray-500 mt-1">At least 8 characters, 3 of: lowercase, uppercase, number, symbol.</p>
+          {{ field_error('password') }}
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1" for="confirm_password">Confirm password</label>
+          <input id="confirm_password" name="confirm_password" type="password" required autocomplete="new-password"
+                 class="w-full border rounded-xl px-4 py-3 focus:ring-primary focus:border-primary {% if errors.get('confirm_password') %}border-red-400{% endif %}"
+                 oninput="checkMatch()">
+          <p id="matchText" class="text-xs mt-1 text-gray-500"></p>
+          {{ field_error('confirm_password') }}
+        </div>
+      </div>
+    </section>
+
+    <!-- Address -->
+    <section class="space-y-3 border-t pt-4">
+      <h2 class="text-sm font-bold text-gray-700 uppercase tracking-wide">Address</h2>
+      <div class="grid sm:grid-cols-2 gap-3">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1" for="house_no">Address line 1</label>
+          <input id="house_no" name="house_no" type="text" required autocomplete="address-line1" value="{{ form.get('house_no', '') }}"
+                 class="w-full border rounded-xl px-4 py-3 {% if errors.get('house_no') %}border-red-400{% endif %}">
+          {{ field_error('house_no') }}
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1" for="street">Address line 2 <span class="text-gray-400">(optional)</span></label>
+          <input id="street" name="street" type="text" autocomplete="address-line2" value="{{ form.get('street', '') }}"
+                 class="w-full border rounded-xl px-4 py-3">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1" for="city">City</label>
+          <input id="city" name="city" type="text" required autocomplete="address-level2" value="{{ form.get('city', '') }}"
+                 class="w-full border rounded-xl px-4 py-3 {% if errors.get('city') %}border-red-400{% endif %}">
+          {{ field_error('city') }}
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1" for="state">State / Region</label>
+          <input id="state" name="state" type="text" required autocomplete="address-level1" list="stateList"
+                 value="{{ form.get('state', '') }}"
+                 class="w-full border rounded-xl px-4 py-3 {% if errors.get('state') %}border-red-400{% endif %}">
+          <datalist id="stateList">
+            {% for s in indian_states %}<option value="{{ s }}"></option>{% endfor %}
+          </datalist>
+          {{ field_error('state') }}
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1" for="pincode">Postal code</label>
+          <input id="pincode" name="pincode" type="text" required autocomplete="postal-code" inputmode="numeric"
+                 value="{{ form.get('pincode', '') }}"
+                 class="w-full border rounded-xl px-4 py-3 {% if errors.get('pincode') %}border-red-400{% endif %}">
+          {{ field_error('pincode') }}
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1" for="address_country">Country</label>
+          <input id="address_country" name="address_country" type="text" required autocomplete="country-name"
+                 value="{{ form.get('address_country', 'India') }}"
+                 class="w-full border rounded-xl px-4 py-3 {% if errors.get('address_country') %}border-red-400{% endif %}">
+          {{ field_error('address_country') }}
+        </div>
+      </div>
+    </section>
+
+    <!-- Role + terms -->
+    <section class="space-y-3 border-t pt-4">
+      <h2 class="text-sm font-bold text-gray-700 uppercase tracking-wide">I want to</h2>
+      <div class="grid grid-cols-3 gap-2">
+        {% for value, label, hint in [('renter', 'Rent items', 'Find and book'), ('owner', 'List items', 'Earn from my things'), ('both', 'Both', 'Rent and list')] %}
+        <label class="border rounded-xl p-3 cursor-pointer text-center hover:border-primary transition
+                      {% if form.get('role', 'both') == value %}border-primary bg-green-50{% endif %}">
+          <input type="radio" name="role" value="{{ value }}" class="sr-only" {% if form.get('role', 'both') == value %}checked{% endif %}
+                 onchange="this.closest('section').querySelectorAll('label').forEach(l=>l.classList.remove('border-primary','bg-green-50'));this.closest('label').classList.add('border-primary','bg-green-50')">
+          <span class="block text-sm font-bold text-gray-800">{{ label }}</span>
+          <span class="block text-xs text-gray-500">{{ hint }}</span>
+        </label>
+        {% endfor %}
+      </div>
+      {{ field_error('role') }}
+
+      <label class="flex items-start gap-3 text-sm text-gray-700">
+        <input type="checkbox" name="terms" value="yes" class="mt-1" {% if form.get('terms') %}checked{% endif %} required>
+        <span>I agree to the RentKart terms of service, rental rules and privacy policy, and I confirm the details above are mine.</span>
+      </label>
+      {{ field_error('terms') }}
+    </section>
+
+    <button type="submit" class="w-full bg-primary text-white rounded-2xl py-3 text-lg font-bold hover:bg-green-700 min-h-[44px]">
+      Create account
+    </button>
+    <p class="text-center text-sm text-gray-500">
+      Already have an account? <a href="{{ url_for('auth.login') }}" class="text-primary font-semibold hover:underline">Log in</a>
+    </p>
+  </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function scorePassword(value) {
+    var classes = 0;
+    if (/[a-z]/.test(value)) classes++;
+    if (/[A-Z]/.test(value)) classes++;
+    if (/[0-9]/.test(value)) classes++;
+    if (/[^A-Za-z0-9]/.test(value)) classes++;
+    if (value.length < 8) return {ok: false, classes: classes};
+    return {ok: classes >= 3 || value.length >= 12, classes: classes};
+  }
+  function updateStrength() {
+    var value = document.getElementById('password').value;
+    var result = scorePassword(value);
+    var bar = document.getElementById('strengthBar');
+    var text = document.getElementById('strengthText');
+    var pct = Math.min(100, (value.length / 12) * 60 + result.classes * 10);
+    bar.style.width = pct + '%';
+    bar.className = 'h-full transition-all ' + (result.ok ? 'bg-green-500' : (value.length ? 'bg-orange-400' : 'bg-red-400'));
+    text.textContent = result.ok ? 'Strong enough.' : (value.length ? 'Too weak - add length or more character types.' : 'At least 8 characters, 3 of: lowercase, uppercase, number, symbol.');
+    text.className = 'text-xs mt-1 ' + (result.ok ? 'text-green-600' : 'text-gray-500');
+  }
+  function checkMatch() {
+    var pwd = document.getElementById('password').value;
+    var confirm = document.getElementById('confirm_password').value;
+    var text = document.getElementById('matchText');
+    if (!confirm) { text.textContent = ''; return; }
+    var match = pwd === confirm;
+    text.textContent = match ? 'Passwords match.' : 'Passwords do not match.';
+    text.className = 'text-xs mt-1 ' + (match ? 'text-green-600' : 'text-red-600');
+  }
+  (function syncCountry() {
+    var select = document.getElementById('country');
+    var country = document.getElementById('address_country');
+    if (!select || !country) return;
+    select.addEventListener('change', function () {
+      var name = select.options[select.selectedIndex].text.replace(/\s*\(.*\)\s*$/, '');
+      if (!country.value || country.value === 'India' || country.dataset.auto === '1') {
+        country.value = name;
+        country.dataset.auto = '1';
+      }
+    });
+  })();
+  document.getElementById('signupForm').addEventListener('submit', function (event) {
+    var pwd = document.getElementById('password').value;
+    var confirm = document.getElementById('confirm_password').value;
+    var result = scorePassword(pwd);
+    if (!result.ok) {
+      event.preventDefault();
+      document.getElementById('strengthText').textContent = 'Password is too weak. Use 8+ characters with 3 character types.';
+      document.getElementById('strengthText').className = 'text-xs mt-1 text-red-600';
+      document.getElementById('password').focus();
+      return;
+    }
+    if (pwd !== confirm) {
+      event.preventDefault();
+      document.getElementById('matchText').textContent = 'Passwords do not match.';
+      document.getElementById('matchText').className = 'text-xs mt-1 text-red-600';
+      document.getElementById('confirm_password').focus();
+    }
+  });
+</script>
+{% endblock %}

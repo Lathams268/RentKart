@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}My addresses – RentKart{% endblock %}
+
+{% block content %}
+<div class="max-w-md mx-auto mt-4 space-y-4">
+  <h1 class="text-2xl font-bold">📍 My addresses</h1>
+
+  {% if not addresses %}
+    <p class="text-sm text-gray-500">You have no saved addresses yet. Add one below.</p>
+  {% endif %}
+
+  <!-- Saved addresses -->
+  {% for a in addresses %}
+    <div class="card space-y-2 text-sm">
+      <div class="flex items-center justify-between">
+        <span class="font-bold text-gray-800">{{ a.label }}
+          {% if a.is_default %}<span class="ml-1 text-[10px] bg-green-100 text-green-700 rounded-full px-2 py-0.5 font-bold">Default</span>{% endif %}
+        </span>
+      </div>
+      <div class="text-gray-700 leading-snug">
+        {{ a.full_name }} · {{ a.phone }}<br>
+        {{ a.house_no }}{% if a.building %}, {{ a.building }}{% endif %}<br>
+        {{ a.street }}{% if a.landmark %}, near {{ a.landmark }}{% endif %}<br>
+        {{ a.city }}{% if a.district %}, {{ a.district }}{% endif %}, {{ a.state }} – {{ a.pincode }}
+      </div>
+      <div class="flex flex-wrap gap-2 pt-1">
+        <button type="button" class="text-xs border rounded-lg px-3 py-2 min-h-[44px]" onclick="toggleForm('edit-{{ a.id }}')">Edit</button>
+        {% if not a.is_default %}
+        <form method="post" action="{{ url_for('addresses.address_default', addr_id=a.id) }}">
+          <button class="text-xs border rounded-lg px-3 py-2 min-h-[44px]">Set as default</button>
+        </form>
+        {% endif %}
+        <form method="post" action="{{ url_for('addresses.address_delete', addr_id=a.id) }}"
+              onsubmit="return confirm('Delete this address?')">
+          <button class="text-xs bg-red-50 text-red-600 border border-red-200 rounded-lg px-3 py-2 min-h-[44px]">Delete</button>
+        </form>
+      </div>
+      {% if errors and editing and editing.id == a.id %}
+        <form method="post" action="{{ url_for('addresses.address_edit', addr_id=a.id) }}" class="edit-{{ a.id }} space-y-2 border-t pt-2">
+          {% with form=form, errors=errors, states=states, labels=labels, next=next, submit_label='Update address' %}
+            {% include "_address_fields.html" %}
+          {% endwith %}
+        </form>
+      {% else %}
+        <form method="post" action="{{ url_for('addresses.address_edit', addr_id=a.id) }}" class="edit-{{ a.id }} hidden space-y-2 border-t pt-2">
+          {% with form=a.__dict__, errors={}, states=states, labels=labels, next=next, submit_label='Update address' %}
+            {% include "_address_fields.html" %}
+          {% endwith %}
+        </form>
+      {% endif %}
+    </div>
+  {% endfor %}
+
+  <!-- Add new -->
+  <div class="card space-y-2" id="add-card">
+    <h2 class="font-bold text-gray-800">Add a new address</h2>
+    <form method="post" action="{{ url_for('addresses.address_add') }}" class="space-y-2">
+      {% with form=form, errors=(errors if not editing else {}), states=states, labels=labels, next=next, submit_label='Save address' %}
+        {% include "_address_fields.html" %}
+      {% endwith %}
+    </form>
+  </div>
+
+  <div><a href="{{ url_for('bookings.renter_dashboard') }}" class="text-sm text-primary underline">Back to dashboard</a></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function toggleForm(id) {
+    document.querySelectorAll('.' + id).forEach(function (f) { f.classList.toggle('hidden'); });
+  }
+</script>
+{% endblock %}

@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}Featured Listings – RentKart{% endblock %}
+
+{% block content %}
+<div class="space-y-6 py-4">
+  <div class="flex items-center justify-between flex-wrap gap-2">
+    <div>
+      <span class="text-xs uppercase font-extrabold text-amber-600 tracking-wider">Boost</span>
+      <h1 class="text-2xl font-black text-gray-900 mt-0.5">⭐ Featured listings</h1>
+      <p class="text-xs text-gray-500 mt-1">Featured listings get a badge and appear at the top of search and category rows.</p>
+    </div>
+    <a href="{{ url_for('revenue.owner_earnings') }}"
+       class="bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 text-xs font-bold px-3 py-2 rounded-xl shadow-sm">
+      💰 Back to earnings
+    </a>
+  </div>
+
+  {% if is_pro %}
+    <div class="bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-2xl p-4 shadow">
+      <div class="text-xs uppercase font-extrabold tracking-wider text-purple-100">Owner Pro benefit</div>
+      <div class="font-bold">
+        {% if free_available %}
+          You have 1 free featured week available this month.
+        {% else %}
+          Your free featured week for this month has already been used.
+        {% endif %}
+      </div>
+    </div>
+  {% endif %}
+
+  <section class="card">
+    <h2 class="font-bold text-gray-800 mb-1">Weekly packages</h2>
+    <p class="text-xs text-gray-500 mb-3">Payments are in mock mode. The listing auto-expires after the paid period.</p>
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      {% for weeks, price in prices.items() | sort %}
+        <div class="border-2 border-amber-200 bg-amber-50 rounded-2xl p-4 text-center">
+          <div class="text-2xl font-black text-amber-700">{{ weeks }} week{% if weeks|int > 1 %}s{% endif %}</div>
+          <div class="text-xl font-extrabold text-gray-900 mt-1">{{ price | inr }}</div>
+          <div class="text-[11px] text-amber-700 mt-1">Top placement + badge</div>
+        </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="card p-0 overflow-hidden">
+    <div class="px-4 py-3 border-b">
+      <h2 class="font-bold text-gray-800">Your listings</h2>
+    </div>
+    {% if items %}
+      <div class="divide-y divide-gray-100">
+        {% for item in items %}
+          {% set active_row = active.get(item.id) %}
+          <div class="p-4 flex items-center justify-between flex-wrap gap-3">
+            <div class="min-w-0">
+              <div class="flex items-center gap-2 flex-wrap">
+                <a href="{{ url_for('items.item_detail', item_id=item.id) }}" class="font-bold text-sm text-gray-800 hover:underline truncate max-w-[220px]">{{ item.title }}</a>
+                {% if active_row %}
+                  <span class="bg-gradient-to-r from-amber-500 to-yellow-500 text-white text-[10px] font-extrabold px-2 py-0.5 rounded-full">⭐ Featured</span>
+                  <span class="text-[11px] text-amber-700 font-bold">{{ active_row.days_left }} day(s) left</span>
+                {% endif %}
+              </div>
+              <div class="text-[11px] text-gray-500 mt-0.5">{{ item.category | replace('_', ' ') | title }} · {{ item.price_per_day | inr }}/day</div>
+            </div>
+            <div class="flex items-end gap-2">
+              {% if not active_row %}
+                <form method="post" action="{{ url_for('revenue.owner_featured_buy', item_id=item.id) }}" class="flex items-end gap-2">
+                  <label class="text-[10px] text-gray-500 font-bold uppercase block">
+                    Weeks
+                    <select name="weeks" class="block border rounded-lg px-2 py-1.5 text-xs bg-white">
+                      {% for weeks, price in prices.items() | sort %}
+                        <option value="{{ weeks }}">{{ weeks }} week{% if weeks|int > 1 %}s{% endif %} – {{ price | inr }}</option>
+                      {% endfor %}
+                    </select>
+                  </label>
+                  <button type="submit" class="bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold px-3 py-2 rounded-lg shadow">
+                    Feature now
+                  </button>
+                </form>
+                {% if is_pro and free_available %}
+                  <form method="post" action="{{ url_for('revenue.owner_featured_buy', item_id=item.id) }}">
+                    <input type="hidden" name="weeks" value="1">
+                    <input type="hidden" name="free" value="1">
+                    <button type="submit" class="bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold px-3 py-2 rounded-lg shadow">
+                      Use free week
+                    </button>
+                  </form>
+                {% endif %}
+              {% else %}
+                <span class="text-[11px] text-gray-400">Auto-expires {{ active_row.ends_at.strftime('%d %b %Y') }}</span>
+              {% endif %}
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="p-8 text-center text-sm text-gray-400">You have no listings yet. Add an item first.</div>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

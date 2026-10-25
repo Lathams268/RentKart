@@ -1,0 +1,48 @@
+{# templates/_macros.html – Reusable item image & shop badge macros #}
+
+{% macro item_image(item, height_class="h-40", extra_class="", is_detail=false) %}
+  {% set pic = item_picture(item) %}
+  {% set cat = item.category %}
+  <div class="relative w-full overflow-hidden rounded-xl bg-white {{ extra_class }}" style="aspect-ratio: 4 / 3;">
+    {% if pic.src and pic.kind != 'initials' %}
+      <img src="{{ pic.src }}" alt="{{ item.title }}" loading="lazy" decoding="async"
+           class="absolute inset-0 w-full h-full {{ 'object-contain p-3 bg-white' if pic.fit == 'contain' else 'object-cover' }}">
+    {% elif pic.kind == 'logo' and pic.src %}
+      <img src="{{ pic.src }}" alt="{{ item.title }}" loading="lazy" decoding="async"
+           class="absolute inset-0 w-full h-full object-contain p-6 bg-white">
+    {% else %}
+      <div class="absolute inset-0 flex items-center justify-center bg-gradient-to-b from-primary/80 to-accent/70">
+        <span class="text-2xl font-black text-white">{{ pic.initials or 'RK' }}</span>
+      </div>
+    {% endif %}
+  </div>
+{% endmacro %}
+
+
+{% macro shop_badge(item) %}
+  {% set attrs = item.get_attributes() if item.get_attributes else {} %}
+  {% set brand = attrs.get('brand') %}
+  {% if item.owner and item.owner.shop_name %}
+    <div class="text-xs text-gray-700 font-semibold mb-1 flex items-center gap-1.5 min-h-[24px]">
+      {% set logo_url = shop_logo_url(item.owner) %}
+      {% if logo_url %}
+        <img src="{{ logo_url }}" alt="" class="w-6 h-6 rounded-full object-cover shrink-0 border border-white/70">
+      {% else %}
+        <span class="w-6 h-6 rounded-full shrink-0 inline-flex items-center justify-center bg-primary text-white text-[10px] font-bold">{{ shop_initials(item.owner) }}</span>
+      {% endif %}
+      <span>by
+        {% if item.owner.shop_slug %}
+          <a href="{{ url_for('shop.shop_page', slug=item.owner.shop_slug) }}"
+             class="underline hover:text-primary font-bold">{{ item.owner.shop_name }}</a>
+        {% else %}
+          <span class="font-bold">{{ item.owner.shop_name }}</span>
+        {% endif %}
+      </span>
+    </div>
+  {% elif brand %}
+    <div class="text-xs text-rose-800 font-semibold mb-1 flex items-center gap-1">
+      <span>by</span>
+      <span class="font-bold">{{ brand }}</span>
+    </div>
+  {% endif %}
+{% endmacro %}

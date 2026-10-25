@@ -1,0 +1,227 @@
+{% extends "base.html" %}
+{% block title %}Revenue – Admin – RentKart{% endblock %}
+
+{% block content %}
+{% set status_colors = {
+  'earned': 'bg-green-100 text-green-800',
+  'pending': 'bg-amber-100 text-amber-800',
+  'refunded': 'bg-red-100 text-red-700',
+} %}
+<div class="space-y-6 py-4">
+  <div class="flex items-center justify-between flex-wrap gap-2">
+    <div>
+      <span class="text-xs uppercase font-extrabold text-purple-600 tracking-wider">Admin</span>
+      <h1 class="text-2xl font-black text-gray-900 mt-0.5">📈 Revenue dashboard</h1>
+      <p class="text-xs text-gray-500 mt-1">Platform revenue only. Security deposits are held separately and never counted.</p>
+    </div>
+    <div class="flex gap-2 flex-wrap">
+      <a href="{{ url_for('revenue.admin_settings') }}" class="bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 text-xs font-bold px-3 py-2 rounded-xl shadow-sm">⚙ Settings</a>
+      <a href="{{ url_for('revenue.admin_ads') }}" class="bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 text-xs font-bold px-3 py-2 rounded-xl shadow-sm">📣 Sponsored banners</a>
+      <a href="{{ url_for('revenue.admin_revenue_csv') }}?period={{ period }}{% if period == 'custom' %}&from={{ request.args.get('from', '') }}&to={{ request.args.get('to', '') }}{% endif %}"
+         class="bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold px-3 py-2 rounded-xl shadow">⬇ Export CSV</a>
+    </div>
+  </div>
+
+  <!-- Period filter -->
+  <form method="get" class="card flex items-end gap-3 flex-wrap">
+    <label class="text-[10px] font-bold uppercase text-gray-500">
+      Period
+      <select name="period" class="block border rounded-lg px-2 py-1.5 text-xs bg-white mt-0.5">
+        {% for key, label in [('today', 'Today'), ('7d', 'Last 7 days'), ('30d', 'Last 30 days'), ('custom', 'Custom')] %}
+          <option value="{{ key }}" {% if period == key %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="text-[10px] font-bold uppercase text-gray-500">
+      From
+      <input type="date" name="from" value="{{ request.args.get('from', '') }}"
+             class="block border rounded-lg px-2 py-1.5 text-xs bg-white mt-0.5">
+    </label>
+    <label class="text-[10px] font-bold uppercase text-gray-500">
+      To
+      <input type="date" name="to" value="{{ request.args.get('to', '') }}"
+             class="block border rounded-lg px-2 py-1.5 text-xs bg-white mt-0.5">
+    </label>
+    <button type="submit" class="bg-gray-800 hover:bg-gray-900 text-white text-xs font-bold px-3 py-2 rounded-lg">Apply</button>
+    <span class="text-[11px] text-gray-400">{{ start.strftime('%d %b %Y') }} → {{ end.strftime('%d %b %Y') }}</span>
+  </form>
+
+  <!-- KPI cards -->
+  <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
+    <div class="card p-4 rounded-2xl border border-green-100 bg-gradient-to-br from-green-50 to-white">
+      <span class="text-[10px] text-green-700 font-bold uppercase">Total earned (gross)</span>
+      <div class="text-xl font-black text-primary">{{ totals.earned | inr }}</div>
+    </div>
+    <div class="card p-4 rounded-2xl border border-amber-100 bg-gradient-to-br from-amber-50 to-white">
+      <span class="text-[10px] text-amber-700 font-bold uppercase">Pending</span>
+      <div class="text-xl font-black text-amber-600">{{ totals.pending | inr }}</div>
+    </div>
+    <div class="card p-4 rounded-2xl border border-red-100 bg-gradient-to-br from-red-50 to-white">
+      <span class="text-[10px] text-red-700 font-bold uppercase">Refunded</span>
+      <div class="text-xl font-black text-red-600">{{ totals.refunded | inr }}</div>
+    </div>
+    <div class="card p-4 rounded-2xl border border-gray-100">
+      <span class="text-[10px] text-gray-500 font-bold uppercase">GST collected (included)</span>
+      <div class="text-xl font-extrabold text-gray-800">{{ totals.gst | inr }}</div>
+    </div>
+    <div class="card p-4 rounded-2xl border border-gray-100">
+      <span class="text-[10px] text-gray-500 font-bold uppercase">Net after GST + gateway</span>
+      <div class="text-xl font-extrabold text-gray-900">{{ totals.net | inr }}</div>
+    </div>
+    <div class="card p-4 rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-white">
+      <span class="text-[10px] text-blue-700 font-bold uppercase">Deposits held (not revenue)</span>
+      <div class="text-xl font-extrabold text-blue-700">{{ deposits | inr }}</div>
+    </div>
+  </div>
+
+  <!-- Charts -->
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+    <section class="card">
+      <h2 class="font-bold text-gray-800 mb-3">Revenue per day</h2>
+      {% set max_daily = (daily | map(attribute='value') | max) or 1 %}
+      {% if daily %}
+        <div class="flex items-end gap-[2px] h-40">
+          {% for day in daily %}
+            <div class="flex-1 bg-primary/80 hover:bg-primary rounded-t min-h-[2px]"
+                 style="height: {{ (day.value / max_daily * 100) | round(0) }}%"
+                 title="{{ day.date.strftime('%d %b') }}: {{ day.value | inr }}"></div>
+          {% endfor %}
+        </div>
+        <div class="flex justify-between text-[10px] text-gray-400 mt-1">
+          <span>{{ daily[0].date.strftime('%d %b') }}</span>
+          <span>{{ daily[-1].date.strftime('%d %b') }}</span>
+        </div>
+      {% else %}
+        <div class="text-sm text-gray-400 py-10 text-center">No revenue in this period.</div>
+      {% endif %}
+    </section>
+
+    <section class="card">
+      <h2 class="font-bold text-gray-800 mb-3">Revenue by source</h2>
+      {% if source_rows %}
+        <div class="space-y-2">
+          {% for row in source_rows %}
+            <div>
+              <div class="flex justify-between text-xs">
+                <span class="font-semibold text-gray-700">{{ row.label }}</span>
+                <span class="text-gray-500">{{ row.value | inr }}</span>
+              </div>
+              <div class="mt-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                <div class="h-full bg-purple-500 rounded-full" style="width: {{ row.percent }}%"></div>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="text-sm text-gray-400 py-10 text-center">No earned entries yet.</div>
+      {% endif %}
+    </section>
+  </div>
+
+  <!-- Protection add-on margin -->
+  <section class="card">
+    <div class="flex items-center justify-between flex-wrap gap-2 mb-3">
+      <h2 class="font-bold text-gray-800">🛡 Damage protection: add-on income vs claims</h2>
+      <span class="text-xs font-extrabold {% if protection_margin >= 0 %}text-green-700{% else %}text-red-600{% endif %}">
+        Net margin {{ protection_margin | inr }}
+      </span>
+    </div>
+    <div class="grid grid-cols-2 gap-3 mb-3">
+      <div class="bg-gray-50 rounded-xl p-3">
+        <div class="text-[10px] uppercase text-gray-500 font-bold">Add-on income</div>
+        <div class="font-extrabold text-gray-900">{{ protection_income | inr }}</div>
+      </div>
+      <div class="bg-gray-50 rounded-xl p-3">
+        <div class="text-[10px] uppercase text-gray-500 font-bold">Claims paid</div>
+        <div class="font-extrabold text-gray-900">{{ claims_paid | inr }}</div>
+      </div>
+    </div>
+    {% if protection_addons %}
+      <div class="overflow-x-auto">
+        <table class="w-full text-xs">
+          <thead class="bg-gray-50 text-gray-500 uppercase text-[10px]">
+            <tr>
+              <th class="text-left px-2 py-2">Booking</th>
+              <th class="text-right px-2 py-2">Add-on</th>
+              <th class="text-left px-2 py-2">Claim</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100">
+            {% for addon in protection_addons %}
+              <tr>
+                <td class="px-2 py-2 font-semibold">#{{ addon.booking_id }}</td>
+                <td class="px-2 py-2 text-right">{{ addon.amount_paise | paise_inr }}</td>
+                <td class="px-2 py-2">
+                  {% if addon.booking_id in claimed_booking_ids %}
+                    <span class="bg-green-100 text-green-800 px-2 py-0.5 rounded-full font-bold">Claim recorded</span>
+                  {% else %}
+                    <form method="post" action="{{ url_for('revenue.admin_protection_claim', booking_id=addon.booking_id) }}" class="flex items-center gap-1">
+                      <input type="number" name="amount" step="0.01" min="1" placeholder="₹ claim"
+                             class="border rounded-lg px-2 py-1 text-xs w-24">
+                      <button type="submit" class="bg-gray-800 text-white text-[10px] font-bold px-2 py-1 rounded-lg">Record</button>
+                    </form>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="text-xs text-gray-400">No protection add-ons bought in this period.</div>
+    {% endif %}
+  </section>
+
+  <!-- Recent transactions -->
+  <section class="card p-0 overflow-hidden">
+    <div class="px-4 py-3 border-b flex items-center justify-between">
+      <h2 class="font-bold text-gray-800">Recent transactions</h2>
+      <span class="text-[11px] text-gray-400">Showing {{ recent | length }} of {{ entries | length }}</span>
+    </div>
+    {% if recent %}
+      <div class="overflow-x-auto">
+        <table class="w-full text-xs">
+          <thead class="bg-gray-50 text-gray-500 uppercase text-[10px] tracking-wider">
+            <tr>
+              <th class="text-left px-3 py-2">Date</th>
+              <th class="text-left px-3 py-2">Source</th>
+              <th class="text-right px-3 py-2">Gross</th>
+              <th class="text-right px-3 py-2">GST</th>
+              <th class="text-right px-3 py-2">Gateway</th>
+              <th class="text-right px-3 py-2">Net</th>
+              <th class="text-right px-3 py-2">Status</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100">
+            {% for entry in recent %}
+              <tr class="hover:bg-gray-50">
+                <td class="px-3 py-2 text-gray-500 whitespace-nowrap">
+                  {{ entry.created_at.strftime('%d %b %H:%M') if entry.created_at else '—' }}
+                </td>
+                <td class="px-3 py-2">
+                  <div class="font-semibold text-gray-800">{{ entry.type_label }}</div>
+                  <div class="text-[10px] text-gray-400">
+                    {% if entry.booking_id %}Booking #{{ entry.booking_id }}{% endif %}
+                    {% if entry.note %} · {{ entry.note }}{% endif %}
+                  </div>
+                </td>
+                <td class="px-3 py-2 text-right font-semibold">{{ entry.gross | paise_inr }}</td>
+                <td class="px-3 py-2 text-right text-gray-500">{{ entry.gst | paise_inr }}</td>
+                <td class="px-3 py-2 text-right text-gray-500">{{ entry.gateway_cost | paise_inr }}</td>
+                <td class="px-3 py-2 text-right font-extrabold">{{ entry.net | paise_inr }}</td>
+                <td class="px-3 py-2 text-right">
+                  <span class="px-2 py-0.5 rounded-full font-bold {{ status_colors.get(entry.status, 'bg-gray-100 text-gray-600') }}">
+                    {{ entry.status }}
+                  </span>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="p-8 text-center text-sm text-gray-400">No ledger entries in this period.</div>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

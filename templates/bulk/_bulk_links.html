@@ -1,0 +1,17 @@
+{# Bulk-listing entry links (additive partial - Stage 1). #}
+{# Included by owner_dashboard.html. Uses literal paths so the dashboard renders #}
+{# even before the later bulk routes exist. #}
+<div class="flex flex-wrap gap-2 mb-4">
+  <a href="/bulk/add"
+     class="inline-flex items-center justify-center min-h-[44px] px-4 rounded-xl bg-primary text-white text-sm font-bold shadow hover:bg-green-700">
+    ⬆️ Bulk add
+  </a>
+  <a href="/bulk/edit"
+     class="inline-flex items-center justify-center min-h-[44px] px-4 rounded-xl bg-white text-gray-800 text-sm font-bold border shadow-sm hover:bg-gray-100">
+    ✏️ Bulk edit
+  </a>
+  <a href="{{ url_for('bulk.rules') }}"
+     class="inline-flex items-center justify-center min-h-[44px] px-4 rounded-xl bg-white text-gray-800 text-sm font-bold border shadow-sm hover:bg-gray-100">
+    🏷️ Pricing rules
+  </a>
+</div>

@@ -1,0 +1,330 @@
+{% extends "base.html" %}
+{% block title %}Add Item – RentKart{% endblock %}
+
+{% block content %}
+<h1 class="text-2xl font-bold mb-4">{% if item %}✏️ Edit Listing{% else %}📦 List an Item for Rent{% endif %}</h1>
+
+<form method="post" enctype="multipart/form-data" class="card space-y-4"
+      action="{{ url_for('items.edit_item', item_id=item.id) if item else url_for('items.add_item') }}">
+  <!-- Category -->
+  <div>
+    <label class="block text-sm font-medium text-gray-700 mb-1">Category</label>
+    <select name="category" id="category" required
+            class="w-full border rounded-xl px-4 py-3">
+      <option value="">— Select —</option>
+      {% for key, cat in categories.items() %}
+        <option value="{{ key }}" {% if item and item.category == key %}selected{% endif %}>{{ cat.icon }} {{ cat.label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <!-- Title -->
+  <div>
+    <label class="block text-sm font-medium text-gray-700 mb-1">Title</label>
+    <input type="text" name="title" required placeholder="e.g. Canon DSLR Camera"
+           value="{{ item.title if item else '' }}"
+           class="w-full border rounded-xl px-4 py-3">
+  </div>
+
+  <!-- Description -->
+  <div>
+    <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+    <textarea name="description" rows="3" placeholder="Describe your item…"
+              class="w-full border rounded-xl px-4 py-3">{{ item.description if item else '' }}</textarea>
+  </div>
+
+  <!-- Search tags -->
+  <div>
+    <label class="block text-sm font-medium text-gray-700 mb-1">
+      Search tags <span class="text-xs text-gray-400 font-normal">(optional, comma separated)</span>
+    </label>
+    <input type="text" name="tags" placeholder="e.g. dress, party dress, western, size M"
+           value="{{ item.tags if item else '' }}"
+           class="w-full border rounded-xl px-4 py-3">
+    <p class="text-xs text-gray-400 mt-1">Help renters find this item when they search for words that are not in the title.</p>
+  </div>
+
+  <!-- Smart Price Suggestion Banner -->
+  <div id="price-hint-box" class="hidden p-3.5 bg-green-50 border border-green-200 rounded-2xl text-xs space-y-1.5 transition-all">
+    <div class="flex items-center justify-between flex-wrap gap-2">
+      <div>
+        <div id="price-hint-text" class="font-bold text-gray-800"></div>
+        <div id="price-season-text" class="text-accent font-semibold hidden"></div>
+      </div>
+      <button type="button" id="use-price-btn"
+              class="bg-primary hover:bg-green-700 text-white font-bold px-3 py-1.5 rounded-xl shadow transition text-xs">
+        Use this price
+      </button>
+    </div>
+  </div>
+
+  <!-- Pricing row -->
+  <div class="grid grid-cols-3 gap-2">
+    <div>
+      <label class="block text-xs font-medium text-gray-700 mb-1">₹ / Day</label>
+      <input type="number" name="price_per_day" id="price_per_day" required min="0" step="0.01"
+             value="{{ item.price_per_day if item else '' }}"
+             class="w-full border rounded-xl px-3 py-3">
+    </div>
+    <div>
+      <label class="block text-xs font-medium text-gray-700 mb-1">Deposit ₹</label>
+      <input type="number" name="deposit" min="0" step="0.01" value="{{ (item.deposit or 0) if item else 0 }}"
+             class="w-full border rounded-xl px-3 py-3">
+    </div>
+    <div>
+      <label class="block text-xs font-medium text-gray-700 mb-1">Late Fee ₹/Day</label>
+      <input type="number" name="late_fee_per_day" min="0" step="0.01" value="{{ (item.late_fee_per_day or 0) if item else 0 }}"
+             class="w-full border rounded-xl px-3 py-3">
+    </div>
+  </div>
+
+  <!-- Discount (all categories) -->
+  <div>
+    <label class="block text-sm font-medium text-gray-700 mb-1">Discount % (optional)</label>
+    <input type="number" name="discount_percent" min="0" max="90" step="1" value="{{ (item.discount_percent or 0) if item else 0 }}"
+           class="w-full border rounded-xl px-3 py-3">
+    <p class="text-xs text-gray-400 mt-1">Off the daily price. Leave 0 for no discount.</p>
+  </div>
+
+  <!-- Optional Purchase Price for ROI Tracking -->
+  <div>
+    <label class="block text-sm font-medium text-gray-700 mb-1">
+      What did you pay for this item? <span class="text-xs text-gray-400 font-normal">(Optional &mdash; tracks your ROI & payback)</span>
+    </label>
+    <div class="relative">
+      <span class="absolute left-3.5 top-3 text-gray-400 font-bold text-sm">₹</span>
+      <input type="number" name="purchase_price" id="purchase_price" min="0" step="1"
+             placeholder="e.g. 15000" value="{{ (item.purchase_price or '') if item else '' }}"
+             class="w-full border rounded-xl pl-8 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+    </div>
+  </div>
+
+  <!-- Photos -->
+  <div class="space-y-2">
+    <input type="hidden" name="photos_managed" value="1">
+    <label class="block text-sm font-medium text-gray-700" for="photos">
+      Photos <span class="text-xs text-gray-400 font-normal">(up to 6 · JPG, PNG or WebP · max 5 MB each)</span>
+    </label>
+    <input type="file" name="photos" id="photos" multiple
+           accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
+           class="w-full border rounded-xl px-4 py-3 bg-white">
+    <p class="text-xs text-gray-400">
+      The first photo is used as the cover. Photos are resized automatically.
+      {% if item %}Leave empty to keep the current photos.{% endif %}
+    </p>
+
+    {% if gallery %}
+      <p class="text-xs font-medium text-gray-600 pt-1">Current photos — untick to remove:</p>
+      <div class="flex flex-wrap gap-2">
+        {% for photo in gallery %}
+          <label class="relative w-20 cursor-pointer group">
+            <img src="{{ photo.thumb }}" loading="lazy" decoding="async"
+                 alt="Listing photo" class="w-20 h-20 object-cover rounded-xl border">
+            <input type="checkbox" name="keep_image" value="{{ photo.key }}" checked class="sr-only peer">
+            <span class="absolute inset-0 rounded-xl border-2 border-primary bg-primary/10 peer-checked:opacity-100 opacity-0"></span>
+            <span class="absolute bottom-1 left-1 right-1 text-center text-[10px] font-bold bg-white/90 rounded">Keep</span>
+          </label>
+        {% endfor %}
+      </div>
+    {% endif %}
+  </div>
+
+  <!-- Delivery & cash-on-pickup (all categories) -->
+  <div class="space-y-2 border-t pt-3">
+    <label class="flex items-center gap-2 text-sm font-medium text-gray-700">
+      <input type="checkbox" name="delivery_available" value="1" class="h-5 w-5 text-primary rounded"
+             {% if item and item.delivery_available %}checked{% endif %}>
+      I can deliver
+    </label>
+    <div>
+      <label class="block text-xs font-medium text-gray-700 mb-1">Delivery charge in Rs</label>
+      <input type="number" name="delivery_charge" min="0" step="0.01" value="{{ (item.delivery_charge or 0) if item else 0 }}"
+             class="w-full border rounded-xl px-3 py-3">
+    </div>
+    <label class="flex items-center gap-2 text-sm font-medium text-gray-700">
+      <input type="checkbox" name="cod_available" value="1" class="h-5 w-5 text-primary rounded"
+             {% if not item or item.cod_available %}checked{% endif %}>
+      Cash on pickup accepted
+    </label>
+    {% if item %}
+      <label class="flex items-center gap-2 text-sm font-medium text-gray-700 border-t pt-3">
+        <input type="checkbox" name="is_available" value="1" class="h-5 w-5 text-primary rounded"
+               {% if item.is_available %}checked{% endif %}>
+        Listing is live (uncheck to pause it from browse and new bookings)
+      </label>
+    {% endif %}
+  </div>
+
+  <!-- Hidden location (prefilled from the item or the user) -->
+  <input type="hidden" name="lat" id="lat" value="{{ (item.lat if item and item.lat is not none else current_user.lat) or '' }}">
+  <input type="hidden" name="lng" id="lng" value="{{ (item.lng if item and item.lng is not none else current_user.lng) or '' }}">
+
+  <!-- Dynamic category-specific fields rendered by JS -->
+  <div id="dynamic-fields" class="space-y-3"></div>
+
+  <button type="submit"
+          class="w-full bg-primary text-white rounded-2xl py-4 text-lg font-bold hover:bg-green-700 min-h-[44px]">
+    {{ '💾 Save changes' if item else '🚀 List Item' }}
+  </button>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const CATEGORIES = {{ categories_json | safe }};
+  const ITEM_ATTRS = {{ (attrs or {}) | tojson }};
+  const container = document.getElementById('dynamic-fields');
+  const catSelect = document.getElementById('category');
+  const hintBox = document.getElementById('price-hint-box');
+  const hintText = document.getElementById('price-hint-text');
+  const seasonText = document.getElementById('price-season-text');
+  const usePriceBtn = document.getElementById('use-price-btn');
+  const priceInput = document.getElementById('price_per_day');
+  let currentSuggestedPrice = null;
+
+  async function updatePriceHint(category) {
+    if (!category) {
+      hintBox.classList.add('hidden');
+      return;
+    }
+    try {
+      const res = await fetch('/api/price-hint?category=' + encodeURIComponent(category));
+      if (!res.ok) return;
+      const data = await res.json();
+      hintText.textContent = `Suggested: Rs ${data.min} to Rs ${data.max} per day`;
+      if (data.season_name && data.boosted_min) {
+        seasonText.textContent = `High demand season, you can charge ${data.boost_percent} percent more: Rs ${data.boosted_min} to Rs ${data.boosted_max}`;
+        seasonText.classList.remove('hidden');
+        currentSuggestedPrice = data.boosted_min;
+      } else {
+        seasonText.classList.add('hidden');
+        currentSuggestedPrice = data.min;
+      }
+      hintBox.classList.remove('hidden');
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  usePriceBtn.addEventListener('click', function() {
+    if (currentSuggestedPrice) {
+      priceInput.value = currentSuggestedPrice;
+    }
+  });
+
+  function renderFields(category) {
+    container.innerHTML = '';
+    const cat = CATEGORIES[category];
+    if (!cat) return;
+
+    const selectsByName = {};
+
+    cat.fields.forEach(function(f) {
+      const wrapper = document.createElement('div');
+      const label = document.createElement('label');
+      label.className = 'block text-sm font-medium text-gray-700 mb-1';
+      label.textContent = f.label;
+      wrapper.appendChild(label);
+
+      const saved = ITEM_ATTRS[f.name];
+      let input;
+
+      if (f.type === 'select') {
+        input = document.createElement('select');
+        input.className = 'w-full border rounded-xl px-4 py-3';
+        input.name = 'attr_' + f.name;
+        selectsByName[f.name] = { select: input, field: f };
+
+        const populateOptions = function(opts) {
+          input.innerHTML = '';
+          const blank = document.createElement('option');
+          blank.value = '';
+          blank.textContent = '— Select —';
+          input.appendChild(blank);
+          (opts || []).forEach(function(opt) {
+            const o = document.createElement('option');
+            o.value = opt;
+            o.textContent = opt;
+            input.appendChild(o);
+          });
+        };
+
+        if (f.depends_on) {
+          // Options are filled once the parent value is known.
+          populateOptions([]);
+        } else {
+          populateOptions(f.options || []);
+          if (saved !== undefined && saved !== null) {
+            input.value = String(saved);
+          }
+        }
+      } else if (f.type === 'checkbox') {
+        input = document.createElement('input');
+        input.type = 'checkbox';
+        input.className = 'h-5 w-5 text-primary rounded';
+        input.name = 'attr_' + f.name;
+        input.checked = !!saved;
+      } else if (f.type === 'number') {
+        input = document.createElement('input');
+        input.type = 'number';
+        input.className = 'w-full border rounded-xl px-4 py-3';
+        input.min = '0';
+        input.name = 'attr_' + f.name;
+        if (saved !== undefined && saved !== null) input.value = saved;
+      } else {
+        input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'w-full border rounded-xl px-4 py-3';
+        input.name = 'attr_' + f.name;
+        if (saved !== undefined && saved !== null) input.value = saved;
+      }
+
+      wrapper.appendChild(input);
+      container.appendChild(wrapper);
+    });
+
+    // Wire up dependent select fields, then restore the saved child value.
+    Object.keys(selectsByName).forEach(function(name) {
+      const entry = selectsByName[name];
+      const f = entry.field;
+      if (f.depends_on && selectsByName[f.depends_on]) {
+        const parentSelect = selectsByName[f.depends_on].select;
+        const updateChild = function() {
+          const parentVal = parentSelect.value;
+          const opts = (f.options_by && f.options_by[parentVal]) || [];
+          entry.select.innerHTML = '';
+          const blank = document.createElement('option');
+          blank.value = '';
+          blank.textContent = parentVal ? '— Select —' : ('— Select ' + (selectsByName[f.depends_on].field.label || 'parent') + ' first —');
+          entry.select.appendChild(blank);
+          opts.forEach(function(opt) {
+            const o = document.createElement('option');
+            o.value = opt;
+            o.textContent = opt;
+            entry.select.appendChild(o);
+          });
+        };
+        parentSelect.addEventListener('change', updateChild);
+        if (parentSelect.value) {
+          updateChild();
+        }
+        const savedChild = ITEM_ATTRS[name];
+        if (savedChild !== undefined && savedChild !== null && savedChild !== '') {
+          entry.select.value = String(savedChild);
+        }
+      }
+    });
+  }
+
+  catSelect.addEventListener('change', function() {
+    updatePriceHint(this.value);
+    renderFields(this.value);
+  });
+
+  // Edit mode: pre-fill the saved category fields on first paint.
+  if (catSelect.value) {
+    renderFields(catSelect.value);
+    updatePriceHint(catSelect.value);
+  }
+</script>
+{% endblock %}

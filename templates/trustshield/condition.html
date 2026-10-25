@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}Confirm Condition – RentKart TrustShield{% endblock %}
+
+{% block content %}
+<div class="card space-y-4">
+  <h1 class="text-xl font-bold">✅ Confirm item condition</h1>
+  <p class="text-sm text-gray-600">Item: <strong>{{ booking.item.title }}</strong>
+     · from {{ booking.item.owner.name }}</p>
+
+  {% if report.mismatch_reason %}
+    <div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-xl p-3 text-sm">
+      Last mismatch: {{ report.mismatch_reason }}
+    </div>
+  {% endif %}
+
+  <section>
+    <h2 class="font-bold text-sm mb-2">Photos</h2>
+    <div class="grid grid-cols-2 gap-2">
+      {% for p in photos %}
+        <figure class="border rounded-xl overflow-hidden">
+          <img src="{{ url_for('trustshield.serve_evidence', evidence_id=p.id) }}"
+               alt="{{ p.angle }}" class="w-full h-28 object-cover">
+          <figcaption class="text-[11px] text-gray-600 px-2 py-1">{{ p.angle }}</figcaption>
+        </figure>
+      {% else %}
+        <p class="text-xs text-gray-500">No photos.</p>
+      {% endfor %}
+    </div>
+  </section>
+
+  {% if videos %}
+    <section>
+      <h2 class="font-bold text-sm mb-2">Videos</h2>
+      <div class="space-y-2">
+        {% for v in videos %}
+          <video controls class="w-full rounded-xl" src="{{ url_for('trustshield.serve_evidence', evidence_id=v.id) }}"></video>
+          <p class="text-[11px] text-gray-500">{{ v.angle }}</p>
+        {% endfor %}
+      </div>
+    </section>
+  {% endif %}
+
+  <section>
+    <h2 class="font-bold text-sm mb-1">Condition checklist</h2>
+    <ul class="text-sm space-y-0.5">
+      {% for c in report.get_checklist() %}
+        <li>{{ '✅' if c.ok else '⬜' }} {{ c.item }}</li>
+      {% endfor %}
+    </ul>
+  </section>
+
+  {% if report.get_accessories() %}
+    <section>
+      <h2 class="font-bold text-sm mb-1">Accessories</h2>
+      <p class="text-sm">{{ report.get_accessories() | join(', ') }}</p>
+    </section>
+  {% endif %}
+
+  {% if existing_damages %}
+    <section>
+      <h2 class="font-bold text-sm mb-1">Known existing damage</h2>
+      <ul class="text-sm space-y-0.5">
+        {% for d in existing_damages %}
+          <li>• <strong>{{ d.damage_type }}</strong> — {{ d.area or '' }} {{ d.description or '' }}</li>
+        {% endfor %}
+      </ul>
+    </section>
+  {% endif %}
+
+  {% if report.note %}
+    <section class="bg-gray-50 rounded-xl p-3 text-sm">Owner note: {{ report.note }}</section>
+  {% endif %}
+
+  <div class="border-t pt-3 space-y-3">
+    <form method="post" class="space-y-2">
+      <input type="hidden" name="action" value="confirm">
+      <label class="flex items-start gap-2 text-sm min-h-[44px]">
+        <input type="checkbox" name="confirm_accept" value="1" class="w-5 h-5 mt-0.5">
+        <span>I have checked the photos/videos and confirm this matches the item's condition
+              (including the existing damage listed above).</span>
+      </label>
+      <button type="submit" class="bg-primary text-white rounded-xl px-4 py-2 text-sm font-bold min-h-[44px]">
+        Confirm & accept delivery
+      </button>
+    </form>
+
+    <form method="post" class="space-y-2">
+      <input type="hidden" name="action" value="mismatch">
+      <input type="text" name="mismatch_reason" placeholder="What does not match?"
+             class="w-full border rounded-xl px-3 py-2 text-sm min-h-[44px]">
+      <button type="submit" class="bg-amber-500 text-white rounded-xl px-4 py-2 text-sm font-bold min-h-[44px]">
+        Report a mismatch
+      </button>
+    </form>
+
+    <form method="post">
+      <input type="hidden" name="action" value="cancel">
+      <button type="submit" class="bg-red-500 text-white rounded-xl px-4 py-2 text-sm font-bold min-h-[44px]">
+        Cancel booking (full refund)
+      </button>
+    </form>
+  </div>
+</div>
+{% endblock %}

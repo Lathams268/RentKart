@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% block title %}Damage Report – RentKart TrustShield{% endblock %}
+
+{% block content %}
+<div class="space-y-4">
+  <div class="card">
+    <h1 class="text-xl font-bold">🧾 TrustShield Damage Report</h1>
+    <p class="text-sm text-gray-600 mt-1">Item: <strong>{{ booking.item.title }}</strong>
+       · Case status: <strong>{{ case.status }}</strong></p>
+    {% if case.review_deadline and not case.finalized %}
+      <p class="text-xs text-gray-500 mt-1">Respond by
+        {{ case.review_deadline.strftime('%d %b %Y %H:%M') }}. If you don't respond, nothing is
+        charged automatically — it goes to an admin for review.</p>
+    {% endif %}
+  </div>
+
+  <!-- Deposit summary -->
+  <div class="card">
+    <h2 class="font-bold text-sm mb-1">Security deposit</h2>
+    <p class="text-sm">Deposit held: <strong>{{ deposit|inr }}</strong></p>
+    <p class="text-sm">Late penalty: <strong>{{ late.late_penalty|inr }}</strong>
+       ({{ late.late_days }} day{{ 's' if late.late_days != 1 }})</p>
+    <p class="text-sm">Proposed damage: <strong>Rs {{ case.proposed_total|int }}</strong></p>
+    <p class="text-sm font-semibold mt-1">Refund status: {{ refund_status }}</p>
+  </div>
+
+  <!-- Side-by-side galleries -->
+  {% for g in galleries %}
+    {% set cr = g.cr %}
+    <div class="card space-y-2">
+      <div class="flex items-center justify-between flex-wrap gap-1">
+        <h2 class="font-bold text-sm capitalize">{{ cr.angle }}</h2>
+        <span class="text-xs px-2 py-1 rounded-full bg-gray-100">{{ cr.confidence }}</span>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+        <div><p class="text-xs text-gray-500">Original</p>
+          {% if g.orig %}<img src="{{ url_for('trustshield.serve_evidence', evidence_id=g.orig.id) }}" class="w-full rounded-lg border" alt="original">{% else %}<p class="text-xs text-gray-400">—</p>{% endif %}</div>
+        <div><p class="text-xs text-gray-500">Return</p>
+          {% if g.ret %}<img src="{{ url_for('trustshield.serve_evidence', evidence_id=g.ret.id) }}" class="w-full rounded-lg border" alt="return">{% else %}<p class="text-xs text-gray-400">—</p>{% endif %}</div>
+        <div><p class="text-xs text-gray-500">Overlay</p>
+          {% if g.overlay %}<img src="{{ url_for('trustshield.serve_evidence', evidence_id=g.overlay.id) }}" class="w-full rounded-lg border" alt="overlay">{% else %}<p class="text-xs text-gray-400">—</p>{% endif %}</div>
+      </div>
+      {% if cr.matched_existing %}
+        <p class="text-xs text-amber-700">↩ Previously reported — not your responsibility.</p>
+      {% endif %}
+    </div>
+  {% endfor %}
+
+  <!-- Claimed items -->
+  <div class="card space-y-2">
+    <h2 class="font-bold text-sm">Claimed items</h2>
+    {% for cl in claims %}
+      <div class="border rounded-xl p-2 text-sm">
+        <div class="flex justify-between flex-wrap gap-1">
+          <span><strong>{{ cl.label }}</strong>
+            ({% if cl.percent_of_deposit %}{{ cl.percent_of_deposit|int }}% of deposit{% else %}rule Rs {{ cl.min_amount }}–{{ cl.max_amount }}{% endif %})</span>
+          <span>Proposed Rs {{ cl.proposed_amount|int }} · {{ cl.status }}</span>
+        </div>
+        {% if cl.requires_quote %}
+          <p class="text-xs text-amber-700">Above-range cost — repair quote attached
+            {% if cl.quote_file_id %}
+              <a class="underline" href="{{ url_for('trustshield.serve_evidence', evidence_id=cl.quote_file_id) }}">view</a>
+            {% endif %}
+            {% if not cl.admin_approved %}· pending admin approval{% endif %}</p>
+        {% endif %}
+        {% if booking.renter_id == current_user.id and not case.finalized and case.status in ('awaiting_customer',) and cl.status == 'proposed' %}
+          <label class="flex items-center gap-2 text-xs mt-1 min-h-[44px]">
+            <input type="checkbox" name="accept_claim" value="{{ cl.id }}" class="w-5 h-5">
+            Accept this item (Rs {{ cl.proposed_amount|int }})
+          </label>
+        {% endif %}
+      </div>
+    {% endfor %}
+  </div>
+
+  <!-- Previously reported -->
+  {% if existing_damages %}
+  <div class="card bg-amber-50 border border-amber-200">
+    <h2 class="font-bold text-sm mb-1">Previously reported (not attributed to you)</h2>
+    <ul class="text-xs space-y-1">
+      {% for d in existing_damages %}
+        <li>• {{ d.damage_type }}{% if d.angle %} · {{ d.angle }}{% endif %}
+            · Reported {{ d.created_at.strftime('%d %b %Y') if d.created_at else 'earlier' }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  <!-- Renter actions -->
+  {% if booking.renter_id == current_user.id and not case.finalized and case.status in ('awaiting_customer',) %}
+    {% if not case.dispute %}
+    <form method="post" class="card space-y-3">
+      <h2 class="font-bold text-sm">Your response</h2>
+      <div class="flex flex-wrap gap-2">
+        <button type="submit" name="action" value="accept_all"
+                class="bg-green-600 text-white rounded-xl px-4 py-2 text-sm font-bold min-h-[44px]">
+          Accept all items
+        </button>
+        <button type="submit" name="action" value="accept_some_dispute_rest"
+                class="bg-amber-500 text-white rounded-xl px-4 py-2 text-sm font-bold min-h-[44px]">
+          Accept ticked, dispute the rest
+        </button>
+        <button type="submit" name="action" value="dispute_all"
+                class="bg-red-600 text-white rounded-xl px-4 py-2 text-sm font-bold min-h-[44px]">
+          Dispute all
+        </button>
+      </div>
+      <p class="text-xs text-gray-500">If disputing, tick the items you accept above and fill this in:</p>
+      <label class="block text-xs font-semibold">Reason
+        <select name="reason" class="w-full border rounded-lg px-2 py-2 text-sm min-h-[44px] mt-1">
+          {% for r in dispute_reasons %}<option value="{{ r }}">{{ r }}</option>{% endfor %}
+        </select>
+      </label>
+      <label class="block text-xs font-semibold">Comment (10–600 characters)
+        <textarea name="comment" rows="3" minlength="10" maxlength="600"
+                  class="w-full border rounded-lg px-2 py-2 text-sm mt-1"></textarea>
+      </label>
+      <label class="block text-xs font-semibold">Counter-evidence photos (optional)
+        <input type="file" name="counter" accept=".png,.jpg,.jpeg" multiple
+               class="w-full border rounded-lg px-2 py-2 text-sm min-h-[44px] mt-1">
+      </label>
+    </form>
+    {% else %}
+    <div class="card text-sm">Your dispute is under admin review. Nothing has been charged.</div>
+    {% endif %}
+  {% endif %}
+
+  <a href="{{ url_for('bookings.booking_detail', booking_id=booking.id) }}" class="text-sm underline">Back to booking</a>
+</div>
+{% endblock %}

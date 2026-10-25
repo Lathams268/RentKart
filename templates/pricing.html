@@ -1,0 +1,242 @@
+{% extends "base.html" %}
+{% block title %}Subscription Plans &amp; Pricing – RentKart{% endblock %}
+
+{% block content %}
+<div class="space-y-8 py-4">
+  <div class="text-center space-y-2">
+    <h1 class="text-3xl font-extrabold text-gray-900">Choose the Right Plan for Your Rental Business</h1>
+    <p class="text-sm text-gray-500 max-w-lg mx-auto">
+      Lower commission fees, list more items, unlock digital QR posters, and boost your earnings across your neighborhood.
+    </p>
+
+    <!-- Monthly / Yearly Toggle -->
+    <div class="inline-flex items-center gap-3 bg-gray-100 p-1.5 rounded-full mt-4 border">
+      <button id="monthlyBtn" onclick="setBillingCycle('monthly')"
+              class="px-4 py-1.5 rounded-full text-xs font-bold transition bg-primary text-white shadow">
+        Monthly Billing
+      </button>
+      <button id="yearlyBtn" onclick="setBillingCycle('yearly')"
+              class="px-4 py-1.5 rounded-full text-xs font-bold transition text-gray-600 hover:text-black">
+        Yearly (2 Months Free 🎉)
+      </button>
+    </div>
+  </div>
+
+  <!-- Plan Cards -->
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+    <!-- Free Plan -->
+    <div class="card border rounded-2xl p-6 flex flex-col justify-between relative bg-white hover:shadow-lg transition">
+      <div class="space-y-4">
+        <div>
+          <span class="text-xs uppercase font-extrabold text-gray-400 tracking-wider">Starter</span>
+          <h2 class="text-2xl font-bold text-gray-900 mt-1">Free</h2>
+          <p class="text-xs text-gray-500">Perfect for renting occasional tools and items.</p>
+        </div>
+        <div class="py-2">
+          <span class="text-4xl font-black text-gray-900">₹0</span>
+          <span class="text-xs text-gray-500">/ forever</span>
+        </div>
+        <ul class="text-xs space-y-2 text-gray-600">
+          <li class="flex items-center gap-2">✅ <strong>Up to 5 items</strong> listed</li>
+          <li class="flex items-center gap-2">✅ <strong>10%</strong> platform commission</li>
+          <li class="flex items-center gap-2 text-gray-400">❌ Digital QR Poster</li>
+          <li class="flex items-center gap-2 text-gray-400">❌ Featured ranking on browse</li>
+        </ul>
+      </div>
+      <div class="pt-6">
+        {% if current_user.is_authenticated %}
+          <a href="{{ url_for('bookings.owner_dashboard') }}"
+             class="block w-full text-center py-2.5 rounded-xl text-xs font-bold bg-gray-100 hover:bg-gray-200 text-gray-800 transition">
+            Start free
+          </a>
+        {% else %}
+          <a href="{{ url_for('auth.login') }}"
+             class="block w-full text-center py-2.5 rounded-xl text-xs font-bold bg-gray-100 hover:bg-gray-200 text-gray-800 transition">
+            Start free
+          </a>
+        {% endif %}
+      </div>
+
+    </div>
+
+    <!-- Pro Plan (Most Popular) -->
+    <div class="card border-2 border-primary rounded-2xl p-6 flex flex-col justify-between relative bg-white shadow-md hover:shadow-xl transition">
+      <div class="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary text-white text-[11px] font-extrabold px-3 py-0.5 rounded-full tracking-wide shadow">
+        MOST POPULAR
+      </div>
+      <div class="space-y-4">
+        <div>
+          <span class="text-xs uppercase font-extrabold text-primary tracking-wider">Growth</span>
+          <h2 class="text-2xl font-bold text-gray-900 mt-1">Pro</h2>
+          <p class="text-xs text-gray-500">For active sellers with ongoing equipment rentals.</p>
+        </div>
+        <div class="py-2">
+          <span class="text-4xl font-black text-primary price-pro">₹99</span>
+          <span class="text-xs text-gray-500 cycle-label">/ month</span>
+          <p class="text-[11px] text-green-700 font-semibold savings-pro hidden">Billed ₹990/year (Save ₹198)</p>
+        </div>
+        <ul class="text-xs space-y-2 text-gray-700">
+          <li class="flex items-center gap-2">✅ <strong>Up to 25 items</strong> listed</li>
+          <li class="flex items-center gap-2">✅ <strong>5% low commission</strong> (Save 50%)</li>
+          <li class="flex items-center gap-2">✅ <strong>Printable A4 QR Poster</strong> included</li>
+          <li class="flex items-center gap-2 text-gray-400">❌ Featured ranking on browse</li>
+        </ul>
+      </div>
+      <div class="pt-6">
+        <a id="proLink" href="{{ url_for('subscriptions.subscribe', plan='pro') }}?cycle=monthly"
+           class="block w-full text-center py-2.5 rounded-xl text-xs font-bold bg-primary hover:bg-green-700 text-white shadow transition">
+          Choose Pro
+        </a>
+      </div>
+    </div>
+
+    <!-- Business Plan -->
+    <div class="card border rounded-2xl p-6 flex flex-col justify-between relative bg-white hover:shadow-lg transition">
+      <div class="space-y-4">
+        <div>
+          <span class="text-xs uppercase font-extrabold text-purple-600 tracking-wider">Pro Business</span>
+          <h2 class="text-2xl font-bold text-gray-900 mt-1">Business</h2>
+          <p class="text-xs text-gray-500">For commercial rental shops &amp; event suppliers.</p>
+        </div>
+        <div class="py-2">
+          <span class="text-4xl font-black text-gray-900 price-biz">₹299</span>
+          <span class="text-xs text-gray-500 cycle-label">/ month</span>
+          <p class="text-[11px] text-green-700 font-semibold savings-biz hidden">Billed ₹2990/year (Save ₹598)</p>
+        </div>
+        <ul class="text-xs space-y-2 text-gray-700">
+          <li class="flex items-center gap-2">✅ <strong>Unlimited items</strong> (9,999 limit)</li>
+          <li class="flex items-center gap-2">✅ <strong>Lowest 2% commission</strong> (Save 80%)</li>
+          <li class="flex items-center gap-2">✅ <strong>Printable A4 QR Poster</strong> included</li>
+          <li class="flex items-center gap-2">⭐ <strong>Featured badge &amp; top ranking</strong></li>
+        </ul>
+      </div>
+      <div class="pt-6">
+        <a id="bizLink" href="{{ url_for('subscriptions.subscribe', plan='business') }}?cycle=monthly"
+           class="block w-full text-center py-2.5 rounded-xl text-xs font-bold bg-gray-900 hover:bg-black text-white shadow transition">
+          Choose Business
+        </a>
+      </div>
+    </div>
+  </div>
+
+  {% if revenue_features.owner_pro %}
+  {% set pro_month = revenue_settings.owner_pro_price_paise / 100 %}
+  {% set pro_year = pro_month * 12 * (100 - revenue_settings.owner_pro_yearly_discount_percent) / 100 %}
+  <!-- Owner Pro (additive revenue plan; existing plans above are unchanged) -->
+  <section class="card border-2 border-purple-200 rounded-2xl p-6 bg-gradient-to-br from-purple-50 to-white">
+    <div class="flex items-start justify-between flex-wrap gap-4">
+      <div class="space-y-1">
+        <span class="text-xs uppercase font-extrabold text-purple-600 tracking-wider">Add-on plan</span>
+        <h2 class="text-2xl font-bold text-gray-900">Owner Pro</h2>
+        <p class="text-xs text-gray-500 max-w-md">Lower commission, more photos, listing analytics and a free featured week every month.</p>
+      </div>
+      <div class="text-right">
+        <div class="text-3xl font-black text-purple-700">₹{{ '%.0f' | format(pro_month) }}<span class="text-xs font-medium text-gray-500"> / month</span></div>
+        <div class="text-[11px] text-green-700 font-semibold">Yearly ₹{{ '%.0f' | format(pro_year) }} (save {{ revenue_settings.owner_pro_yearly_discount_percent | round(0) | int }}%)</div>
+      </div>
+    </div>
+    <ul class="text-xs space-y-2 text-gray-700 mt-4 grid grid-cols-1 sm:grid-cols-2 gap-1">
+      <li class="flex items-center gap-2">✅ <strong>{{ revenue_settings.owner_pro_commission_percent }}% commission</strong> on every booking</li>
+      <li class="flex items-center gap-2">✅ <strong>{{ revenue_settings.owner_pro_photos }} photos</strong> per listing</li>
+      <li class="flex items-center gap-2">✅ <strong>Listing analytics</strong> on your earnings page</li>
+      <li class="flex items-center gap-2">⭐ <strong>1 free featured week</strong> every month</li>
+    </ul>
+    <div class="flex gap-2 flex-wrap pt-4">
+      <a href="{{ url_for('revenue.owner_pro', cycle='monthly') }}"
+         class="bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold px-4 py-2 rounded-xl shadow transition">
+        Owner Pro monthly
+      </a>
+      <a href="{{ url_for('revenue.owner_pro', cycle='yearly') }}"
+         class="bg-white border border-purple-300 hover:bg-purple-50 text-purple-700 text-xs font-bold px-4 py-2 rounded-xl shadow-sm transition">
+        Owner Pro yearly
+      </a>
+    </div>
+  </section>
+  {% endif %}
+
+  <!-- Comparison Table -->
+  <div class="card p-6 rounded-2xl overflow-x-auto">
+    <h3 class="text-base font-bold text-gray-800 mb-4">Detailed Plan Comparison</h3>
+    <table class="w-full text-left text-xs border-collapse">
+      <thead>
+        <tr class="border-b bg-gray-50">
+          <th class="p-3 font-bold text-gray-600">Feature</th>
+          <th class="p-3 font-bold text-gray-800">Free</th>
+          <th class="p-3 font-bold text-primary">Pro (₹99/mo)</th>
+          <th class="p-3 font-bold text-gray-900">Business (₹299/mo)</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-100">
+        <tr>
+          <td class="p-3 font-medium text-gray-700">Item Listing Limit</td>
+          <td class="p-3">5 items</td>
+          <td class="p-3 font-semibold text-primary">25 items</td>
+          <td class="p-3 font-semibold text-gray-900">Unlimited (9,999)</td>
+        </tr>
+        <tr>
+          <td class="p-3 font-medium text-gray-700">Platform Commission Fee</td>
+          <td class="p-3">10%</td>
+          <td class="p-3 font-semibold text-primary">5%</td>
+          <td class="p-3 font-semibold text-green-700">2% only</td>
+        </tr>
+        <tr>
+          <td class="p-3 font-medium text-gray-700">Printable A4 QR Shop Poster</td>
+          <td class="p-3 text-red-500 font-bold">❌ Locked</td>
+          <td class="p-3 text-green-600 font-bold">✅ Included</td>
+          <td class="p-3 text-green-600 font-bold">✅ Included</td>
+        </tr>
+        <tr>
+          <td class="p-3 font-medium text-gray-700">Featured Badge &amp; Top Browse Sort</td>
+          <td class="p-3 text-gray-400">No</td>
+          <td class="p-3 text-gray-400">No</td>
+          <td class="p-3 text-green-600 font-bold">⭐ Yes (Top placement)</td>
+        </tr>
+        <tr>
+          <td class="p-3 font-medium text-gray-700">Digital Shop &amp; WhatsApp Share</td>
+          <td class="p-3 text-green-600 font-bold">✅ Included</td>
+          <td class="p-3 text-green-600 font-bold">✅ Included</td>
+          <td class="p-3 text-green-600 font-bold">✅ Included</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+  let currentCycle = 'monthly';
+  function setBillingCycle(cycle) {
+    currentCycle = cycle;
+    const mBtn = document.getElementById('monthlyBtn');
+    const yBtn = document.getElementById('yearlyBtn');
+    const proPrice = document.querySelector('.price-pro');
+    const bizPrice = document.querySelector('.price-biz');
+    const cycleLabels = document.querySelectorAll('.cycle-label');
+    const savPro = document.querySelector('.savings-pro');
+    const savBiz = document.querySelector('.savings-biz');
+    const proLink = document.getElementById('proLink');
+    const bizLink = document.getElementById('bizLink');
+
+    if (cycle === 'yearly') {
+      yBtn.className = "px-4 py-1.5 rounded-full text-xs font-bold transition bg-primary text-white shadow";
+      mBtn.className = "px-4 py-1.5 rounded-full text-xs font-bold transition text-gray-600 hover:text-black";
+      proPrice.innerText = "₹990";
+      bizPrice.innerText = "₹2990";
+      cycleLabels.forEach(el => el.innerText = "/ year");
+      savPro.classList.remove('hidden');
+      savBiz.classList.remove('hidden');
+      proLink.href = "{{ url_for('subscriptions.subscribe', plan='pro') }}?cycle=yearly";
+      bizLink.href = "{{ url_for('subscriptions.subscribe', plan='business') }}?cycle=yearly";
+    } else {
+      mBtn.className = "px-4 py-1.5 rounded-full text-xs font-bold transition bg-primary text-white shadow";
+      yBtn.className = "px-4 py-1.5 rounded-full text-xs font-bold transition text-gray-600 hover:text-black";
+      proPrice.innerText = "₹99";
+      bizPrice.innerText = "₹299";
+      cycleLabels.forEach(el => el.innerText = "/ month");
+      savPro.classList.add('hidden');
+      savBiz.classList.add('hidden');
+      proLink.href = "{{ url_for('subscriptions.subscribe', plan='pro') }}?cycle=monthly";
+      bizLink.href = "{{ url_for('subscriptions.subscribe', plan='business') }}?cycle=monthly";
+    }
+  }
+</script>
+{% endblock %}
